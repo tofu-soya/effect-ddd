@@ -1,4 +1,10 @@
-import { Repository, FindOptionsWhere, FindOptionsOrder } from 'typeorm';
+import {
+  Repository,
+  FindOptionsWhere,
+  FindOptionsOrder,
+  DataSource,
+  EntityManager,
+} from 'typeorm';
 import {
   FindManyPaginatedParams,
   RepositoryPort,
@@ -9,12 +15,15 @@ import { Arr, pipe, TE, Option, Either } from '@logic/fp';
 import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
 import { AggregateRoot } from '@model/aggregate-root.base';
 import { Identifier } from 'src/typeclasses/obj-with-id';
-import { AggregateTypeORMEntityBase } from './base-entity';
 import { BaseAggregateQueryParams } from './base-repository-with-mapper';
+import {
+  ENTITY_MANAGER_KEY,
+  getNamespaceInstance,
+} from 'src/infra/nestjs/cls.middleware';
 
 export abstract class TypeormRepositoryBase<
   Entity extends AggregateRoot,
-  OrmEntity extends AggregateTypeORMEntityBase,
+  OrmEntity extends Entity,
   QueryParams extends BaseAggregateQueryParams = BaseAggregateQueryParams,
 > implements RepositoryPort<Entity>
 {
@@ -22,23 +31,36 @@ export abstract class TypeormRepositoryBase<
   protected tableName: string;
 
   constructor(
-    protected readonly repository: Repository<OrmEntity>,
-    protected readonly logger: Logger,
-  ) {
-    this.tableName = repository.metadata.tableName;
+    private readonly dataSource: DataSource,
+    private readonly entity: new () => Entity,
+    private readonly logger: Logger,
+  ) {}
+
+  public getEntityManager(): EntityManager {
+    const namespace = getNamespaceInstance();
+    return namespace.get(ENTITY_MANAGER_KEY);
   }
 
+  public getRepository(): Repository<Entity> {
+    let entityManager: EntityManager = this.getEntityManager();
+
+    if (!entityManager) {
+      //For no transactional
+      entityManager = this.dataSource.manager;
+    }
+    return entityManager.getRepository(this.entity);
+  }
   // Abstract methods for conversion
   protected abstract toDomain(
-    ormEntity: OrmEntity,
+    ormEntity: Entity,
   ): Either.Either<BaseException, Entity>;
   protected abstract toEntity(
     domain: Entity,
-    initial: Option.Option<OrmEntity>,
-  ): TE.TaskEither<BaseException, OrmEntity>;
+    initial: Option.Option<Entity>,
+  ): TE.TaskEither<BaseException, Entity>;
   protected abstract prepareQuery(
     params: QueryParams,
-  ): FindOptionsWhere<OrmEntity>;
+  ): FindOptionsWhere<Entity>;
 
   save(entity: Entity): TE.TaskEither<BaseException, void> {
     return pipe(
@@ -46,7 +68,7 @@ export abstract class TypeormRepositoryBase<
       TE.chain((ormEntity) =>
         TE.tryCatch(
           async () => {
-            await this.repository.save(ormEntity);
+            await this.getRepository().save([ormEntity]);
           },
           (error) =>
             BaseExceptionTrait.construct(
@@ -64,7 +86,7 @@ export abstract class TypeormRepositoryBase<
       TE.chain((ormEntity) =>
         TE.tryCatch(
           async () => {
-            await this.repository.save(ormEntity);
+            await this.getRepository().save(ormEntity);
           },
           (error) =>
             BaseExceptionTrait.construct(
@@ -89,7 +111,7 @@ export abstract class TypeormRepositoryBase<
       TE.chain((ormEntities) =>
         TE.tryCatch(
           async () => {
-            await this.repository.save(ormEntities);
+            await this.getRepository().save(ormEntities);
           },
           (error) =>
             BaseExceptionTrait.construct(
@@ -107,7 +129,7 @@ export abstract class TypeormRepositoryBase<
     return pipe(
       TE.tryCatch(
         async () => {
-          const entity = await this.repository.findOne({
+          const entity = await this.getRepository().findOne({
             where: this.prepareQuery(params as QueryParams),
             relations: this.relations,
           });
@@ -154,7 +176,7 @@ export abstract class TypeormRepositoryBase<
     return pipe(
       TE.tryCatch(
         async () => {
-          const entity = await this.repository.findOne({
+          const entity = await this.getRepository().findOne({
             where: { id } as unknown as FindOptionsWhere<OrmEntity>,
             relations: this.relations,
           });
@@ -179,7 +201,7 @@ export abstract class TypeormRepositoryBase<
     return pipe(
       TE.tryCatch(
         async () => {
-          const entities = await this.repository.find({
+          const entities = await this.getRepository().find({
             where: this.prepareQuery(params as QueryParams),
             relations: this.relations,
           });
@@ -222,7 +244,7 @@ export abstract class TypeormRepositoryBase<
       TE.bind('total', () =>
         TE.tryCatch(
           async () =>
-            this.repository.count({
+            this.getRepository().count({
               where: this.prepareQuery(params as QueryParams),
             }),
           (error) =>
@@ -235,7 +257,7 @@ export abstract class TypeormRepositoryBase<
       TE.bind('entities', () =>
         TE.tryCatch(
           async () =>
-            this.repository.find({
+            this.getRepository().find({
               where: this.prepareQuery(params as QueryParams),
               skip,
               take,
@@ -269,7 +291,7 @@ export abstract class TypeormRepositoryBase<
   delete(entity: Entity): TE.TaskEither<BaseException, void> {
     return TE.tryCatch(
       async () => {
-        await this.repository.delete(entity.id);
+        await this.getRepository().delete(entity.id);
       },
       (error) =>
         BaseExceptionTrait.construct(
