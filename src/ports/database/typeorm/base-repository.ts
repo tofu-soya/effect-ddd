@@ -4,13 +4,13 @@ import {
   FindOptionsOrder,
   DataSource,
   EntityManager,
+  ObjectLiteral,
 } from 'typeorm';
 import {
   FindManyPaginatedParams,
   RepositoryPort,
   DataWithPaginationMeta,
 } from '@ports/repository.base';
-import { Logger } from '@ports/logger.base';
 import { Arr, pipe, TE, Option, Either } from '@logic/fp';
 import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
 import { AggregateRoot } from '@model/aggregate-root.base';
@@ -22,26 +22,25 @@ import {
 } from 'src/infra/nestjs/cls.middleware';
 
 export abstract class TypeormRepositoryBase<
-  Entity extends AggregateRoot,
-  OrmEntity extends Entity,
+  DM extends AggregateRoot,
+  OrmEntity extends ObjectLiteral,
   QueryParams extends BaseAggregateQueryParams = BaseAggregateQueryParams,
-> implements RepositoryPort<Entity>
+> implements RepositoryPort<DM>
 {
   protected abstract relations: string[];
   protected tableName: string;
 
   constructor(
     private readonly dataSource: DataSource,
-    private readonly entity: new () => Entity,
-    private readonly logger: Logger,
-  ) {}
+    private readonly entity: new () => OrmEntity,
+  ) { }
 
   public getEntityManager(): EntityManager {
     const namespace = getNamespaceInstance();
     return namespace.get(ENTITY_MANAGER_KEY);
   }
 
-  public getRepository(): Repository<Entity> {
+  public getRepository(): Repository<OrmEntity> {
     let entityManager: EntityManager = this.getEntityManager();
 
     if (!entityManager) {
@@ -52,17 +51,17 @@ export abstract class TypeormRepositoryBase<
   }
   // Abstract methods for conversion
   protected abstract toDomain(
-    ormEntity: Entity,
-  ): Either.Either<BaseException, Entity>;
+    ormEntity: OrmEntity,
+  ): Either.Either<BaseException, DM>;
   protected abstract toEntity(
-    domain: Entity,
-    initial: Option.Option<Entity>,
-  ): TE.TaskEither<BaseException, Entity>;
+    domain: DM,
+    initial: Option.Option<OrmEntity>,
+  ): TE.TaskEither<BaseException, OrmEntity>;
   protected abstract prepareQuery(
     params: QueryParams,
-  ): FindOptionsWhere<Entity>;
+  ): FindOptionsWhere<OrmEntity>;
 
-  save(entity: Entity): TE.TaskEither<BaseException, void> {
+  save(entity: DM): TE.TaskEither<BaseException, void> {
     return pipe(
       this.toEntity(entity, Option.none),
       TE.chain((ormEntity) =>
@@ -80,7 +79,7 @@ export abstract class TypeormRepositoryBase<
     );
   }
 
-  add(entity: Entity): TE.TaskEither<BaseException, void> {
+  add(entity: DM): TE.TaskEither<BaseException, void> {
     return pipe(
       this.toEntity(entity, Option.none),
       TE.chain((ormEntity) =>
@@ -98,7 +97,7 @@ export abstract class TypeormRepositoryBase<
     );
   }
 
-  saveMultiple(entities: Entity[]): TE.TaskEither<BaseException, void> {
+  saveMultiple(entities: DM[]): TE.TaskEither<BaseException, void> {
     if (entities.length === 0) {
       return TE.right(undefined);
     }
@@ -125,7 +124,7 @@ export abstract class TypeormRepositoryBase<
 
   findOne(
     params: Partial<QueryParams> = {},
-  ): TE.TaskEither<BaseException, Option.Option<Entity>> {
+  ): TE.TaskEither<BaseException, Option.Option<DM>> {
     return pipe(
       TE.tryCatch(
         async () => {
@@ -151,7 +150,7 @@ export abstract class TypeormRepositoryBase<
 
   findOneOrThrow(
     params: Partial<QueryParams> = {},
-  ): TE.TaskEither<BaseException, Entity> {
+  ): TE.TaskEither<BaseException, DM> {
     return pipe(
       this.findOne(params),
       TE.chain((optionEntity) =>
@@ -172,7 +171,7 @@ export abstract class TypeormRepositoryBase<
     );
   }
 
-  findOneByIdOrThrow(id: Identifier): TE.TaskEither<BaseException, Entity> {
+  findOneByIdOrThrow(id: Identifier): TE.TaskEither<BaseException, DM> {
     return pipe(
       TE.tryCatch(
         async () => {
@@ -197,7 +196,7 @@ export abstract class TypeormRepositoryBase<
 
   findMany(
     params: Partial<QueryParams> = {},
-  ): TE.TaskEither<BaseException, Entity[]> {
+  ): TE.TaskEither<BaseException, DM[]> {
     return pipe(
       TE.tryCatch(
         async () => {
@@ -230,7 +229,7 @@ export abstract class TypeormRepositoryBase<
     orderBy,
   }: FindManyPaginatedParams<QueryParams>): TE.TaskEither<
     BaseException,
-    DataWithPaginationMeta<Entity[]>
+    DataWithPaginationMeta<DM[]>
   > {
     const skip =
       pagination?.skip ??
@@ -288,7 +287,7 @@ export abstract class TypeormRepositoryBase<
     );
   }
 
-  delete(entity: Entity): TE.TaskEither<BaseException, void> {
+  delete(entity: DM): TE.TaskEither<BaseException, void> {
     return TE.tryCatch(
       async () => {
         await this.getRepository().delete(entity.id);
