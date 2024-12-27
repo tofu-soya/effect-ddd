@@ -2,7 +2,7 @@
 
 This repository showcases my dedicated exploration of Domain-Driven Design (DDD) coupled with the functional programming paradigm.
 
-In the realm of DDD, the conventional approach involves leveraging Object-Oriented Programming (OOP) and an object model to implement tactical strategies. My journey began by adopting this methodology for my Python library, crafted specifically for DDD practices in Python projects (You can check this repo here - https://github.com/YLcorp/python-ddd-seedwork).
+In the realm of DDD, the conventional approach involves leveraging Object-Oriented Programming (OOP) and an object model to implement tactical strategies. My journey began by adopting this methodology for my Python library, crafted specifically for DDD practices in Python projects.
 
 However, over time, I came to the realization that OOP often steers our attention towards the tactical aspects of DDD, overshadowing the strategic elements—arguably the crux of DDD. Engaging with OOP patterns, such as the decorator pattern and grappling with the complexities of inheritance, diverted focus from modeling real-world objects to contending with the intricacies inherent in OOP. This unintentional shift led to a lapse in concentration on the more crucial strategy pattern.
 
