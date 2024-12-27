@@ -34,8 +34,9 @@ export const getAggGenericTraitForType = <E extends AggregateRoot>() =>
 
 export const getBaseAGTrait = <
   A extends AggregateRoot,
-  I = AggregateLiken<A>,
-  P = WithEntityMetaInput<I>,
+  NewParams = AggregateLiken<A>,
+  ParsingParams = WithEntityMetaInput<NewParams>,
 >(
-  config: BaseDMTraitFactoryConfig<A, I, P>,
-) => getBaseDMTrait<A, I, P>(AggGenericTrait.factory)(config);
+  config: BaseDMTraitFactoryConfig<A, NewParams, ParsingParams>,
+): AggregateTrait<A, NewParams, ParsingParams> =>
+  getBaseDMTrait<A, NewParams, ParsingParams>(AggGenericTrait.factory)(config);

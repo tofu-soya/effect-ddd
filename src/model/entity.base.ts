@@ -85,7 +85,6 @@ const construct: IEntityGenericTrait['factory'] =
           });
         }),
       );
-
     return pipe(
       Either.Do,
       Either.bind('meta', () => parserMetaLike(props)),

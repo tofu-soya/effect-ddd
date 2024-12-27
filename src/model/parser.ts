@@ -23,12 +23,13 @@ import { ifElse } from 'ramda';
 
 export const optionizeParser =
   <T, I, E extends ValidationErr>(parser: Parser<T, I, E>) =>
-  (optionV: Option.Option<I>) =>
-    pipe(
+  (optionV: Option.Option<I>) => {
+    return pipe(
       optionV,
       Option.map((v) => parser(v)),
       Option.sequence(Either.Applicative),
     );
+  };
 
 const StrIntOrder: Ord<string> = {
   equals: S.Eq.equals,

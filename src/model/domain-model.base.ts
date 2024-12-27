@@ -45,13 +45,16 @@ export const GenericDomainModelTrait: IGenericDomainModelTrait = {
   structParsingProps,
 };
 
+export interface NewFunc<D, NewParams> {
+  (params: NewParams): Validation<D>;
+}
 export interface DomainModelTrait<
   D extends DomainModel,
   NewParams = any,
   ParserParam = any,
 > {
   parse: Parser<D, ParserParam>;
-  new: (params: NewParams) => Validation<D>;
+  new: NewFunc<D, NewParams>;
 }
 
 export type StdPropsParser<DM extends DomainModel, I = unknown> = Parser<
@@ -89,14 +92,14 @@ export interface BaseDMTraitFactoryConfig<
 }
 
 export const getBaseDMTrait =
-  <DM extends DomainModel, I = unknown, ParserOP = unknown>(
-    factory: ParserFactory<DM, ParserOP>,
+  <DM extends DomainModel, NewParams = unknown, ParsingParams = unknown>(
+    factory: ParserFactory<DM, ParsingParams>,
   ) =>
-  (config: BaseDMTraitFactoryConfig<DM, I, ParserOP>) => {
+  (config: BaseDMTraitFactoryConfig<DM, NewParams, ParsingParams>) => {
     const { parseProps, tag, parserOpt } = config;
     const parse = factory(parseProps)(tag, parserOpt);
     return {
       parse: parse,
-      new: parse,
+      new: parse as unknown as NewFunc<DM, NewParams>,
     };
   };
