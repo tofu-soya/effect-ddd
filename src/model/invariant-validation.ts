@@ -103,7 +103,7 @@ export const ValidationTrait = {
   checkCondition,
 };
 
-export type ValueOfValidation<B> = B extends Validation<infer A> ? A : unknown;
+export type ValueOfValidation<B> = B extends Validation<infer A> ? A : any;
 export type ValidationWithKey<A> = Either.Either<ValidationErrByKey, A>;
 
 export const toValidationErr = (key: Option.Option<string>) =>
