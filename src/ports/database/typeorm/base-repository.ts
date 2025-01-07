@@ -5,6 +5,7 @@ import {
   DataSource,
   EntityManager,
   ObjectLiteral,
+  EntityTarget,
 } from 'typeorm';
 import {
   FindManyPaginatedParams,
@@ -33,11 +34,17 @@ export abstract class TypeormRepositoryBase<
   constructor(
     private readonly dataSource: DataSource,
     private readonly entity: new () => OrmEntity,
-  ) { }
+  ) {}
 
   public getEntityManager(): EntityManager {
     const namespace = getNamespaceInstance();
     return namespace.get(ENTITY_MANAGER_KEY);
+  }
+
+  public getEntityRepository<T extends ObjectLiteral>(
+    entity: new () => T,
+  ): Repository<T> {
+    return this.getEntityManager().getRepository(entity);
   }
 
   public getRepository(): Repository<OrmEntity> {
@@ -69,11 +76,12 @@ export abstract class TypeormRepositoryBase<
           async () => {
             await this.getRepository().save([ormEntity]);
           },
-          (error) =>
-            BaseExceptionTrait.construct(
+          (error) => {
+            return BaseExceptionTrait.construct(
               'SAVE_AGGREGATE_FIELD',
               `Failed to save aggregate: ${error}`,
-            ),
+            );
+          },
         ),
       ),
     );
