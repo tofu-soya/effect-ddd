@@ -49,6 +49,21 @@ export const unsafeUnwrapEither = <E, R>(t: Either.Either<E, R>) => {
   );
 };
 
+export const tapPrintTE =
+  <T>(formater: (result: T) => string = (result) => `${result}`) =>
+  (printer: (content: string) => void = console.log) =>
+  (result: T) => {
+    printer(formater(result));
+    return TE.right(result);
+  };
+export const tapPrintEither =
+  <T>(formater: (result: T) => string = (result) => `${result}`) =>
+  (printer: (content: string) => void = console.log) =>
+  (result: T) => {
+    printer(formater(result));
+    return Either.right(result);
+  };
+
 export const unsafeUnwrapTE = <E, R>(te: TE.TaskEither<E, R>) => {
   return pipe(
     te,
