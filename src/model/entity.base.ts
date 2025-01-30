@@ -383,7 +383,7 @@ export interface IEntityGenericTrait<
     raw: ParsingInput<E['props']>,
   ) => Validation<E['props']>;
   getTag: (dV: Entity) => string;
-  unpack: <E extends Entity>(dV: Entity) => GetProps<E>;
+  unpack: <E extends Entity>(dV: E) => GetProps<E>;
   updateProps: <ET extends Entity>(props: GetProps<ET>) => (et: ET) => ET;
 }
 
