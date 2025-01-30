@@ -5,14 +5,13 @@ import {
   DataSource,
   EntityManager,
   ObjectLiteral,
-  EntityTarget,
 } from 'typeorm';
 import {
   FindManyPaginatedParams,
   RepositoryPort,
   DataWithPaginationMeta,
 } from '@ports/repository.base';
-import { Arr, pipe, TE, Option, Either } from '@logic/fp';
+import { Arr, pipe, TE, Option } from '@logic/fp';
 import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
 import { AggregateRoot } from '@model/aggregate-root.base';
 import { Identifier } from 'src/typeclasses/obj-with-id';
@@ -38,7 +37,13 @@ export abstract class TypeormRepositoryBase<
 
   public getEntityManager(): EntityManager {
     const namespace = getNamespaceInstance();
-    return namespace.get(ENTITY_MANAGER_KEY);
+    let entityManager = namespace.get(ENTITY_MANAGER_KEY);
+
+    if (!entityManager) {
+      //For no transactional
+      entityManager = this.dataSource.manager;
+    }
+    return entityManager;
   }
 
   public getEntityRepository<T extends ObjectLiteral>(
@@ -59,7 +64,7 @@ export abstract class TypeormRepositoryBase<
   // Abstract methods for conversion
   protected abstract toDomain(
     ormEntity: OrmEntity,
-  ): Either.Either<BaseException, DM>;
+  ): TE.TaskEither<BaseException, DM>;
   protected abstract toEntity(
     domain: DM,
     initial: Option.Option<OrmEntity>,
@@ -150,7 +155,7 @@ export abstract class TypeormRepositoryBase<
       ),
       TE.chain((entity) =>
         entity
-          ? pipe(this.toDomain(entity), Either.map(Option.some), TE.fromEither)
+          ? pipe(this.toDomain(entity), TE.map(Option.some))
           : TE.right(Option.none),
       ),
     );
@@ -198,7 +203,7 @@ export abstract class TypeormRepositoryBase<
             `Failed to find entity by id: ${error}`,
           ),
       ),
-      TE.chain((entity) => pipe(this.toDomain(entity), TE.fromEither)),
+      TE.chain((entity) => pipe(this.toDomain(entity))),
     );
   }
 
@@ -224,7 +229,7 @@ export abstract class TypeormRepositoryBase<
         pipe(
           entities,
           Arr.traverse(TE.ApplicativeSeq)((entity) =>
-            pipe(this.toDomain(entity), TE.fromEither),
+            pipe(this.toDomain(entity)),
           ),
         ),
       ),
@@ -282,7 +287,7 @@ export abstract class TypeormRepositoryBase<
         pipe(
           entities,
           Arr.traverse(TE.ApplicativeSeq)((entity) =>
-            pipe(this.toDomain(entity), TE.fromEither),
+            pipe(this.toDomain(entity)),
           ),
           TE.map((domainEntities) => ({
             data: domainEntities,
