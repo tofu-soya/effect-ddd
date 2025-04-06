@@ -3,6 +3,7 @@
   "version": "2.0.64",
   "description": "Node typescript seedwork",
   "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "author": "tuancaurao <tuancr.pt@gmail.com>",
   "license": "MIT",
   "typesVersions": {
@@ -50,7 +51,8 @@
   },
   "dependencies": {
     "@fp-ts/optic": "0.19.0",
-    "@nestjs/common": "^10.4.15",
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/cqrs": "~11.0.1",
     "amqp-connection-manager": "^4.1.11",
     "amqplib": "^0.10.3",
     "cls-hooked": "^4.2.2",
@@ -64,7 +66,7 @@
     "http-status": "^1.5.2",
     "immer": "^10.0.2",
     "io-ts": "^2.2.20",
-    "io-ts-types": "^0.5.19",
+    "io-ts-types": "0.5.19",
     "monocle-ts": "^2.3.13",
     "morgan": "^1.10.0",
     "nanoid": "^3.3.4",

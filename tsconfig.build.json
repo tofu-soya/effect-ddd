@@ -11,7 +11,7 @@
     "target": "es2019",
     "outDir": "./dist",
     "declaration": true,
-    // "declarationMap": true,
+    "declarationMap": true,
     // "declarationDir": "dist/_types",
     "paths": {
       "@application/*": [

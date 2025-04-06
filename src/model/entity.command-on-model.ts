@@ -1,4 +1,4 @@
-import { Either, pipe } from '@logic/fp';
+import { Either, TE, pipe } from '@logic/fp';
 import { Entity } from './entity.base.type';
 import {
   BehaviorMonad,
@@ -9,6 +9,7 @@ import { BaseException } from '@logic/exception.base';
 import { GetProps } from 'src/typeclasses';
 import { GenericDomainModelTrait } from './domain-model.base';
 import { EntityGenericTrait } from './entity.base';
+import { IEventBus } from './event/event-bus';
 
 export type CommandOnModelReturn<DM extends Entity> = Either.Either<
   BaseException,
@@ -131,6 +132,29 @@ export const fromModel2Events: <DM extends Entity>(
   events: DomainEvent[],
 ) => Either.right(BehaviorMonadTrait.of(entity, events));
 
+export type WithEvents<T> = {
+  result: T;
+  events: DomainEvent[];
+};
+
+export const publishEventsAndGetResult = <T>(eventBus: IEventBus) => {
+  return (
+    taskEither: TE.TaskEither<BaseException, WithEvents<T>>,
+  ): TE.TaskEither<BaseException, T> =>
+    pipe(
+      taskEither,
+      TE.tap(({ events }) =>
+        TE.tryCatch(
+          async () => {
+            events.forEach((event) => eventBus.publish(event));
+          },
+          (error) => error as BaseException,
+        ),
+      ),
+      TE.map(({ result }) => result),
+    );
+};
+
 export const CommandOnModelTrait = {
   fromException,
   fromModel2Events,
@@ -139,4 +163,5 @@ export const CommandOnModelTrait = {
   chainWithModelProps,
   mapWithModelProps,
   fold,
+  execute: publishEventsAndGetResult,
 };

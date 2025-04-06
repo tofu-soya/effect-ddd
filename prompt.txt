@@ -1,0 +1,6709 @@
+Project Path: src
+
+Source Tree:
+
+```
+src
+├── types
+│   ├── ExcludeFunctionProps.ts
+│   ├── index.ts
+│   ├── function.ts
+│   └── Class.ts
+├── infra
+│   └── nestjs
+│       └── cls.middleware.ts
+├── index.ts
+├── model
+│   ├── index.ts
+│   ├── invariant-validation.ts
+│   ├── aggregate-root.base.ts
+│   ├── value-objects
+│   │   ├── PositiveNumber.ts
+│   │   ├── index.ts
+│   │   ├── Enum.ts
+│   │   ├── Kyc.ts
+│   │   ├── URL.ts
+│   │   ├── Person.ts
+│   │   ├── NoneEmptyString.ts
+│   │   ├── File.ts
+│   │   └── Money.ts
+│   ├── entity.command-on-model.ts
+│   ├── io-related-auxiliry-func.ts
+│   ├── domain-model.base.ts
+│   ├── value-object.base.ts
+│   ├── domain-service.base.ts
+│   ├── parser.ts
+│   ├── entity.base.ts
+│   ├── domain-model.base.type.ts
+│   ├── event
+│   │   ├── handler.base.ts
+│   │   ├── index.ts
+│   │   └── domain-event.base.ts
+│   ├── entity.base.type.ts
+│   └── domain-model-behavior.monad.ts
+├── ports
+│   ├── mapper.base.ts
+│   ├── pubsub
+│   │   ├── implement
+│   │   │   └── kv-even-handling-tracker.ts
+│   │   ├── index.ts
+│   │   ├── notification-reader.ts
+│   │   ├── rabbitmq
+│   │   │   ├── message-consumer.ts
+│   │   │   ├── message-type.ts
+│   │   │   ├── index.ts
+│   │   │   ├── message-listener.ts
+│   │   │   ├── queue.ts
+│   │   │   ├── broker-component.ts
+│   │   │   ├── connection-setting.ts
+│   │   │   ├── exchange.ts
+│   │   │   └── exchange-listener.ts
+│   │   └── event-handling-tracker.base.ts
+│   ├── json.ts
+│   ├── index.ts
+│   ├── repository.base.ts
+│   ├── logger.base.ts
+│   ├── uow.ts
+│   ├── database
+│   │   ├── keyvalue
+│   │   │   ├── implement
+│   │   │   │   └── redis
+│   │   │   │       └── redis.key-value.repository.ts
+│   │   │   ├── index.ts
+│   │   │   └── key-value.repository.ts
+│   │   └── typeorm
+│   │       ├── datasource.ts
+│   │       ├── columns.ts
+│   │       ├── base-repository-with-mapper.ts
+│   │       ├── index.ts
+│   │       ├── dbconfig.base.ts
+│   │       ├── inject-repository.ts
+│   │       ├── base-entity.ts
+│   │       ├── unit-of-work.ts
+│   │       ├── base-repository.ts
+│   │       └── base-mapper.ts
+│   └── domain-logger.ts
+├── typeclasses
+│   ├── index.ts
+│   ├── obj-with-id.ts
+│   ├── has-props.ts
+│   └── withtime.ts
+├── serializer
+│   ├── index.ts
+│   └── JsonReader.ts
+├── typeorm.ts
+├── application
+│   ├── index.ts
+│   ├── di.ts
+│   ├── lifecyle.meta.ts
+│   ├── usecase.base.ts
+│   ├── transaction-monad.ts
+│   ├── command.base.ts
+│   └── query.base.ts
+├── logic
+│   ├── index.ts
+│   ├── utils
+│   │   ├── index.ts
+│   │   ├── date.ts
+│   │   ├── string.ts
+│   │   └── array.ts
+│   ├── fp.ts
+│   ├── parser.ts
+│   └── exception.base.ts
+└── aim
+    ├── index.ts
+    └── supertoken
+        └── index.ts
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/types/ExcludeFunctionProps.ts`:
+
+```ts
+export type ExcludeFunctionProps<T> = Omit<
+  T,
+  {
+    [K in keyof T]-?: T[K] extends (...args: any[]) => any ? K : never;
+  }[keyof T]
+>;
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/types/index.ts`:
+
+```ts
+export * from './Class';
+export * from './ExcludeFunctionProps';
+
+export type Writable<T> = {
+  -readonly [P in keyof T]: T[P];
+};
+
+export type Brand<K, T> = K & { __brand: T };
+
+export type KeyOf<T> = keyof T extends never ? string : keyof T;
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/types/function.ts`:
+
+```ts
+export type ArbFunction = (...args: any[]) => any;
+
+export type FutureArbFnc = (...args: any[]) => Promise<any>;
+
+export type FirstArgumentType<T extends (...args: any[]) => any> =
+  Parameters<T>[0];
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/types/Class.ts`:
+
+```ts
+export type Class<T> = new (...args: any[]) => T;
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/infra/nestjs/cls.middleware.ts`:
+
+```ts
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
+import { createNamespace, getNamespace, Namespace } from 'cls-hooked';
+
+const NAMESPACE_NAME = 'TransactionalNamespace';
+const namespace = createNamespace(NAMESPACE_NAME);
+
+export const getNamespaceInstance = (): Namespace => {
+  return getNamespace(NAMESPACE_NAME) || namespace;
+};
+
+export const ENTITY_MANAGER_KEY = 'ENTITY_MANAGER';
+
+@Injectable()
+export class ClsMiddleware implements NestMiddleware {
+  use(req: Request, res: Response, next: NextFunction) {
+    const namespace = getNamespaceInstance();
+    namespace.run(() => {
+      next();
+    });
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/index.ts`:
+
+```ts
+export * from './application';
+export * from './logic';
+export * from './model';
+export * from './ports';
+export * from './types';
+// export * as rabbitmq from './ports/pubsub/rabbitmq';
+export * from './serializer';
+export * from './ports/pubsub';
+export * from './aim';
+export * from './typeclasses';
+export * as typeorm from './ports/database/typeorm';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/index.ts`:
+
+```ts
+export * from './entity.base';
+export * from './entity.base.type';
+export * from './entity.command-on-model';
+export * from './domain-model.base';
+export * from './domain-model.base.type';
+export * from './domain-service.base';
+export * from './value-object.base';
+export * from './aggregate-root.base';
+export * from './invariant-validation';
+export * from './domain-model-behavior.monad';
+export * from './event';
+export * from './value-objects';
+export * from './io-related-auxiliry-func';
+export * from './parser';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/invariant-validation.ts`:
+
+```ts
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+import { Arr, Either, NEA, Option, Record, pipe } from '@logic/fp';
+import { Errors as IOErrors, Validation as IOValidation } from 'io-ts';
+import { P, match } from 'ts-pattern';
+
+type NormalValidationErr = BaseException | NEA.NonEmptyArray<BaseException>;
+export type StructValidationErr = Record<string, NormalValidationErr>;
+
+export type ValidationErr = NormalValidationErr | StructValidationErr;
+
+export type ValidationErrByKey = [Option.Option<string>, ValidationErr];
+
+export const getErrorFromErrByKey = (vEBK: ValidationErrByKey) => vEBK[1];
+
+export type ParsingInput<T> = {
+  [K in keyof T]: Validation<T[K]>;
+};
+
+export type Validation<
+  A,
+  Err extends ValidationErr = ValidationErr,
+> = Either.Either<Err, A>;
+
+export const ValidationErrTrait = {
+  fromIOErrors: (ioErrors: IOErrors) =>
+    pipe(
+      ioErrors,
+      Arr.map((error) =>
+        BaseExceptionTrait.construct(
+          error.message || 'unknown error',
+          `IO_ERROR_${error.value}`,
+        ),
+      ),
+    ),
+  match:
+    <A, B, C>(
+      onSingle: (err: BaseException) => A,
+      onArray: (errs: NEA.NonEmptyArray<BaseException>) => B,
+      onErrDict: (errDict: StructValidationErr) => C,
+    ) =>
+    (validationErr: ValidationErr) =>
+      match(validationErr)
+        .with(P.when(BaseExceptionTrait.isInstance), (be) => onSingle(be))
+        .with(P.when(Array.isArray), (bes: NEA.NonEmptyArray<BaseException>) =>
+          onArray(bes),
+        )
+        .otherwise((br) => onErrDict(br)),
+  print:
+    (atomPrint: (be: BaseException) => string = BaseExceptionTrait.print) =>
+    (validationErr: ValidationErr): string =>
+      ValidationErrTrait.match(
+        atomPrint,
+        (errs) => JSON.stringify(errs.map(atomPrint)),
+        (errDict) =>
+          JSON.stringify(
+            Record.map(ValidationErrTrait.print(atomPrint))(errDict),
+          ),
+      )(validationErr),
+  sumUp: (code: string) => (err: ValidationErr) =>
+    BaseExceptionTrait.construct(ValidationErrTrait.print()(err), code),
+};
+
+export const checkCondition =
+  <A>(params: { predicate: (a: A) => boolean; exception: ValidationErr }) =>
+  (va: Validation<A>) =>
+    pipe(
+      va,
+      Either.flatMap(
+        Either.fromPredicate(params.predicate, () => params.exception),
+      ),
+    );
+export const ValidationTrait = {
+  left: <A, E extends ValidationErr = ValidationErr>(error: E) =>
+    Either.left(error) as Validation<A, E>,
+  right: <A, E extends ValidationErr = ValidationErr>(a: A) =>
+    Either.right(a) as Validation<A, E>,
+  fromIOValidation: <A>(ioValidation: IOValidation<A>) =>
+    pipe(
+      ioValidation,
+      Either.match(
+        (e) =>
+          ValidationTrait.left<A>(
+            ValidationErrTrait.fromIOErrors(e) as ValidationErr,
+          ),
+        (v) => ValidationTrait.right<A, ValidationErr>(v),
+      ),
+    ),
+  fromEither: <A>(either: Either.Either<ValidationErr, A>) =>
+    either as Validation<A>,
+
+  fromEitherWithCasting: <A>(either: Either.Either<ValidationErr, any>) =>
+    either as Validation<A>,
+
+  fromPredicate:
+    <T, I = T, E extends ValidationErr = ValidationErr>(
+      predicate: (v: I) => boolean,
+      onFalse: () => E,
+    ) =>
+    (value: I) =>
+      predicate(value)
+        ? ValidationTrait.right<T, E>(value as unknown as T)
+        : ValidationTrait.left<T, E>(onFalse()),
+  checkCondition,
+};
+
+export type ValueOfValidation<B> = B extends Validation<infer A> ? A : any;
+export type ValidationWithKey<A> = Either.Either<ValidationErrByKey, A>;
+
+export const toValidationErr = (key: Option.Option<string>) =>
+  Either.mapLeft((e: ValidationErr) => [key, e] as ValidationErrByKey);
+
+export const mapErrorWithKey =
+  (key: string) =>
+  <E, T>(e: Either.Either<E, T>) =>
+    pipe(
+      e,
+      Either.mapLeft((e) => ({ [key]: e }) as StructValidationErr),
+    );
+
+export type Parser<A, I = any, E extends ValidationErr = ValidationErr> = (
+  value: I,
+) => Either.Either<E, A>;
+
+export const ParserTrait = {
+  fromPredicate: <T, I = unknown>(config: {
+    exceptionMsg: string;
+    exceptionCode: string;
+    predicate: (v: I) => boolean;
+  }) =>
+    ValidationTrait.fromPredicate<T, I>(config.predicate, () =>
+      BaseExceptionTrait.construct(config.exceptionMsg, config.exceptionCode),
+    ),
+};
+
+export type StructValidation<A> = Either.Either<
+  Record<string, NEA.NonEmptyArray<BaseException>>,
+  A
+>;
+
+type Prim = string | number | boolean | Date;
+
+type PrimLiken<T extends Prim> = T extends string
+  ? string
+  : T extends number
+    ? number
+    : T extends boolean
+      ? boolean
+      : T extends Date
+        ? Date
+        : unknown;
+
+export type Liken<T> = T extends {
+  likenType: infer U;
+}
+  ? U
+  : T extends Prim
+    ? PrimLiken<T>
+    : T extends Record<string | number | symbol, unknown> | Array<unknown>
+      ? {
+          [K in keyof T]: Liken<T[K]>;
+        }
+      : T extends Option.Option<infer U>
+        ? Option.Option<Liken<U>>
+        : unknown;
+
+export type CustomLiken<T, L> = T & {
+  likenType: L;
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/aggregate-root.base.ts`:
+
+```ts
+import { RRecord } from '@logic/fp';
+import {
+  EntityGenericTrait,
+  EntityTrait,
+  IEntityGenericTrait,
+  getEntityGenericTraitForType,
+} from './entity.base';
+import { Entity, EntityLiken, WithEntityMetaInput } from './entity.base.type';
+import { BaseDMTraitFactoryConfig, getBaseDMTrait } from './domain-model.base';
+
+export type AggregateRoot<
+  T extends RRecord.ReadonlyRecord<string, any> = RRecord.ReadonlyRecord<
+    string,
+    any
+  >,
+> = Entity<T>;
+
+export interface AggregateTrait<
+  E extends AggregateRoot,
+  NewParams = any,
+  ParseParams = AggregateLiken<E>,
+> extends EntityTrait<E, NewParams, ParseParams> {}
+
+export type AggregateLiken<A, OV = unknown> = EntityLiken<A, OV>;
+
+interface IAggGenericTrait extends IEntityGenericTrait {}
+
+export const AggGenericTrait: IAggGenericTrait = {
+  ...EntityGenericTrait,
+};
+
+export const getAggGenericTraitForType = <E extends AggregateRoot>() =>
+  getEntityGenericTraitForType<E>();
+
+export const getBaseAGTrait = <
+  A extends AggregateRoot,
+  NewParams = AggregateLiken<A>,
+  ParsingParams = WithEntityMetaInput<NewParams>,
+>(
+  config: BaseDMTraitFactoryConfig<A, NewParams, ParsingParams>,
+): AggregateTrait<A, NewParams, ParsingParams> =>
+  getBaseDMTrait<A, NewParams, ParsingParams>(AggGenericTrait.factory)(config);
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/value-objects/PositiveNumber.ts`:
+
+```ts
+import { Brand } from '@type_util/index';
+import { PrimitiveVOTrait, ValidationTrait } from '..';
+import { P, match } from 'ts-pattern';
+import { Either, pipe } from '@logic/fp';
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+import validator from 'validator';
+
+export type PositiveNumber = Brand<number, 'PositiveNumber'>;
+
+interface IPositiveNumberTrait extends PrimitiveVOTrait<PositiveNumber> {}
+
+const isPositiveNumber = (v: number): v is PositiveNumber => v > 0;
+
+export const parsePositiveNumber = (v: unknown) => {
+  const error = BaseExceptionTrait.construct(
+    'Must be positive number',
+    'MUST_BE_POSITIVE_NUMBER',
+  );
+  return match(v)
+    .with(P.number, (vn: number) =>
+      pipe(
+        vn,
+        Either.fromPredicate(isPositiveNumber, () => error),
+      ),
+    )
+    .with(P.string, (vstr: string) =>
+      pipe(
+        vstr,
+        Either.fromPredicate(
+          (v) => validator.isInt(v) && isPositiveNumber(parseInt(v)),
+          () => error,
+        ),
+        Either.map((v) => parseInt(v) as PositiveNumber),
+      ),
+    )
+    .otherwise(() =>
+      ValidationTrait.left<PositiveNumber, BaseException>(error),
+    );
+};
+
+export const PositiveNumberTrait: IPositiveNumberTrait = {
+  parse: parsePositiveNumber,
+  new: parsePositiveNumber,
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/value-objects/index.ts`:
+
+```ts
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+import { Arr, Either, pipe } from '@logic/fp';
+import { DateFromISOString, NumberFromString } from 'io-ts-types';
+import { Parser } from '..';
+export * from './Kyc';
+export * from './NoneEmptyString';
+export * from './Person';
+export * from './PositiveNumber';
+export * from './URL';
+export * from './Money';
+export * from './Enum';
+
+export const parseString = (v: unknown) => {
+  return Either.fromPredicate(
+    (v): v is string => typeof v === 'string',
+    () => BaseExceptionTrait.construct('Should be string', 'INVALID_STRING'),
+  )(v);
+};
+
+export const parseNumber = (v: unknown) => {
+  return pipe(
+    v,
+    Either.fromPredicate(
+      (v: unknown): v is number => typeof v === 'number',
+      () => ({}),
+    ),
+    Either.alt<any, number>(() => NumberFromString.decode(v)),
+    Either.mapLeft(() =>
+      BaseExceptionTrait.construct('invalid number', 'INVALID_NUMBER'),
+    ),
+  );
+};
+
+export const parseDate =
+  ({
+    exeMessage,
+    code,
+  }: {
+    exeMessage?: string;
+    code?: string;
+  }): Parser<Date, unknown, BaseException> =>
+  (v: unknown) =>
+    pipe(
+      Either.fromPredicate(
+        (v): v is Date => v instanceof Date,
+        () => ({}),
+      )(v),
+      Either.alt<any, Date>(() => DateFromISOString.decode(v)),
+      Either.mapLeft(() =>
+        BaseExceptionTrait.construct(
+          exeMessage || 'Date is not valid',
+          code || 'DATE_INVALID',
+        ),
+      ),
+    );
+
+export const parseArray =
+  <T>(parser: Parser<T, unknown, BaseException>) =>
+  (v: unknown[]) =>
+    Arr.traverse(Either.Applicative)(parser)(v);
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/value-objects/Enum.ts`:
+
+```ts
+import { BaseException } from '@logic/exception.base';
+import { Either } from '@logic/fp';
+
+export const parseEnumItemFromString =
+  <T extends { [key: string]: string }>(enumT: T, exception: BaseException) =>
+  (raw: string) => {
+    const isEnumItem = (r: string): r is T[keyof T] => {
+      return enumValues.includes(r);
+    };
+    const enumValues = Object.values(enumT);
+
+    if (isEnumItem(raw)) {
+      return Either.right(raw);
+    }
+    return Either.left(exception);
+  };
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/value-objects/Kyc.ts`:
+
+```ts
+import { Either, Option, pipe } from '@logic/fp';
+import { apply } from 'fp-ts/lib/function';
+import { BooleanFromString } from 'io-ts-types';
+import {
+  Parser,
+  VOLiken,
+  ValueObject,
+  ValueObjectAuFn,
+  ValueObjectTrait,
+  decodeWithValidationErr,
+  parseDate,
+} from '..';
+import { GenericDomainModelTrait } from '@model/domain-model.base';
+import { optionizeParser } from '@model/parser';
+import { GetProps } from 'src/typeclasses/has-props';
+
+export type Kyc = ValueObject<{
+  isVerified: boolean;
+  verifiedAt: Option.Option<Date>;
+}>;
+
+const parseProps = (v: VOLiken<Kyc>) =>
+  ValueObjectAuFn.structParsing<Kyc>({
+    isVerified: pipe(
+      decodeWithValidationErr.typeFirst<boolean>,
+      apply(BooleanFromString),
+      apply({
+        code: 'INVALID_VERIFIED_FLAG',
+      }),
+    )(v.isVerified),
+    verifiedAt: pipe(v.verifiedAt, optionizeParser(parseDate({}))),
+  });
+
+const parseKyc = (v: unknown) =>
+  pipe(
+    ValueObjectAuFn.construct<Kyc>,
+    apply(parseProps),
+    apply('kyc'),
+    apply(v),
+  );
+
+interface KycTrait extends ValueObjectTrait<Kyc> {
+  isVerified: (vo: Kyc) => boolean;
+}
+
+const KycTrait: KycTrait = {
+  parse: parseKyc,
+  new: parseKyc,
+  isVerified: GenericDomainModelTrait.simpleQuery<Kyc, boolean>('isVerified'),
+};
+
+// PRIMITIVE KYC
+
+export type WithKycPrim<T> = ValueObject<GetProps<Kyc> & { kycInfo: T }>;
+
+type ExtractKycInfoType<WKP> = WKP extends WithKycPrim<infer T> ? T : never;
+
+const parseWithKycpropsForPrim = <T>(voParser: Parser<T>) =>
+  ((v: VOLiken<WithKycPrim<T>>) => {
+    return pipe(
+      v,
+      KycTrait.parse,
+      Either.bindTo('kyc'),
+      Either.bind('kycInfo', () => voParser(v)),
+      Either.map(({ kyc, kycInfo }) => ({
+        ...GenericDomainModelTrait.unpack(kyc),
+        kycInfo,
+      })),
+    );
+  }) as Parser<WithKycPrim<T>['props']>;
+
+interface KycPrimTrait<T extends WithKycPrim<any>>
+  extends ValueObjectTrait<T> {}
+
+const parseWithKycPrim =
+  <WP extends WithKycPrim<unknown>>(
+    tParser: Parser<ExtractKycInfoType<WP>>,
+    voTag: string,
+  ) =>
+  (v: VOLiken<WP>) =>
+    pipe(
+      ValueObjectAuFn.construct<WP>,
+      apply(parseWithKycpropsForPrim<ExtractKycInfoType<WP>>(tParser)),
+      apply(voTag),
+      apply(v),
+    );
+
+export const getKycPrimTrait =
+  <WP extends WithKycPrim<unknown>>(tParser: Parser<ExtractKycInfoType<WP>>) =>
+  (tag: string) => {
+    const parse = parseWithKycPrim<WP>(tParser, tag);
+    const kycPrimTrait: KycPrimTrait<WP> = {
+      parse,
+      new: parse,
+    };
+    return kycPrimTrait;
+  };
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/value-objects/URL.ts`:
+
+```ts
+import { Brand } from '@type_util/index';
+import { ValidationTrait } from '..';
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+
+export type URL = Brand<string, 'URL'>;
+
+const isUrl = (s: string): s is URL => {
+  const regex =
+    /^(https:\/\/www\.|http:\/\/www\.|https:\/\/|http:\/\/)?[a-zA-Z]{2,}(\.[a-zA-Z]{2,})(\.[a-zA-Z]{2,})?\/[a-zA-Z0-9]{2,}|^((https:\/\/www\.|http:\/\/www\.|https:\/\/|http:\/\/)?[a-zA-Z]{2,}(\.[a-zA-Z]{2,})(\.[a-zA-Z]{2,})?)$|^(https:\/\/www\.|http:\/\/www\.|https:\/\/|http:\/\/)?[a-zA-Z0-9]{2,}\.[a-zA-Z0-9]{2,}\.[a-zA-Z0-9]{2,}(\.[a-zA-Z0-9]{2,})?$/g;
+  return regex.test(s);
+};
+
+export const parseURL = (s: string) => {
+  return isUrl(s)
+    ? ValidationTrait.right<URL, BaseException>(s)
+    : ValidationTrait.left<URL, BaseException>(
+        BaseExceptionTrait.construct('url is malformed', 'URL_INCORRECT'),
+      );
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/value-objects/Person.ts`:
+
+```ts
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+import { Either } from '@logic/fp';
+import { Brand } from '@type_util/index';
+import validator from 'validator';
+import { Parser } from '..';
+
+export type Username = Brand<string, 'Username'>;
+
+export const parseUsernameFromStr =
+  ({
+    excMessage,
+    instructions,
+    code,
+    minLength = 1,
+    maxLength = 20,
+  }: {
+    excMessage?: string;
+    code?: string;
+    instructions?: string[];
+    minLength?: number;
+    maxLength?: number;
+  }): Parser<Username, any, BaseException> =>
+  (v: unknown) =>
+    Either.fromPredicate(
+      (v): v is Username => {
+        const regex = new RegExp(
+          `^(?=.{${minLength},${maxLength}}$)(?![_.])(?!.*[_.]{2})[a-zA-Z0-9._]+(?<![_.])$`,
+        );
+        return typeof v === 'string' && regex.test(v);
+      },
+      () =>
+        BaseExceptionTrait.construct(
+          excMessage || `Username is not valid: ${v}`,
+          code || 'USERNAME_INVALID',
+          [],
+          instructions || [
+            'no _ or . at the end',
+            'allowed characters alphabet, uppercase alphabet, number from 0-9',
+            'no __ or _. or ._ or .. inside',
+            'no _ or . at the beginning',
+            'username is 8-20 characters long',
+          ],
+        ),
+    )(v);
+
+export type FirstLastName = Brand<string, 'FirstLastName'>;
+
+export const parseFirstLastName =
+  ({
+    excMessage,
+    code,
+  }: {
+    excMessage?: string;
+    code?: string;
+  }): Parser<FirstLastName, any, BaseException> =>
+  (v: unknown) =>
+    Either.fromPredicate(
+      (v): v is FirstLastName =>
+        typeof v === 'string' &&
+        new RegExp("^[w'-,.][^0-9_!¡?÷?¿/\\+=@#$%ˆ&*(){}|~<>;:[]]{2,}$").test(
+          v,
+        ),
+      () =>
+        BaseExceptionTrait.construct(
+          excMessage || `Name component is not correct: ${v}`,
+          code || 'INVALID_FIRST_LAST_NAME',
+        ),
+    )(v);
+
+export type Email = Brand<string, 'Email'>;
+
+export const parseEmailFromStr =
+  ({
+    excMessage,
+    code,
+  }: {
+    excMessage?: string;
+    code?: string;
+  }): Parser<Email, any, BaseException> =>
+  (v: unknown) =>
+    Either.fromPredicate(
+      (v): v is Email => typeof v === 'string' && validator.isEmail(v),
+      () =>
+        BaseExceptionTrait.construct(
+          excMessage || `Email is not correct: ${v}`,
+          code || 'INVALID_EMAIL',
+        ),
+    )(v);
+
+export type VNPhoneNumber = Brand<string, 'VNPhoneNumber'>;
+export type PhoneNumber = Brand<string, 'PhoneNumber'>;
+
+export type PhoneLocales = validator.MobilePhoneLocale;
+
+export const parseLocalePhoneNumber =
+  <T>({
+    excMessage,
+    code,
+    locale,
+  }: {
+    excMessage?: string;
+    code?: string;
+    locale: validator.MobilePhoneLocale;
+  }): Parser<T, any, BaseException> =>
+  (v: unknown) =>
+    Either.fromPredicate(
+      (v): v is T =>
+        typeof v === 'string' && validator.isMobilePhone(v, [locale]),
+      () =>
+        BaseExceptionTrait.construct(
+          excMessage || `VN phone number is not correct: ${v}`,
+          code || 'INVALID_VN_PHONE_NUMBER',
+        ),
+    )(v);
+
+export const parsePhoneNumber =
+  ({
+    excMessage,
+    code,
+  }: {
+    excMessage?: string;
+    code?: string;
+  }): Parser<PhoneNumber, any, BaseException> =>
+  (v: unknown) =>
+    Either.fromPredicate(
+      (v): v is PhoneNumber =>
+        typeof v === 'string' && validator.isMobilePhone(v),
+      () =>
+        BaseExceptionTrait.construct(
+          excMessage || `Phone number is not correct: ${v}`,
+          code || 'INVALID_PHONE_NUMBER',
+        ),
+    )(v);
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/value-objects/NoneEmptyString.ts`:
+
+```ts
+import { BaseExceptionTrait } from '@logic/exception.base';
+import { Either, flow, pipe } from '@logic/fp';
+import { PrimitiveVOTrait } from '@model/value-object.base';
+import { Brand } from '@type_util/index';
+import { NonEmptyString as IONonEmptyString } from 'io-ts-types';
+import { ValidationErr, ValidationErrTrait, ValidationTrait } from '..';
+
+export const isEmptyStringMaxNLength =
+  <T>(maxLength: number) =>
+  (v: unknown): v is T => {
+    return typeof v === 'string' && v.length > 0 && v.length <= maxLength;
+  };
+
+interface NonEmptyStringVOTrait<T> extends PrimitiveVOTrait<T> {}
+
+export function getTrait<T>({
+  max,
+  exceptionCode,
+  message,
+}: {
+  max: number;
+  exceptionCode: string;
+  message: string;
+}): NonEmptyStringVOTrait<T> {
+  const parse = flow(
+    Either.fromPredicate(isEmptyStringMaxNLength<T>(max), () =>
+      BaseExceptionTrait.construct(message, exceptionCode),
+    ),
+  );
+  return {
+    parse,
+    new: parse,
+  };
+}
+
+export const NEStringAuFn = {
+  getTrait,
+};
+
+export type NonEmptyString = IONonEmptyString;
+
+export type NonEmptyStringMax10 = Brand<string, 'NonEmptyStringMax10'>;
+
+export type NonEmptyStringMax100 = Brand<string, 'NonEmptyStringMax100'>;
+
+const parseNEString = (s: unknown) =>
+  pipe(
+    IONonEmptyString.decode(s),
+    Either.mapLeft(() =>
+      BaseExceptionTrait.construct(
+        'non empty string should have content',
+        'INVALID_NON_EMPTY_STRING',
+      ),
+    ),
+  );
+
+export const NonEmptyStringTrait: PrimitiveVOTrait<
+  NonEmptyString,
+  ValidationErr
+> = {
+  parse: parseNEString,
+  new: parseNEString,
+};
+
+export const nonEmptyStringMax10Trait =
+  NEStringAuFn.getTrait<NonEmptyStringMax10>({
+    max: 10,
+    message: 'should not be empty and large than 10',
+    exceptionCode: 'INVALID_NON_EMPTY_STRING_MAX_10',
+  });
+
+export const nonEmptyStringMax100Trait =
+  NEStringAuFn.getTrait<NonEmptyStringMax100>({
+    max: 100,
+    message: 'should not be empty and large than 100',
+    exceptionCode: 'INVALID_NON_EMPTY_STRING_MAX_100',
+  });
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/value-objects/File.ts`:
+
+```ts
+import { Brand } from '@type_util/index';
+import {
+  NEStringAuFn,
+  PrimitiveVOTrait,
+  VOGenericTrait,
+  VOLiken,
+  ValueObject,
+  ValueObjectTrait,
+  getBaseVOTrait,
+  getPrimitiveVOTrait,
+} from '..';
+import { isString } from 'fp-ts/lib/string';
+
+export type FileType = Brand<string, 'FileType'>;
+
+export enum FileTypeEnum {
+  PNG = 'png',
+  JPEG = 'jpeg',
+  JPG = 'jpg',
+  PDF = 'pdf',
+  DOC = 'doc',
+  DOCX = 'docx',
+}
+
+interface IFileTypeTrait extends PrimitiveVOTrait<FileType> {}
+
+const FileTypeTrait: IFileTypeTrait = {
+  ...getPrimitiveVOTrait<FileType>({
+    predicate: (v: unknown) =>
+      isString(v) && v in [Object.values(FileTypeEnum)],
+  }),
+};
+
+export type FileURLPath = Brand<string, 'FileURLToPath'>;
+
+const FileURLTrait = getPrimitiveVOTrait<FileURLPath>({
+  predicate: (v: unknown) =>
+    isString(v) &&
+    new RegExp(
+      `(http(s?):)([/|.|\w|\s|-])*\.(?:${Object.values(FileTypeEnum).join(
+        '|',
+      )})`,
+    ).test(v),
+});
+
+type FileName = Brand<string, 'FileName'>;
+
+const FileNameTrait = NEStringAuFn.getTrait<FileName>({
+  max: 300,
+  message: 'File name not be empty and not too long than 300 characters',
+  exceptionCode: 'INVALID_FILENAME',
+});
+
+export interface FileProps {
+  type: FileType;
+  url: FileURLPath;
+  name: FileName;
+}
+
+export type File = ValueObject<FileProps>;
+
+export const FileTrait: ValueObjectTrait<File> = getBaseVOTrait<File>({
+  parseProps: (fileLiken: VOLiken<File>) =>
+    VOGenericTrait.structParsingProps<File>({
+      type: FileTypeTrait.parse(fileLiken.type),
+      url: FileURLTrait.parse(fileLiken.url),
+      name: FileNameTrait.parse(fileLiken.name),
+    }),
+  tag: 'File',
+});
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/value-objects/Money.ts`:
+
+```ts
+import { ValueObject } from '../value-object.base';
+import { PositiveNumber, parsePositiveNumber } from './PositiveNumber';
+import { ValueObjectAuFn } from '../value-object.base';
+import { parseEnumItemFromString } from './Enum';
+import { BaseExceptionTrait } from '@logic/exception.base';
+
+export enum Currency {
+  'USD' = 'USD',
+  'VND' = 'VND',
+  'JPY' = 'JPY',
+  'EUR' = 'EUR',
+}
+
+export type Money = ValueObject<{
+  currency: Currency;
+  amount: PositiveNumber;
+}>;
+
+type RawInput = {
+  currency: string;
+  amount: number;
+};
+
+export const MoneyTrait = {
+  ...ValueObjectAuFn.getBaseVOTrait<Money>({
+    parseProps: (rawInput: RawInput) =>
+      ValueObjectAuFn.structParsing<Money>({
+        amount: parsePositiveNumber(rawInput.amount),
+        currency: parseEnumItemFromString(
+          Currency,
+          BaseExceptionTrait.construct(
+            'incorrect currency',
+            'INCORRECT_CURRENCY',
+          ),
+        )(rawInput.currency),
+      }),
+    tag: 'Money',
+  }),
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/entity.command-on-model.ts`:
+
+```ts
+import { Either, pipe } from '@logic/fp';
+import { Entity } from './entity.base.type';
+import {
+  BehaviorMonad,
+  BehaviorMonadTrait,
+} from './domain-model-behavior.monad';
+import { DomainEvent } from './event';
+import { BaseException } from '@logic/exception.base';
+import { GetProps } from 'src/typeclasses';
+import { GenericDomainModelTrait } from './domain-model.base';
+import { EntityGenericTrait } from './entity.base';
+
+export type CommandOnModelReturn<DM extends Entity> = Either.Either<
+  BaseException,
+  BehaviorMonad<DM>
+>;
+
+export type CommandOnModel<DM extends Entity> = (
+  domainModel: DM,
+) => CommandOnModelReturn<DM>;
+
+export const fromException: <DM extends Entity>(
+  err: BaseException,
+) => CommandOnModelReturn<DM> = (err: BaseException) => Either.left(err);
+
+const map: <DM extends Entity>(
+  functor: (dm: DM) => Either.Either<BaseException, DM>,
+) => (cmdReturn: CommandOnModelReturn<DM>) => CommandOnModelReturn<DM> =
+  (functor) => (cmdReturn) =>
+    pipe(
+      cmdReturn,
+      Either.chain((bhv) =>
+        pipe(
+          functor(bhv.state),
+          Either.map((state) => BehaviorMonadTrait.of(state, [...bhv.events])),
+        ),
+      ),
+    );
+
+const chain: <DM extends Entity>(
+  functor: CommandOnModel<DM>,
+) => (cmdReturn: CommandOnModelReturn<DM>) => CommandOnModelReturn<DM> =
+  (functor) => (cmdReturn) =>
+    pipe(
+      cmdReturn,
+      Either.chain((firstBhv) =>
+        pipe(
+          functor(firstBhv.state),
+          Either.map((bhv) =>
+            BehaviorMonadTrait.of(bhv.state, [
+              ...firstBhv.events,
+              ...bhv.events,
+            ]),
+          ),
+        ),
+      ),
+    );
+
+const chainWithModelProps: <DM extends Entity>(
+  functor: (props: GetProps<DM>, dm: DM) => CommandOnModelReturn<DM>,
+) => (cmdReturn: CommandOnModelReturn<DM>) => CommandOnModelReturn<DM> =
+  (functor) => (cmdReturn) =>
+    pipe(
+      cmdReturn,
+      Either.chain((firstBhv) =>
+        pipe(
+          functor(
+            GenericDomainModelTrait.unpack(firstBhv.state),
+            firstBhv.state,
+          ),
+          Either.map((bhv) =>
+            BehaviorMonadTrait.of(bhv.state, [
+              ...firstBhv.events,
+              ...bhv.events,
+            ]),
+          ),
+        ),
+      ),
+    );
+
+const mapWithModelProps =
+  <DM extends Entity>(
+    functor: (
+      props: GetProps<DM>,
+      dm: DM,
+    ) => Either.Either<
+      BaseException,
+      { props: GetProps<DM>; events: DomainEvent[] }
+    >,
+  ) =>
+  (cmdReturn: CommandOnModelReturn<DM>): CommandOnModelReturn<DM> =>
+    pipe(
+      cmdReturn,
+      Either.chain((firstBhv) =>
+        pipe(
+          functor(
+            GenericDomainModelTrait.unpack(firstBhv.state),
+            firstBhv.state,
+          ),
+          Either.map((bhv) =>
+            BehaviorMonadTrait.of(
+              pipe(
+                firstBhv.state,
+                EntityGenericTrait.updateProps<DM>(bhv.props),
+              ),
+              [...firstBhv.events, ...bhv.events],
+            ),
+          ),
+        ),
+      ),
+    );
+
+const fold =
+  <C, B, ET extends Entity>(
+    onError: (error: BaseException) => C,
+    onSuccess: (state: ET, events: DomainEvent[]) => B,
+  ) =>
+  (comReturn: CommandOnModelReturn<ET>) =>
+    pipe(
+      comReturn,
+      Either.foldW(onError, (bh) => {
+        return onSuccess(bh.state, bh.events);
+      }),
+    );
+
+export const fromModel2Events: <DM extends Entity>(
+  e: DM,
+  events: DomainEvent[],
+) => CommandOnModelReturn<DM> = <DM extends Entity>(
+  entity: DM,
+  events: DomainEvent[],
+) => Either.right(BehaviorMonadTrait.of(entity, events));
+
+export const CommandOnModelTrait = {
+  fromException,
+  fromModel2Events,
+  chain,
+  map,
+  chainWithModelProps,
+  mapWithModelProps,
+  fold,
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/io-related-auxiliry-func.ts`:
+
+```ts
+import { BaseExceptionTrait } from '@logic/exception.base';
+import { PathReporter } from 'io-ts/PathReporter';
+import { Arr as A, Either, io, NEA, Option, pipe, Record } from '@logic/fp';
+import { flow } from 'fp-ts/lib/function';
+import { Mixed, Props } from 'io-ts';
+
+export type LikeStruct = {
+  type: unknown;
+  decode: ReturnType<typeof decodeWithValidationErr.typeFirst>;
+};
+
+export const makeLikeStruct =
+  <P extends Props>(ioProps: P) =>
+  (isStrict: boolean) => {
+    const isComplexType = (type: Mixed) => {
+      return (
+        '_tag' in type &&
+        [
+          'InterfaceType',
+          'ExactType',
+          'IntersectionType',
+          'UnionType',
+          'RecursiveType',
+        ].includes(type._tag as string)
+      );
+    };
+    const simplify = (props: Props) =>
+      pipe(
+        props,
+        Record.map((t) => (isComplexType(t) ? io.unknown : t)),
+      ) as Props;
+    const originType = isStrict ? io.strict(ioProps) : io.type(ioProps);
+    const simpleType = isStrict
+      ? pipe(ioProps, simplify, io.strict)
+      : pipe(ioProps, simplify, io.type);
+    return {
+      type: typeof originType,
+      decode: decodeWithValidationErr.typeFirst(simpleType),
+    } as LikeStruct;
+  };
+
+const decodeWithValidationErrMain = <T>(
+  exOps: { code: string },
+  ioType: io.Type<T, unknown, unknown>,
+) => {
+  return flow(
+    ioType.decode,
+    Either.mapLeft((e) =>
+      pipe(
+        NEA.fromArray(
+          pipe(
+            e,
+            A.map(() =>
+              BaseExceptionTrait.construct(
+                PathReporter.report(Either.left(e)),
+                exOps.code,
+              ),
+            ),
+          ),
+        ),
+        Option.getOrElse(() =>
+          NEA.of(
+            BaseExceptionTrait.construct('', 'EMPTY_EXCEPTION_FROM_IO_DECODE'),
+          ),
+        ),
+      ),
+    ),
+  );
+};
+
+export const decodeWithValidationErr = {
+  codeFirst:
+    <T>(exOps: { code: string }) =>
+    (ioType: io.Type<T, unknown>) =>
+      decodeWithValidationErrMain<T>(exOps, ioType),
+  typeFirst:
+    <T>(ioType: io.Type<T, unknown>) =>
+    (exOps: { code: string }) =>
+      decodeWithValidationErrMain<T>(exOps, ioType),
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/domain-model.base.ts`:
+
+```ts
+import { Option, pipe } from '@logic/fp';
+import { FirstArgumentType } from '@type_util/function';
+import { Parser, ParsingInput, Validation } from './invariant-validation';
+import { structSummarizerParsing } from './parser';
+import {
+  DomainModel,
+  IGenericDomainModelTrait,
+} from './domain-model.base.type';
+import { GetProps, KeyProps, queryOnProps } from 'src/typeclasses/has-props';
+
+export type QueryOnModel<D extends DomainModel, R> = (d: D) => R;
+
+export type QueryOptOnModel<D extends DomainModel, R> = QueryOnModel<
+  D,
+  Option.Option<R>
+>;
+
+const simpleQuery =
+  <T extends DomainModel, R>(key: KeyProps<T>): QueryOnModel<T, R> =>
+  (entity: T) =>
+    pipe(entity, queryOnProps<T>(key)) as R;
+
+const simpleQueryOpt =
+  <T extends DomainModel, R>(key: KeyProps<T>): QueryOptOnModel<T, R> =>
+  (entity: T) =>
+    pipe(entity, queryOnProps<T>(key)) as Option.Option<R>;
+
+const getTag = <T extends DomainModel>(m: T) => m._tag;
+
+const unpack = <T extends DomainModel>(m: T): GetProps<T> => m.props;
+
+export const structParsingProps = <ET extends DomainModel>(
+  raw: ParsingInput<GetProps<ET>>,
+) => structSummarizerParsing<ET['props']>(raw);
+
+export const GenericDomainModelTrait: IGenericDomainModelTrait = {
+  simpleQuery: <T extends DomainModel, R>(
+    a: FirstArgumentType<typeof simpleQuery<T, R>>,
+  ) => simpleQuery<T, R>(a),
+  simpleQueryOpt: <T extends DomainModel, R>(
+    a: FirstArgumentType<typeof simpleQueryOpt<T, R>>,
+  ) => simpleQueryOpt<T, R>(a),
+  getTag: getTag,
+  unpack: unpack,
+  structParsingProps,
+};
+
+export interface NewFunc<D, NewParams> {
+  (params: NewParams): Validation<D>;
+}
+export interface DomainModelTrait<
+  D extends DomainModel,
+  NewParams = any,
+  ParserParam = any,
+> {
+  parse: Parser<D, ParserParam>;
+  new: NewFunc<D, NewParams>;
+}
+
+export type StdPropsParser<DM extends DomainModel, I = unknown> = Parser<
+  GetProps<DM>,
+  I
+>;
+
+export type IsEqual<T extends DomainModel = DomainModel> = (
+  a: T,
+  b: T,
+) => boolean;
+
+export type DomainParser<I, T extends DomainModel> = (
+  props: I,
+) => Validation<T>;
+
+export interface ParserFactory<
+  DM extends DomainModel,
+  I = unknown,
+  OP = unknown,
+> {
+  <T extends DM>(
+    parser: Parser<GetProps<T>>,
+  ): (tag: string, options?: OP) => DomainParser<I, DM>;
+}
+
+export interface BaseDMTraitFactoryConfig<
+  DM extends DomainModel,
+  I,
+  ParserOP = unknown,
+> {
+  parseProps: (v: I) => Validation<GetProps<DM>>;
+  tag: string;
+  parserOpt?: ParserOP;
+}
+
+export const getBaseDMTrait =
+  <DM extends DomainModel, NewParams = unknown, ParsingParams = unknown>(
+    factory: ParserFactory<DM, ParsingParams>,
+  ) =>
+  (config: BaseDMTraitFactoryConfig<DM, NewParams, ParsingParams>) => {
+    const { parseProps, tag, parserOpt } = config;
+    const parse = factory(parseProps)(tag, parserOpt);
+    return {
+      parse: parse,
+      new: parse as unknown as NewFunc<DM, NewParams>,
+    };
+  };
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/value-object.base.ts`:
+
+```ts
+/**
+ * @desc ValueObjects are objects that we determine their
+ * equality through their structrual property.
+ */
+
+import { Either, Eq, Option, RRecord, Record, S } from '@logic/fp';
+import { pipe } from 'fp-ts/lib/function';
+import { equals } from 'ramda';
+import {
+  Liken,
+  Parser,
+  ParsingInput,
+  Validation,
+  ValidationErr,
+  ValidationTrait,
+} from './invariant-validation';
+import {
+  BaseDMTraitFactoryConfig,
+  DomainModelTrait,
+  GenericDomainModelTrait,
+  StdPropsParser,
+  getBaseDMTrait,
+} from './domain-model.base';
+
+import { DomainModel } from './domain-model.base.type';
+import { structSummarizerParsing } from './parser';
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+
+export interface ValueObject<
+  T extends Record<string, any> = RRecord.ReadonlyRecord<string, any>,
+> extends DomainModel<Readonly<T>> {}
+
+export const getVoEqual = <VO extends ValueObject>() =>
+  Eq.struct({
+    _tag: S.Eq,
+    props: {
+      equals: (p1, p2) => equals(p1, p2),
+    },
+  }) as Eq.Eq<VO>;
+
+const isEqual = <VO extends ValueObject>(v1: VO, v2: VO) =>
+  getVoEqual<VO>().equals(v1, v2);
+
+const factory =
+  <T extends ValueObject>(parser: Parser<T['props']>) =>
+  (tag: string) =>
+  (props: unknown) => {
+    return pipe(
+      parser(props),
+      Either.map(
+        (parsedProps) =>
+          ({
+            _tag: tag,
+            props: parsedProps,
+          }) as T,
+      ),
+    );
+  };
+
+export type VOLiken<T extends ValueObject, OV = unknown> = T extends {
+  likenType: infer U;
+}
+  ? U
+  : OV extends Record<string, any>
+    ? {
+        [K in keyof Omit<
+          T['props'],
+          keyof OV
+        >]: T['props'][K] extends Option.Option<infer OU>
+          ? Option.Option<RecursiveWithArray<OU>>
+          : RecursiveWithArray<T['props'][K]>;
+      } & OV
+    : {
+        [K in keyof Omit<
+          T['props'],
+          keyof OV
+        >]: T['props'][K] extends Option.Option<infer OU>
+          ? Option.Option<RecursiveWithArray<OU>>
+          : RecursiveWithArray<T['props'][K]>;
+      };
+
+type RecursiveWithArray<I> = I extends ValueObject
+  ? VOLiken<I>
+  : I extends Array<unknown> & {
+        [key: number]: ValueObject;
+      }
+    ? VOLiken<I[0]>[]
+    : Liken<I>;
+
+const structParsing = <ET extends ValueObject>(
+  raw: ParsingInput<ET['props']>,
+) => structSummarizerParsing<ET['props']>(raw);
+
+export interface ValueObjectTrait<
+  VO extends ValueObject,
+  NewParam = VOLiken<VO>,
+  ParseParam = VOLiken<VO>,
+> extends DomainModelTrait<VO, NewParam, ParseParam> {}
+
+export interface PrimitiveVOTrait<VO, E extends ValidationErr = BaseException> {
+  parse: Parser<VO>;
+  new: (params: any) => Validation<VO, E>;
+}
+
+export const VOGenericTrait = {
+  construct: factory,
+  isEqual: isEqual,
+  structParsingProps: GenericDomainModelTrait.structParsingProps,
+  getTag: GenericDomainModelTrait.getTag,
+  unpack: GenericDomainModelTrait.unpack,
+  simpleQuery: GenericDomainModelTrait.simpleQuery,
+  simpleQueryOpt: GenericDomainModelTrait.simpleQueryOpt,
+};
+
+export const getVOGenricTraitForType = <VO extends ValueObject>() => ({
+  construct: factory<VO>,
+  isEqual: isEqual<VO>,
+  structParsingProps: GenericDomainModelTrait.structParsingProps<VO>,
+  getTag: GenericDomainModelTrait.getTag,
+  unpack: GenericDomainModelTrait.unpack,
+  simpleQuery: GenericDomainModelTrait.simpleQuery,
+  simpleQueryOpt: GenericDomainModelTrait.simpleQueryOpt,
+});
+
+export type VOStdPropsParser<
+  VO extends ValueObject,
+  I = unknown,
+> = StdPropsParser<VO, I>;
+
+export const getPrimitiveVOTrait = <T>(config: {
+  predicate: (v: unknown) => boolean;
+  exceptionMsg?: string;
+  exceptionCode?: string;
+}): PrimitiveVOTrait<T, BaseException> => {
+  const parse = (v: unknown) =>
+    ValidationTrait.fromPredicate(config.predicate, () =>
+      BaseExceptionTrait.construct(
+        config.exceptionMsg || 'invalid value',
+        config.exceptionCode || 'INVALID_VALUE',
+      ),
+    )(v) as Validation<T, BaseException>;
+
+  return {
+    parse,
+    new: parse,
+  };
+};
+
+export const getBaseVOTrait = <VO extends ValueObject, I = VOLiken<VO>, P = I>(
+  config: BaseDMTraitFactoryConfig<VO, I, P>,
+) => getBaseDMTrait<VO, I, P>(VOGenericTrait.construct)(config);
+
+export const ValueObjectAuFn = {
+  construct: factory,
+  isEqual,
+  structParsing,
+  getBaseVOTrait,
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/domain-service.base.ts`:
+
+```ts
+export type DomainService<In, R> = (params: In) => R;
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/parser.ts`:
+
+```ts
+import { Option, Either, S, Arr as A, Record, Apply, RRecord } from '@logic/fp';
+import {
+  Parser,
+  ParsingInput,
+  StructValidationErr,
+  Validation,
+  ValidationErr,
+  ValidationErrByKey,
+  ValidationTrait,
+  ValueOfValidation,
+  getErrorFromErrByKey,
+  toValidationErr,
+} from './invariant-validation';
+import { apply, pipe } from 'fp-ts/lib/function';
+import { Ord } from 'fp-ts/lib/Ord';
+import { Semigroup } from 'fp-ts/lib/Semigroup';
+import { randomUUID } from 'crypto';
+import { P, match } from 'ts-pattern';
+import { isObject } from 'util';
+import { Magma } from 'fp-ts/lib/Magma';
+import { ReadonlyRecord } from 'fp-ts/lib/ReadonlyRecord';
+import { ifElse } from 'ramda';
+import { Ord as OrdString } from 'fp-ts/lib/string';
+
+const isRecordOfException = (input: any) =>
+  isObject(input) && !input.tag && !input._tag;
+
+export const optionizeParser =
+  <T, I, E extends ValidationErr>(parser: Parser<T, I, E>) =>
+  (optionV: Option.Option<I>) => {
+    return pipe(
+      optionV,
+      Option.map((v) => parser(v)),
+      Option.sequence(Either.Applicative),
+    );
+  };
+
+const StrIntOrder: Ord<string> = {
+  equals: S.Eq.equals,
+  compare: (first, second) => {
+    const fI = parseInt(first);
+    const fS = parseInt(second);
+    return fI < fS ? -1 : fI > fS ? 1 : 0;
+  },
+};
+
+export const structSummarizerParsing = <T>(struct: ParsingInput<T>) => {
+  const mapLeftItemToLeftWithKeyItem = Record.mapWithIndex(
+    // { a: Left<e> } --> { a: Left<[a, e]> }
+    (k: string, a: Validation<any>) =>
+      pipe(a, toValidationErr(Option.some(k))) as Either.Either<
+        ValidationErrByKey,
+        ValueOfValidation<typeof a>
+      >,
+  );
+  const structValidate = (
+    a: ReadonlyRecord<string, Either.Either<unknown, ValidationErrByKey>>,
+  ) => {
+    return ifElse(
+      (
+        a: RRecord.ReadonlyRecord<
+          string,
+          Either.Either<any, ValidationErrByKey>
+        >,
+      ) => RRecord.size(a) === 0,
+      () => Either.right({}) as Either.Either<any, ValidationErrByKey>,
+      (a) => {
+        const mutualKey = randomUUID();
+        const result = Apply.sequenceS(Either.Applicative)(a);
+        return pipe(
+          result,
+          Either.map(
+            Record.reduce(OrdString)(
+              [Option.some(mutualKey), {}] as ValidationErrByKey,
+              (a, v) => {
+                /* [[some(key_a), error], [none, error], [some(key_c), error], [some(mutual_key), concat_err]]
+                 *  => [[some(key_a), error], [none, error], [none, error], [some(mutual_key), { ...concat_err, key_c: error }]]
+                 *  => [[some(key_a), error], [none, error], [some(mutual_key), { ...concat_err, key_c: error, unknown: [error]}]]
+                 *  => [[some(key_a), error], [some(mutual_key), { ...concat_err, key_c: error, unknown: [error, error]}]]
+                 *  => result: [some(mutual_key), { ...concat_err, key_c: error, unknown: [error, error], key_a: error }]
+                 * */
+
+                const getStructErr = (err: ValidationErrByKey) =>
+                  /* --- pair to record repr ---
+                   * [none, error] => { unknown: error }
+                   * [some(key), error] => { key: error }
+                   * [some(mutual_key), error_not_obj] => { abnormal: [error_not_obj] }
+                   * [some(mutual_key), error_obj] => error_obj (for continue to join with other normal { key: error })
+                   * */
+
+                  {
+                    return pipe(
+                      err[0],
+                      Option.matchW(
+                        () => ({ unknown: [err[1]] }),
+                        (keyA: string) =>
+                          match([keyA, err[1]])
+                            .with(
+                              [mutualKey, P.when(isRecordOfException)],
+                              () => err[1] as StructValidationErr,
+                            )
+                            .with(
+                              [mutualKey, P.not(P.when(isRecordOfException))],
+                              () => ({
+                                abnormal: [err[1]],
+                              }),
+                            )
+                            .otherwise(() => ({ [keyA]: err[1] })),
+                      ),
+                    );
+                  };
+                const m: Magma<unknown> = {
+                  // for join errors with the same key in struct error
+                  concat: (a, b) => {
+                    const isJoinOfArray = Array.isArray(a) && Array.isArray(b);
+                    return isJoinOfArray ? [...a, ...b] : b;
+                  },
+                };
+                return [
+                  Option.some(mutualKey),
+                  pipe(
+                    Record.union,
+                    apply(m),
+                    apply(getStructErr(a)),
+                    apply(getStructErr(v)),
+                  ) as StructValidationErr,
+                ] as ValidationErrByKey;
+              },
+            ),
+          ),
+        );
+      },
+    )(a);
+  };
+  return pipe(struct, mapLeftItemToLeftWithKeyItem, (structuredResult) =>
+    pipe(
+      structuredResult,
+      (a) => {
+        return Record.size(a) === 0
+          ? (Either.right(a) as Either.Either<
+              ValidationErrByKey,
+              { [x: string]: any }
+            >)
+          : Apply.sequenceS(Either.Applicative)(a);
+      },
+      Either.fold(
+        () =>
+          pipe(
+            structuredResult,
+            Record.filter((s) => Either.isLeft(s)),
+            Record.map((s) =>
+              pipe(
+                s,
+                Either.alt(() =>
+                  Either.right((s as Either.Left<ValidationErrByKey>).left),
+                ),
+              ),
+            ),
+            // (result) => {
+            //   console.log('recordWithKeyValidation ', result);
+            //   return result;
+            // },
+            structValidate,
+            // (result) => {
+            //   console.log('structValidate', result);
+            //   return result;
+            // },
+            Either.chain(Either.left),
+            Either.mapLeft(getErrorFromErrByKey),
+            // (result) => {
+            //   console.log('getErrorFromErrByKey', result);
+            //   return result;
+            // },
+            ValidationTrait.fromEitherWithCasting<T>,
+            // (result) => {
+            //   console.log('fromEitherWithCasting', result);
+            //   return result;
+            // },
+          ),
+        (result) => ValidationTrait.right(result as T),
+      ),
+    ),
+  );
+};
+
+export const arrayParser =
+  <T, I>(itemParser: Parser<T, I>) =>
+  (a: I[]) => {
+    return pipe(
+      a,
+      A.reduceWithIndex({}, (i, acc, cur) => ({
+        ...acc,
+        [i]: itemParser(cur),
+      })),
+      structSummarizerParsing<Record<number, T>>,
+      Either.map(
+        Record.reduce(StrIntOrder)([], (acc: T[], cur) => [...acc, cur]),
+      ),
+    );
+  };
+
+export const identityParser = <A>(value: unknown) => Either.of(value as A);
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/entity.base.ts`:
+
+```ts
+import {
+  Parser,
+  ParsingInput,
+  Validation,
+  ValidationErr,
+  ValidationErrTrait,
+} from './invariant-validation';
+import { structSummarizerParsing } from './parser';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  Arr,
+  Either,
+  Eq,
+  IoTypes,
+  Optics,
+  Option,
+  RRecord,
+  S,
+  io,
+} from '@logic/fp';
+import { apply, pipe } from 'fp-ts/lib/function';
+import { DomainEvent } from './event';
+import { BehaviorMonadTrait } from './domain-model-behavior.monad';
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+import { shouldBeArray } from '@logic/parser';
+import {
+  GenericDomainModelTrait,
+  DomainModelTrait,
+  IsEqual,
+  BaseDMTraitFactoryConfig,
+  getBaseDMTrait,
+} from './domain-model.base';
+import { FirstArgumentType } from '@type_util/function';
+import { Identifier, parseId } from 'src/typeclasses/obj-with-id';
+import { decodeWithValidationErr } from './io-related-auxiliry-func';
+import {
+  Entity,
+  EntityCommonProps,
+  EntityInvariantParser,
+  EntityLiken,
+  SimpleAdder,
+  SimpleRemover,
+  SimpleSeter,
+  WithEntityMetaInput,
+} from './entity.base.type';
+import {
+  getCreatedAt,
+  getUpdatedAt,
+  updatedAtLen,
+} from 'src/typeclasses/withtime';
+import { SimpleQueryOpt } from './domain-model.base.type';
+import { CommandOnModel, CommandOnModelTrait } from './entity.command-on-model';
+import { Writable } from '@type_util/index';
+import { GetProps, KeyProps } from 'src/typeclasses/has-props';
+
+const construct: IEntityGenericTrait['factory'] =
+  <T extends Entity>(parser: Parser<T['props']>) =>
+  (tag: string, options: { autoGenId: boolean } = { autoGenId: true }) =>
+  (props: WithEntityMetaInput<FirstArgumentType<typeof parser>>) => {
+    const MetaLikeParser = io.type({
+      id: options.autoGenId ? io.union([io.undefined, io.string]) : io.string,
+      createdAt: IoTypes.fromNullable(
+        IoTypes.option(IoTypes.date),
+        Option.none,
+      ),
+      updatedAt: IoTypes.fromNullable(
+        IoTypes.option(IoTypes.date),
+        Option.none,
+      ),
+    });
+
+    const parserMetaLike = (v: unknown) =>
+      pipe(
+        v,
+        decodeWithValidationErr.typeFirst(MetaLikeParser)({
+          code: 'FAIL_STRUCTURE',
+        }),
+        Either.flatMap((metaLike) => {
+          return structSummarizerParsing<Omit<EntityCommonProps, '_tag'>>({
+            id: parseId(
+              options.autoGenId && !metaLike.id ? uuidv4() : metaLike.id || '',
+            ),
+            createdAt: Either.right(metaLike.createdAt),
+            updatedAt: Either.right(metaLike.updatedAt),
+          });
+        }),
+      );
+    return pipe(
+      Either.Do,
+      Either.bind('meta', () => parserMetaLike(props)),
+      Either.bind('props', () => parser(props)),
+      Either.map(
+        ({ props, meta }) =>
+          ({
+            id: meta.id,
+            _tag: tag,
+            createdAt: meta.createdAt,
+            updatedAt: meta.updatedAt,
+            props,
+          }) as T,
+      ),
+    );
+  };
+
+const idLens = <T extends Entity>() => Optics.id<T>().at('id');
+
+const id = <T extends Entity>(state: T) =>
+  pipe(state, Optics.get(idLens<T>())) as Identifier;
+
+const setId =
+  <T extends Entity>(id: Identifier) =>
+  (state: T) => {
+    return pipe(state, Optics.replace(idLens<T>())(id));
+  };
+
+const entityPropsLen = <A extends Entity>() =>
+  Optics.id<A>().at('props') as Optics.Lens<A, A['props']>;
+
+const createdAt = <T extends Entity>(state: T) => getCreatedAt(state);
+
+const updatedAt = <T extends Entity>(state: T) => getUpdatedAt(state);
+
+const markUpdate = <T extends Entity>(state: T) =>
+  pipe(state, Optics.replace(updatedAtLen<T>())(Option.some(new Date())));
+
+export const identityInvariantParser =
+  <V>() =>
+  (v: V) =>
+    Either.of(v);
+
+const setter =
+  <T extends Entity, V extends T['props'][keyof T['props']]>(
+    attributeName: keyof T['props'],
+  ) =>
+  ({
+    validator,
+    events,
+  }: {
+    validator: EntityInvariantParser<T, true, V>;
+    events: DomainEvent[];
+  }) =>
+  (newV: unknown) =>
+  (entity: T) => {
+    return pipe(
+      newV,
+      validator(entity),
+      Either.map((v) =>
+        pipe(
+          Optics.replace(
+            entityPropsLen<T>().at(attributeName) as Optics.PolySetter<
+              T,
+              T,
+              T['props'][keyof T['props']]
+            >,
+          ),
+          apply(v),
+          apply(entity),
+          (updatedEntity: T) => BehaviorMonadTrait.of(updatedEntity, events),
+        ),
+      ),
+      Either.mapLeft(ValidationErrTrait.sumUp('AGG_SETTER_EXCEPTION')),
+    );
+  };
+
+const adder =
+  <T extends Entity, A>(attributeName: keyof T['props']) =>
+  ({
+    E,
+    validator,
+    events,
+  }: {
+    E: Eq.Eq<A>;
+    validator: EntityInvariantParser<T, false, A>;
+    events: DomainEvent[];
+  }) =>
+  (newItem: A): CommandOnModel<T> =>
+  (entity: T) => {
+    const lens = entityPropsLen<T>().at(attributeName);
+    const getAttr = Optics.get(lens);
+    const validating = () =>
+      pipe(
+        validator,
+        apply(entity),
+        apply(newItem),
+        Either.mapLeft(ValidationErrTrait.sumUp('REDUCER_ERROR')),
+      );
+    const mustNotExist = (arr: A[]) =>
+      Either.fromPredicate(
+        (a: A) => {
+          return !Arr.elem(E)(a)(arr);
+        },
+        () => BaseExceptionTrait.construct('Item existed', 'ITEM_EXISTED'),
+      );
+    return pipe(
+      entity,
+      getAttr,
+      shouldBeArray<A>({
+        message: `property ${attributeName as string} should be an array`,
+        code: 'PROP_NOT_ARRAY',
+      }),
+      Either.bindTo('array'),
+      Either.bind('item', validating),
+      Either.tap(({ item, array }) =>
+        pipe(mustNotExist, apply(array), apply(item)),
+      ),
+      Either.flatMap(({ item, array }) =>
+        Either.tryCatch(
+          () =>
+            Optics.replace(lens)([
+              ...array,
+              item,
+            ] as T['props'][keyof T['props']])(entity) as T,
+          (e: unknown) =>
+            BaseExceptionTrait.construct(
+              (e as Error).message,
+              'ADDER_OPTICS_CHANGE_ERROR',
+            ),
+        ),
+      ),
+      Either.map((updatedEntity) =>
+        BehaviorMonadTrait.of(updatedEntity, events),
+      ),
+    );
+  };
+
+const remover =
+  <T extends Entity, A>(attributeName: keyof T['props']) =>
+  ({
+    E,
+    validator,
+    events,
+  }: {
+    E: Eq.Eq<A>;
+    validator: EntityInvariantParser<T, false, A>;
+    events: DomainEvent[];
+  }) =>
+  (removedItem: A) =>
+  (entity: T) => {
+    const lens = entityPropsLen<T>().at(attributeName);
+    const getAttr = Optics.get(lens);
+    const validating = () =>
+      pipe(
+        validator,
+        apply(entity),
+        apply(removedItem),
+        Either.mapLeft(ValidationErrTrait.sumUp('REMOVER_VALIDATING_FAIL')),
+      );
+    const mustExist =
+      (arr: A[]) =>
+      (checkedItem: A): Validation<number, BaseException> =>
+        pipe(
+          arr,
+          Arr.findIndex((a) => E.equals(a, checkedItem)),
+          Either.fromOption(() =>
+            BaseExceptionTrait.construct(
+              'Item does not existed',
+              'ITEM_NOT_EXISTED',
+            ),
+          ),
+        );
+    return pipe(
+      entity,
+      getAttr,
+      shouldBeArray<A>({
+        message: `property ${attributeName as string} should be an array`,
+        code: 'PROP_NOT_ARRAY',
+      }),
+      Either.bindTo('array'),
+      Either.bind('item', validating),
+      Either.bind('idx', ({ item, array }) =>
+        pipe(mustExist, apply(array), apply(item)),
+      ),
+      Either.map(({ array, idx }) =>
+        pipe(Arr.deleteAt, apply(idx), apply(array)),
+      ),
+      Either.flatMap((updatedArray) =>
+        Either.tryCatch(
+          () =>
+            Optics.replace(lens)(updatedArray as T['props'][keyof T['props']])(
+              entity,
+            ) as T,
+          (e: unknown) =>
+            BaseExceptionTrait.construct(
+              (e as Error).message,
+              'ADDER_OPTICS_CHANGE_ERROR',
+            ),
+        ),
+      ),
+      Either.map((updatedEntity) =>
+        BehaviorMonadTrait.of(updatedEntity, events),
+      ),
+    );
+  };
+
+export const getEntityEq = <T extends Entity>() =>
+  Eq.contramap((entity: T) => ({
+    tag: entity._tag,
+    id: entity.id,
+  }))(
+    Eq.struct({
+      tag: S.Eq,
+      id: S.Eq,
+    }),
+  );
+
+const isEqual = <T extends Entity>(entityLeft: T, entityRight: T) =>
+  getEntityEq<T>().equals(entityLeft, entityRight);
+
+const getSnapshot = <T extends RRecord.ReadonlyRecord<string, any>>(
+  state: Entity<T>,
+) =>
+  RRecord.fromRecord({
+    createdAt: state.createdAt,
+    updatedAt: state.createdAt,
+    id: state.id,
+    ...state.props,
+  });
+
+export const updateProps =
+  <ET extends Entity>(props: GetProps<ET>) =>
+  (et: ET) =>
+    ({ ...et, props }) as ET;
+
+export interface EntityTrait<
+  E extends Entity,
+  NewParams = any,
+  ParseParams = EntityLiken<E>,
+> extends DomainModelTrait<
+    E,
+    NewParams,
+    ParseParams extends { id: string }
+      ? ParseParams
+      : WithEntityMetaInput<ParseParams>
+  > {}
+
+export interface IEntityGenericTrait<
+  T extends Entity = Entity<RRecord.ReadonlyRecord<string, any>>,
+> {
+  factory: <TS extends Entity = T>(
+    propsParser: Parser<TS['props']>,
+  ) => (tag: string) => Parser<TS, FirstArgumentType<typeof propsParser>>;
+  id: <TS extends Entity = T>(t: TS) => Identifier;
+  setId: <TS extends Entity = T>(id: Identifier) => (domainState: TS) => TS;
+  createdAt: <TS extends Entity = T>(
+    t: TS,
+  ) => ReturnType<SimpleQueryOpt<TS, Date>>;
+  updatedAt: <TS extends Entity = T>(
+    t: TS,
+  ) => ReturnType<SimpleQueryOpt<TS, Date>>;
+  markUpdate: <TS extends Entity = T>(state: TS) => TS;
+  getSnapshot: <TS extends Entity = T>(
+    state: TS,
+  ) => RRecord.ReadonlyRecord<string, any>;
+  isEqual: IsEqual<Entity>;
+  simpleQuery: <TS extends Entity = T, R = any>(
+    key: KeyProps<TS>,
+  ) => (t: TS) => R;
+  simpleQueryOpt: <TS extends Entity = T, R = any>(
+    key: KeyProps<TS>,
+  ) => (t: TS) => Option.Option<R>;
+  remover: <E extends Entity = T, V = any>(
+    key: KeyProps<E>,
+  ) => (config: {
+    E: Eq.Eq<V>;
+    validator: EntityInvariantParser<E, false, V>;
+    events: DomainEvent[];
+  }) => SimpleRemover<E, V>;
+  adder: <E extends Entity = T, V = any>(
+    key: KeyProps<E>,
+  ) => (config: {
+    E: Eq.Eq<V>;
+    validator: EntityInvariantParser<E, false, V>;
+    events: DomainEvent[];
+  }) => SimpleAdder<E, V>;
+  setter: <E extends Entity = T, V extends T['props'][keyof T['props']] = any>(
+    a: KeyProps<T>,
+  ) => (config: {
+    validator: EntityInvariantParser<E, false, V>;
+    events: DomainEvent[];
+  }) => SimpleSeter<E, V>;
+  propsLen: <E extends Entity = T>() => Optics.Lens<E, E['props']>;
+  structParsingProps: <E extends Entity = T>(
+    raw: ParsingInput<E['props']>,
+  ) => Validation<E['props']>;
+  getTag: (dV: Entity) => string;
+  unpack: <E extends Entity>(dV: Entity) => GetProps<E>;
+  updateProps: <ET extends Entity>(props: GetProps<ET>) => (et: ET) => ET;
+}
+
+export const getEntityGenericTraitForType = <E extends Entity>() => ({
+  factory: construct<E>,
+  id: id<E>,
+  setId: setId<E>,
+  createdAt: createdAt<E>,
+  updatedAt: updatedAt<E>,
+  markUpdate: markUpdate<E>,
+  getSnapshot: getSnapshot<E>,
+  isEqual: isEqual<E>,
+  simpleQuery: <R>(key: keyof E['props']) =>
+    GenericDomainModelTrait.simpleQuery<E, R>(key),
+  simpleQueryOpt: <R>(key: keyof E['props']) =>
+    GenericDomainModelTrait.simpleQueryOpt<E, R>(key),
+  remover: <V>(a: FirstArgumentType<typeof remover<E, V>>) => remover<E, V>(a),
+  adder: <V>(a: FirstArgumentType<typeof adder<E, V>>) => adder<E, V>(a),
+  setter: <V extends E['props'][keyof E['props']]>(
+    a: FirstArgumentType<typeof setter<E, V>>,
+  ) => setter<E, V>(a),
+  propsLen: entityPropsLen<E>,
+  structParsingProps: GenericDomainModelTrait.structParsingProps<E>,
+  getTag: GenericDomainModelTrait.getTag,
+  unpack: GenericDomainModelTrait.unpack,
+  updateProps: updateProps<E>,
+});
+
+export const EntityGenericTrait: IEntityGenericTrait = {
+  factory: construct,
+  id,
+  setId,
+  createdAt,
+  updatedAt,
+  markUpdate,
+  getSnapshot,
+  isEqual,
+  remover,
+  adder,
+  setter,
+  simpleQuery: GenericDomainModelTrait.simpleQuery,
+  simpleQueryOpt: GenericDomainModelTrait.simpleQueryOpt,
+  propsLen: entityPropsLen,
+  structParsingProps: GenericDomainModelTrait.structParsingProps,
+  getTag: GenericDomainModelTrait.getTag,
+  unpack: GenericDomainModelTrait.unpack,
+  updateProps,
+};
+
+export const getBaseEntityTrait = <
+  E extends Entity,
+  I = EntityLiken<E>,
+  P = WithEntityMetaInput<I>,
+>(
+  config: BaseDMTraitFactoryConfig<E, I, P>,
+) => getBaseDMTrait<E, I, P>(EntityGenericTrait.factory)(config);
+
+type AsReducerReturn<E extends Entity> = Either.Either<
+  BaseException,
+  { props: Writable<GetProps<E>> | GetProps<E>; domainEvents: DomainEvent[] }
+>;
+
+interface AsReducer {
+  <En extends Entity, IFUNC extends (input: any) => CommandOnModel<En>>(
+    reducerLogic: (
+      input: FirstArgumentType<IFUNC>,
+      props: GetProps<En>,
+      entity: En,
+    ) => AsReducerReturn<En>,
+  ): (input: FirstArgumentType<IFUNC>) => CommandOnModel<En>;
+}
+
+export const asReducer: AsReducer =
+  <En extends Entity, IFUNC extends (input: any) => CommandOnModel<En>>(
+    reducerLogic: (
+      input: FirstArgumentType<IFUNC>,
+      props: GetProps<En>,
+      entity: En,
+    ) => AsReducerReturn<En>,
+  ) =>
+  (input: FirstArgumentType<IFUNC>) =>
+  (entity: En) => {
+    const propsLen = EntityGenericTrait.propsLen<En>();
+    const result = reducerLogic(input, Optics.get(propsLen)(entity), entity);
+    return pipe(
+      result,
+      Either.match(
+        (exception) => CommandOnModelTrait.fromException<En>(exception),
+        (r) =>
+          CommandOnModelTrait.fromModel2Events(
+            Optics.replace(propsLen)(RRecord.fromRecord(r.props))(entity),
+            r.domainEvents,
+          ),
+      ),
+    );
+  };
+
+export const AsReducerTrait = {
+  right: (v: [Writable<GetProps<Entity>>, DomainEvent[]]) => ({
+    _tag: 'success',
+    result: v,
+  }),
+  left: (e: ValidationErr) => ({
+    _tag: 'failure',
+    result: e,
+  }),
+  as: asReducer,
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/domain-model.base.type.ts`:
+
+```ts
+import { RRecord, Option } from '@logic/fp';
+import { ParsingInput, Validation } from './invariant-validation';
+import { GetProps, HasProps, KeyProps } from 'src/typeclasses/has-props';
+
+export type DomainModel<
+  T extends RRecord.ReadonlyRecord<string, any> = RRecord.ReadonlyRecord<
+    string,
+    any
+  >,
+> = HasProps<T> & {
+  readonly _tag: string;
+};
+
+export type SimpleQuery<T extends DomainModel, R> = (domainModel: T) => R;
+export type SimpleQueryOpt<T extends DomainModel, R> = (
+  domainModel: T,
+) => Option.Option<R>;
+
+export interface IGenericDomainModelTrait {
+  simpleQuery: <T extends DomainModel, R>(a: KeyProps<T>) => SimpleQuery<T, R>;
+  simpleQueryOpt: <T extends DomainModel, R>(
+    a: KeyProps<T>,
+  ) => SimpleQueryOpt<T, R>;
+  getTag: (dV: DomainModel) => string;
+  unpack: <T extends DomainModel>(dV: T) => GetProps<T>;
+  structParsingProps: <T extends DomainModel>(
+    raw: ParsingInput<GetProps<T>>,
+  ) => Validation<GetProps<T>>;
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/event/handler.base.ts`:
+
+```ts
+import { BaseException } from '@logic/exception.base';
+import { TaskEither } from 'fp-ts/lib/TaskEither';
+import { DomainEvent } from './domain-event.base';
+
+export interface IBaseHandler {
+  (event: DomainEvent): TaskEither<BaseException, void>;
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/event/index.ts`:
+
+```ts
+export * from './domain-event.base';
+export * from './handler.base';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/event/domain-event.base.ts`:
+
+```ts
+import { randomUUID } from 'crypto';
+import { Identifier } from 'src/typeclasses/obj-with-id';
+
+type DomainEventMetadata = {
+  /** Timestamp when this domain event occurred */
+  readonly timestamp: number;
+
+  /** ID for correlation purposes (for Integration Events,logs correlation, etc).
+   */
+  readonly correlationId: string;
+
+  /**
+   * Causation id used to reconstruct execution order if needed
+   */
+  readonly causationId?: string;
+
+  /**
+   * User ID for debugging and logging purposes
+   */
+  readonly userId?: string;
+};
+
+export interface DomainEvent<P = any> {
+  aggregateId?: Identifier;
+  aggregateType?: string;
+  name: string;
+  metadata: DomainEventMetadata;
+  payload?: P;
+}
+
+const construct = <P = any>({
+  aggregateId,
+  aggregateType,
+  name,
+  payload,
+}: {
+  aggregateId?: Identifier;
+  aggregateType?: string;
+  name: string;
+  payload?: P;
+}) =>
+  ({
+    aggregateId,
+    aggregateType,
+    name,
+    metadata: {
+      timestamp: new Date().getTime(),
+      correlationId: randomUUID(),
+    },
+    payload,
+  }) as DomainEvent<P>;
+
+export const DomainEventTrait = {
+  construct,
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/entity.base.type.ts`:
+
+```ts
+import { Option, RRecord, Record } from '@logic/fp';
+import { DomainModel } from './domain-model.base.type';
+import { ObjectWithId } from 'src/typeclasses';
+import { WithTime } from 'src/typeclasses/withtime';
+import { Liken, Parser } from './invariant-validation';
+import { VOLiken, ValueObject } from './value-object.base';
+import { ParserFactory } from './domain-model.base';
+import { CommandOnModel } from './entity.command-on-model';
+
+// use type here can break the EntityLiken
+export interface Entity<
+  T extends Record<string, any> = RRecord.ReadonlyRecord<string, any>,
+> extends DomainModel<Readonly<T>>,
+    ObjectWithId,
+    WithTime {}
+
+export type EntityCommonProps = Omit<Entity, 'props'>;
+
+export type EntityLiken<T, OV = unknown> = T extends Entity<infer PROPS>
+  ? WithEntityMetaInput<
+      OV extends Record<string, any>
+        ? {
+            [K in keyof Omit<PROPS, keyof OV>]: PROPS[K] extends Option.Option<
+              infer U
+            >
+              ? Option.Option<RecursiveWithArray<U>>
+              : RecursiveWithArray<PROPS[K]>;
+          } & OV
+        : {
+            [K in keyof PROPS]: PROPS[K] extends Option.Option<infer U>
+              ? Option.Option<RecursiveWithArray<U>>
+              : RecursiveWithArray<PROPS[K]>;
+          }
+    >
+  : unknown;
+
+type RecursiveWithArray<I> = I extends Entity
+  ? EntityLiken<I>
+  : I extends Array<unknown> & { [key: number]: Entity }
+    ? EntityLiken<I[0]>[]
+    : I extends ValueObject
+      ? VOLiken<I>
+      : I extends Array<unknown> & {
+            [key: number]: ValueObject;
+          }
+        ? VOLiken<I[0]>[]
+        : Liken<I>;
+
+export type WithEntityMetaInput<OriginInput> = OriginInput &
+  Liken<Omit<EntityCommonProps, '_tag' | 'id'>> & { id?: string };
+
+export type EntityInvariantParser<
+  T extends Entity,
+  IsPropAttr extends boolean,
+  V extends IsPropAttr extends true ? T['props'][keyof T['props']] : unknown,
+> = (entity: T) => Parser<V>;
+
+export type SimpleSeter<DM extends Entity, V> = (newV: V) => CommandOnModel<DM>;
+
+export type SimpleAdder<ET extends Entity, V> = (v: V) => CommandOnModel<ET>;
+
+export type SimpleRemover<ET extends Entity, V> = SimpleAdder<ET, V>;
+
+export type ParserOpt = {
+  autoGenId: boolean;
+};
+
+export type EntityParserFactory<I = unknown> = ParserFactory<
+  Entity,
+  I,
+  ParserOpt
+>;
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/model/domain-model-behavior.monad.ts`:
+
+```ts
+import { Arr, IOEither, State } from '@logic/fp';
+import { DomainEvent } from './event/domain-event.base';
+import { pipe } from 'fp-ts/lib/function';
+import { BaseException } from '@logic/exception.base';
+import { Validation } from './invariant-validation';
+import { Entity } from './entity.base.type';
+
+export interface IEventDispatcher {
+  dispatch(event: DomainEvent): IOEither.IOEither<BaseException, void>;
+  multiDispatch(events: DomainEvent[]): IOEither.IOEither<BaseException, void>;
+}
+
+export type BehaviorMonad<S> = {
+  events: DomainEvent[];
+  state: S;
+};
+
+const map =
+  <A extends Entity, B extends Entity = A>(f: (a: A) => B) =>
+  (fa: BehaviorMonad<A>): BehaviorMonad<B> =>
+    ({
+      state: f(fa.state),
+      events: fa.events,
+    }) as BehaviorMonad<B>;
+
+const of = <S>(state: S, itsEvent: DomainEvent[]) =>
+  ({
+    events: itsEvent,
+    state,
+  }) as BehaviorMonad<S>;
+
+const chain =
+  <A extends Entity, B extends Entity = A>(f: (a: A) => BehaviorMonad<B>) =>
+  (ma: BehaviorMonad<A>) => {
+    const result = f(ma.state);
+    return {
+      state: result.state,
+      events: [...result.events, ...ma.events],
+    } as BehaviorMonad<B>;
+  };
+const run =
+  (eD: IEventDispatcher) =>
+  <A extends Entity>(behavior: BehaviorMonad<A>, initEvents: DomainEvent[]) => {
+    return pipe(
+      eD.multiDispatch([...behavior.events, ...initEvents]),
+      IOEither.as(behavior.state),
+    );
+  };
+
+export type AggBehavior<A extends Entity, P, HasParser extends boolean> = (
+  p: P,
+) => (
+  a: A,
+) => HasParser extends true ? Validation<BehaviorMonad<A>> : BehaviorMonad<A>;
+
+export const BehaviorMonadTrait = {
+  map,
+  of,
+  chain,
+  run,
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/mapper.base.ts`:
+
+```ts
+import { BaseException } from '@logic/exception.base';
+import { Either, Option, TE } from '@logic/fp';
+import { DomainModel } from '@model/domain-model.base.type';
+import { EntityManager, ObjectLiteral } from 'typeorm';
+
+export interface IBaseMapper<DM extends DomainModel, DE extends ObjectLiteral> {
+  toDomain(data: DE): Either.Either<BaseException, DM>;
+  toData(params: {
+    domainModel: DM;
+    initState: Option.Option<DE>;
+  }): Either.Either<BaseException, DE>;
+  loadRelations(
+    entity: DE,
+    relations: string[],
+  ): TE.TaskEither<BaseException, DE>;
+  mapRelations(
+    relations: string[],
+    entity: DE,
+  ): TE.TaskEither<BaseException, DE>;
+  withTransaction<T>(
+    work: (manager: EntityManager) => TE.TaskEither<BaseException, T>,
+  ): TE.TaskEither<BaseException, T>;
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/implement/kv-even-handling-tracker.ts`:
+
+```ts
+import { AbstractKeyValueRepository } from '@ports/database/keyvalue/key-value.repository';
+import { EventHandlingTracker } from '../event-handling-tracker.base';
+
+export class KVEventHandlingTracker implements EventHandlingTracker {
+  private keyValueStore: AbstractKeyValueRepository;
+  private prefix: string;
+  constructor(keyValueStore: AbstractKeyValueRepository, prefix: string) {
+    this.prefix = prefix;
+    this.keyValueStore = keyValueStore;
+  }
+
+  static factory(keyValueStore: AbstractKeyValueRepository, prefix: string) {
+    return new KVEventHandlingTracker(keyValueStore, prefix);
+  }
+
+  keyWithPrefix(key: string) {
+    return this.prefix ? `${this.prefix}:${key}` : key;
+  }
+  async checkIfNotifHandled(aMessageId: string): Promise<boolean> {
+    const v = await this.keyValueStore.get(this.keyWithPrefix(aMessageId));
+    return (v && v.toString()) === 'true';
+  }
+
+  async markNotifAsHandled(aMessageId: string): Promise<void> {
+    await this.keyValueStore.set(this.keyWithPrefix(aMessageId), 'true');
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/index.ts`:
+
+```ts
+export * from './notification-reader';
+export * from './event-handling-tracker.base';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/notification-reader.ts`:
+
+```ts
+import { BaseExceptionTrait } from '@logic/exception.base';
+import { JsonMediaReader } from 'src/serializer/JsonReader';
+
+export class NotificationMessageReader extends JsonMediaReader {
+  private event: Record<string, any>;
+  constructor(aNotificationMessage: string) {
+    super(aNotificationMessage);
+    this.event = this.getRepresentation()['event'];
+    if (!this.event) {
+      BaseExceptionTrait.panic(
+        BaseExceptionTrait.construct(
+          'Notification does not contains event information',
+          'NOTIFICATION_NULL',
+        ),
+      );
+    }
+  }
+
+  static override read(aNotificationMessage: string) {
+    return new NotificationMessageReader(aNotificationMessage);
+  }
+  eventPath(path: string) {
+    return `/event${path}`;
+  }
+  eventStringValue(path: string) {
+    return this.stringValue(this.eventPath(path));
+  }
+
+  eventNumberValue(path: string) {
+    return this.numberValue(this.eventPath(path));
+  }
+
+  eventBooleanValue(path: string) {
+    return this.booleanValue(this.eventPath(path));
+  }
+
+  eventDateValue(path: string) {
+    return this.dateValue(this.eventPath(path));
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/rabbitmq/message-consumer.ts`:
+
+```ts
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+import {
+  getConsoleDomainLogger,
+  ConsoleDomainLogger,
+} from '@ports/domain-logger';
+import { Channel, Message } from 'amqplib';
+import { MessageListener } from './message-listener';
+import { Queue } from './queue';
+
+export class MessageConsumer {
+  private _autoAcknowled: boolean;
+
+  // My closed property, which indicates I have been closed.
+  private _closed = false;
+
+  private _consuming = false;
+
+  private _isReady = false;
+
+  private _isRetry = false;
+
+  // My messageTypes, which indicates the messages of types I accept
+  private _messageTypes: Set<string>;
+
+  private _prefetchCount = 1;
+
+  // My queue, which is where my messages come from.
+  private _queue: Queue;
+
+  private _label: string;
+
+  private _tag: string;
+
+  logger: ConsoleDomainLogger;
+
+  constructor(
+    aQueue: Queue,
+    isAutoAcknowledge: boolean,
+    isRetry = false,
+    label = '',
+  ) {
+    this.setQueue(aQueue);
+    this.setAutoAck(isAutoAcknowledge);
+    this.setMessageTypes(new Set());
+    this._isRetry = isRetry;
+    this._label = label;
+    this.logger = getConsoleDomainLogger(`MessageConsumer ${label}`);
+  }
+
+  static async factory(
+    queue: Queue,
+    isAutoAcknowledge = false,
+    isRetry = false,
+    label = '',
+  ) {
+    const consumer = new MessageConsumer(
+      queue,
+      isAutoAcknowledge,
+      isRetry,
+      label,
+    );
+    await consumer.equalizeMessageDistribution();
+    return consumer;
+  }
+
+  isAutoAcknowledge() {
+    return this._autoAcknowled;
+  }
+
+  setAutoAck(aBool: boolean) {
+    this._autoAcknowled = aBool;
+  }
+
+  queue() {
+    return this._queue;
+  }
+
+  setQueue(aQueue: Queue) {
+    this._queue = aQueue;
+  }
+
+  tag() {
+    return this._tag;
+  }
+
+  label() {
+    return this._label;
+  }
+
+  isConsuming() {
+    return this._consuming;
+  }
+
+  isReady() {
+    return this._isReady;
+  }
+
+  isRetry() {
+    return this._isRetry;
+  }
+
+  setIsReady(aBool: boolean) {
+    this._isReady = aBool;
+  }
+
+  setIsConsuming(aBool: boolean) {
+    this._consuming = aBool;
+  }
+
+  setTag(aTag: string) {
+    this._tag = aTag;
+  }
+
+  messageTypes(): Set<string> {
+    return this._messageTypes;
+  }
+
+  setMessageTypes(aMessageTypes: Set<string>) {
+    this._messageTypes = aMessageTypes;
+  }
+
+  isClosed() {
+    return this._closed;
+  }
+
+  async equalizeMessageDistribution() {
+    /*
+    Ensure an equalization of message distribution
+    across all consumers of this queue.
+    */
+    try {
+      await this.queue().getChannel().prefetch(this._prefetchCount);
+      this.logger.info(`QOS set to: ${this._prefetchCount}`);
+      this.setIsReady(true);
+    } catch (error) {
+      BaseExceptionTrait.panic(
+        BaseExceptionTrait.construct('', 'MESSAGE_EQUALIZE_PREFETCH'),
+      );
+    }
+  }
+
+  receiveAll(aMessageListener: MessageListener) {
+    return this.receiveFor(aMessageListener);
+  }
+
+  isTargetMessageType(messageType?: string) {
+    if (this.messageTypes().size === 0) {
+      return true;
+    } else {
+      return !!messageType && this.messageTypes().has(messageType);
+    }
+  }
+  ack(channel: Channel, message: Message) {
+    try {
+      if (!this.isAutoAcknowledge()) {
+        channel.ack(message, false);
+        this.logger.info(
+          `ACK handle messsage success [content] ${message.content}`,
+        );
+      }
+    } catch (error) {
+      this.logger.info(`Exception on ACK ${error}`);
+      throw error;
+    }
+  }
+  private nak(channel: Channel, message: Message, isRetry: boolean) {
+    try {
+      if (!this.isAutoAcknowledge()) {
+        channel.nack(message, false, isRetry);
+        this.logger.info(`NACK message, is requeue ${isRetry}`);
+      }
+    } catch (error) {
+      this.logger.info(`Exception on NACK ${error}`);
+    }
+  }
+
+  private handleDeliveryException(
+    channel: Channel,
+    message: Message,
+    isRetry: boolean,
+    exception: BaseException,
+  ) {
+    this.logger.info(
+      `Exception on handle delivery ${BaseExceptionTrait.getMessage(exception)}`,
+    );
+    this.nak(channel, message, isRetry);
+  }
+
+  private async handleDelivery(
+    message: Message,
+    aMessageListener: MessageListener,
+  ) {
+    const channel = this.queue().getChannel();
+    try {
+      const isTargetMessage = this.isTargetMessageType(message.properties.type);
+      if (!isTargetMessage) {
+        return this.ack(channel, message);
+      }
+      this.logger.info(`Handle delivery ${message.properties.type}`);
+      await aMessageListener.handleMessage(
+        message.properties.type,
+        message.properties.messageId,
+        message.properties.timestamp,
+        message.content,
+        message.fields.deliveryTag,
+        message.fields.redelivered,
+      );
+      this.ack(channel, message);
+    } catch (error) {
+      this.handleDeliveryException(
+        channel,
+        message,
+        this.isRetry(),
+        BaseExceptionTrait.construct(
+          error.toString(),
+          'HANDLE_DELIVERY_EXCEPTION',
+        ),
+      );
+    }
+  }
+  receiveOnly(aMessageTypes: string[], aMessageListener: MessageListener) {
+    this.setMessageTypes(new Set(aMessageTypes));
+    return this.receiveFor(aMessageListener);
+  }
+
+  async receiveFor(aMessageListener: MessageListener) {
+    try {
+      const channel = this.queue().getChannel();
+      const tag = await channel.consume(
+        this.queue().getName(),
+        async (message) => {
+          return await this.handleDelivery(message, aMessageListener);
+        },
+      );
+      this.logger.info(
+        `Register message listener success with [queue] ${this.queue().getName()}`,
+      );
+      channel.addListener('cancel', this.onConsumerCancelled);
+      this.setTag(tag.consumerTag);
+      this.setIsConsuming(true);
+    } catch (error) {
+      BaseExceptionTrait.panic(
+        BaseExceptionTrait.construct('', 'INITIATE_CONSUMER_FAILED'),
+      );
+    }
+  }
+
+  async closeChannel() {
+    const channel = this.queue().getChannel();
+    if (channel) {
+      await channel.close();
+    }
+  }
+
+  private async onConsumerCancelled(methodFrame: any) {
+    this.logger.info(
+      `Consumer was cancelled remotely, shutting down: ${methodFrame}`,
+    );
+    await this.closeChannel();
+  }
+
+  private async stopConsuming() {
+    const channel = this.queue().getChannel();
+    await channel.cancel(this.tag());
+    await this.queue().close();
+  }
+
+  async close() {
+    /*
+    Cleanly shutdown the connection to RabbitMQ by stopping the consumer
+    with RabbitMQ. When RabbitMQ confirms the cancellation, on_cancelok
+    will be invoked by pika, which will then closing the channel and
+    connection. The IOLoop is started again because this method is invoked
+    when CTRL-C is pressed raising a KeyboardInterrupt exception. This
+    exception stops the IOLoop which needs to be running for pika to
+    communicate with RabbitMQ. All of the commands issued prior to starting
+    the IOLoop will be buffered but not processed.
+    */
+    this._closed = true;
+    if (this.isConsuming()) {
+      await this.stopConsuming();
+    } else {
+      await this.queue().close();
+    }
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/rabbitmq/message-type.ts`:
+
+```ts
+export enum MessageType {
+  BINARY = 'BINARY',
+  TEXT = 'TEXT',
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/rabbitmq/index.ts`:
+
+```ts
+export * from './message-type';
+export * from './broker-component';
+export * from './connection-setting';
+export * from './exchange';
+export * from './exchange-listener';
+export * from './message-consumer';
+export * from './message-listener';
+export * from './message-type';
+export * from './queue';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/rabbitmq/message-listener.ts`:
+
+```ts
+import { MessageType } from './message-type';
+
+export abstract class MessageListener {
+  /*
+  I am a message listener, which is given each message received
+  by a MessageConsumer. I am also an adapter because I provide
+  defaults for both handleMessage() behaviors. A typical subclass
+  would override one or the other handleMessage() based on its
+  type and leave the remaining handleMessage() defaulted since
+  it will never be used by MessageConsumer.
+  */
+
+  private _type: MessageType;
+
+  constructor(aType: MessageType) {
+    this.setType(aType);
+  }
+
+  type() {
+    /*
+    Answers my type.
+    @return Type
+    */
+    return this._type;
+  }
+
+  setType(aMessageType: MessageType) {
+    /**
+     * Sets my type.
+     *
+     * @param {Type} a_type - The type to set as my type.
+     */
+    this._type = aMessageType;
+  }
+
+  abstract handleMessage(
+    aType: string,
+    aMessageId: string,
+    aTimeStamp: Date,
+    aMessage: Buffer,
+    aDeliveryTag: number,
+    isRedelivery: boolean,
+  ): Promise<void>;
+  /**
+   * Handles a binary message. If any MessageException is thrown by
+   * the implementor, its isRetry() method is examined, and if it returns
+   * true, the message being handled will be nack'd and re-queued. Otherwise,
+   * if its isRetry() method returns false, the message will be rejected/failed
+   * (not re-queued). If any other Exception is thrown, the message will be
+   * considered not handled and will be rejected/failed.
+   *
+   * @param {string|null} aType - The string type of the message if sent, or null.
+   * @param {string|null} aMessageId - The string id of the message if sent, or null.
+   * @param {Date|null} aTimestamp - The timestamp of the message if sent, or null.
+   * @param {Buffer|string} aMessage - The byte array or text containing the binary message.
+   * @param {number} aDeliveryTag - The tag delivered with the message.
+   * @param {boolean} isRedelivery - A boolean indicating whether or not this message is a redelivery.
+   * @throws {Exception} When any problem occurs and the message must not be acknowledged.
+   */
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/rabbitmq/queue.ts`:
+
+```ts
+import { ArbFunction, FutureArbFnc } from '@type_util/function';
+import { BrokerComponent } from './broker-component';
+import { ConnectionSettings } from './connection-setting';
+import { Exchange } from './exchange';
+
+type QueueSetupParam = {
+  exclusive: boolean;
+  durable: boolean;
+  autoDelete: boolean;
+};
+/**
+ * Parameters for constructing a Queue object.
+ *
+ * @interface QueueConstructorParams
+ * @property {string} aName - The name of the queue.
+ * @property {boolean} isDurable - Whether the queue should be durable (i.e. survive broker restarts).
+ * @property {boolean} isExclusive - Whether the queue should be exclusive to the connection.
+ * @property {boolean} isAutoDeleted - Whether the queue should be automatically deleted when the connection is closed.
+ * @property {FutureArbFnc} [onSetupFinish] - An optional callback function to be called when queue setup is finished successfully.
+ * @property {FutureArbFnc} [onSetupError] - An optional callback function to be called when queue setup encounters an error.
+ * @property {Object} [init] - Optional initial connection settings for the queue.
+ * @property {ConnectionSettings} init.aConnSettings - The connection settings for the queue.
+ * @property {Object} [clone] - Optional settings to clone another Exchange or Queue object.
+ * @property {(Exchange | Queue)} clone.aBrokerComponent - The Exchange or Queue object to clone from.
+ */
+interface QueueConstructorParams {
+  aName: string;
+  isDurable: boolean;
+  isExclusive: boolean;
+  isAutoDeleted: boolean;
+  onSetupFinish?: FutureArbFnc;
+  onSetupError?: FutureArbFnc;
+  init?: {
+    aConnSettings: ConnectionSettings;
+  };
+  clone?: {
+    aBrokerComponent: Exchange | Queue;
+  };
+}
+
+export class Queue extends BrokerComponent<QueueSetupParam> {
+  isAutoDeleted: boolean;
+  isExclusive: boolean;
+  isReady: boolean;
+
+  isQueue(): boolean {
+    return true;
+  }
+
+  /**
+   * @param props - QueueConstructorParams
+   */
+  constructor(props: QueueConstructorParams) {
+    const {
+      aName,
+      isDurable,
+      isExclusive,
+      isAutoDeleted,
+      onSetupFinish,
+      onSetupError,
+    } = props;
+    const setupParams = {
+      exclusive: isExclusive,
+      durable: isDurable,
+      autoDelete: isAutoDeleted,
+    };
+    if (props.init) {
+      super({
+        onSetupFinish,
+        onSetupError,
+        init: {
+          aConnectionSettings: props.init.aConnSettings,
+          aName,
+        },
+        setupParams,
+      });
+    } else if (props.clone) {
+      super({
+        onSetupFinish,
+        onSetupError,
+        clone: {
+          aBrokerComponent: props.clone.aBrokerComponent,
+          aName,
+        },
+        setupParams,
+      });
+    } else {
+      throw Error('[PARAM_NOT_VALID] Cannot initialize Queue');
+    }
+    this.setIsDurable(isDurable);
+    this.isExclusive = isExclusive;
+    this.isAutoDeleted = isAutoDeleted;
+    this.isReady = false;
+  }
+
+  static factoryUnderlyingQueue(
+    aConnSettings: ConnectionSettings,
+    aName: string,
+    onSetupFinish: FutureArbFnc,
+    onSetupError: FutureArbFnc,
+  ) {
+    /*
+     * Answers a new instance of a Queue with the name a_name. The underlying
+     * queue is non-durable, non-exclusive, and not auto-deleted.
+     * @param a_connection_settings the ConnectionSettings
+     * @param a_name the String name of the queue
+     * @return Queue
+     **/
+    return new Queue({
+      aName,
+      isExclusive: false,
+      isAutoDeleted: false,
+      isDurable: false,
+      onSetupFinish,
+      onSetupError,
+      init: { aConnSettings },
+    });
+  }
+
+  /**
+   * @param aConnSettings - ConnectionSetting
+   * @param aName -
+   * @param isDurable -
+   * @param isExclusive -
+   * @param isAutoDeleted -
+   * @param onSetupFinish -
+   * @param onSetupError -
+   * @returns
+   */
+  static factory(
+    aConnSettings: ConnectionSettings,
+    aName: string,
+    isDurable: boolean,
+    isExclusive: boolean,
+    isAutoDeleted: boolean,
+    onSetupFinish: FutureArbFnc,
+    onSetupError: FutureArbFnc,
+  ) {
+    return new Queue({
+      aName,
+      isDurable,
+      isExclusive,
+      isAutoDeleted,
+      onSetupFinish,
+      onSetupError,
+      init: {
+        aConnSettings,
+      },
+    });
+  }
+
+  static factoryDurableInstance(
+    aConnSettings: ConnectionSettings,
+    aName: string,
+    onSetupFinish: FutureArbFnc,
+    onSetupError: FutureArbFnc,
+  ) {
+    /**
+     * Creates a new instance of a Queue with the given name. The underlying
+     * queue is durable, exclusive, and not auto-deleted.
+     *
+     * @param {ConnectionSettings} aConnectionSettings - The connection settings.
+     * @param {string} aName - The name of the queue.
+     * @returns {Queue} A new instance of a durable, exclusive, and non-auto-deleted Queue.
+     */
+    return new Queue({
+      aName,
+      onSetupFinish,
+      onSetupError,
+      isDurable: true,
+      isExclusive: false,
+      isAutoDeleted: false,
+      init: {
+        aConnSettings,
+      },
+    });
+  }
+
+  static factoryDurableExclusiveInstance(
+    aConnSettings: ConnectionSettings,
+    aName: string,
+    onSetupFinish: FutureArbFnc,
+    onSetupError: FutureArbFnc,
+  ) {
+    /**
+
+    answers a new instance of a queue with the name aname. the underlying
+    queue is durable, exclusive, and not auto-deleted.
+    @param {ConnectionSettings} a_connection_settings the connectionsettings
+    @param {string} a_name the string name of the queue
+    @return {object} queue
+    */
+    return new Queue({
+      aName,
+      onSetupFinish,
+      onSetupError,
+      isDurable: true,
+      isExclusive: true,
+      isAutoDeleted: false,
+      init: {
+        aConnSettings,
+      },
+    });
+  }
+
+  static factoryFanoutExchangeSubscriber(
+    anExchange: Exchange,
+    aName: string,
+    isDurable: boolean,
+    isAutoDeleted: boolean,
+    isExclusive: boolean,
+    cb: ArbFunction | null = null,
+    onSetupError?: ArbFunction,
+  ) {
+    // this.logger.info(
+    //   `[QUEUE] Factory a QUEUE is durable ${isDurable}, is_auto_deleted ${isAutoDeleted}, is_exclusive ${isExclusive}`
+    // );
+    return new Queue({
+      aName,
+      isDurable,
+      isExclusive,
+      isAutoDeleted,
+      onSetupFinish: async (queue: Queue) => {
+        await Queue.bindQueue(queue, anExchange, '');
+        queue.setQueueIsReady(true);
+        if (cb) {
+          await cb(queue);
+        }
+      },
+      onSetupError,
+      clone: {
+        aBrokerComponent: anExchange,
+      },
+    });
+  }
+
+  static async asyncFactoryFanoutExchangeSubscriber(
+    anExchange: Exchange,
+    aName: string,
+    isDurable: boolean,
+    isAutoDeleted: boolean,
+    isExclusive: boolean,
+  ) {
+    const queue = await new Promise((resolve, reject) => {
+      Queue.factoryFanoutExchangeSubscriber(
+        anExchange,
+        aName,
+        isDurable,
+        isAutoDeleted,
+        isExclusive,
+        async (queue) => {
+          resolve(queue);
+        },
+        async (error) => {
+          reject(error);
+        },
+      );
+    });
+    return queue;
+  }
+
+  static factoryExchangeSubcriberWithRoutingKeysAutoName(
+    anExchange: Exchange,
+    routingKeys: string[],
+    isDurable: boolean,
+    isAutoDeleted: boolean,
+    isExclusive: boolean,
+    cb: ArbFunction | null = null,
+    onSetupError?: ArbFunction,
+  ) {
+    /*
+     * Answers a new instance of a Queue that is bound to an_exchange, and
+     * is ready to participate as an exchange subscriber (pub/sub). The
+     * connection and channel of an_exchange are reused. The Queue is
+     * uniquely named by the server, non-durable, exclusive, and auto-deleted.
+     * The queue is bound to all routing keys in routing_keys. This Queue
+     * style best works as a temporary direct or topic subscriber.
+     *
+     * @param {Exchange} an_exchange - the Exchange to bind with the new Queue
+     * @return {Queue} - the new Queue instance
+     */
+    return this.factoryExchangeSubcriberWithRoutingKeysWithName(
+      anExchange,
+      '',
+      routingKeys,
+      isDurable,
+      isAutoDeleted,
+      isExclusive,
+      cb,
+      onSetupError,
+    );
+  }
+
+  static asyncFactoryExchangeSubcriberWithRoutingKeysAutoName(
+    anExchange: Exchange,
+    routingKeys: string[],
+    isDurable: boolean,
+    isAutoDeleted: boolean,
+    isExclusive: boolean,
+  ) {
+    return this.asyncFactoryExchangeSubcriberWithRoutingKeysWithName(
+      anExchange,
+      '',
+      routingKeys,
+      isDurable,
+      isAutoDeleted,
+      isExclusive,
+    );
+  }
+
+  static factoryExchangeSubcriberWithRoutingKeysWithName(
+    anExchange: Exchange,
+    aName: string,
+    routingKeys: string[],
+    isDurable: boolean,
+    isAutoDeleted: boolean,
+    isExclusive: boolean,
+    cb: ArbFunction | null = null,
+    onSetupError?: ArbFunction,
+  ): Queue {
+    /**
+     * Answers a new instance of a Queue that is bound to an exchange and
+     * is ready to participate as an exchange subscriber (pub/sub). The
+     * connection and channel of the exchange are reused. The Queue is named
+     * by aName, unless it is empty, in which case the name is generated by
+     * the broker. The Queue is bound to all routing keys in routingKeys,
+     * or to no routing key if routingKeys is empty. The Queue has the
+     * qualities specified by isDurable, isExclusive, and isAutoDeleted. This
+     * factory is provided for ultimate flexibility in case no other
+     * exchange-queue binder factories fit the needs of the client.
+     *
+     * @param {Exchange} anExchange - the Exchange to bind with the new Queue
+     * @param {string} aName - the String name of the queue
+     * @param {string[]} routingKeys - the routing keys to bind the queue to
+     * @param {boolean} isDurable - the boolean indicating whether or not the Queue is durable
+     * @param {boolean} isExclusive - the boolean indicating whether or not the Queue is exclusive
+     * @param {boolean} isAutoDeleted - the boolean indicating whether or not the Queue should be auto-deleted
+     * @returns {Queue}
+     */
+    return new Queue({
+      aName,
+      isDurable,
+      isExclusive,
+      isAutoDeleted,
+      onSetupError,
+      onSetupFinish: async (queue: Queue) => {
+        if (routingKeys.length === 0) {
+          await Queue.bindQueue(queue, anExchange, '');
+        } else {
+          await Promise.all(
+            routingKeys.map((routingKey) =>
+              Queue.bindQueue(queue, anExchange, routingKey),
+            ),
+          );
+        }
+        queue.setQueueIsReady(true);
+        if (cb) {
+          await cb(queue);
+        }
+      },
+      clone: {
+        aBrokerComponent: anExchange,
+      },
+    });
+  }
+
+  static async asyncFactoryExchangeSubcriberWithRoutingKeysWithName(
+    anExchange: Exchange,
+    aName: string,
+    routingKeys: string[],
+    isDurable: boolean,
+    isAutoDeleted: boolean,
+    isExclusive: boolean,
+  ) {
+    const queue: Queue = await new Promise((resolve, reject) => {
+      this.factoryExchangeSubcriberWithRoutingKeysWithName(
+        anExchange,
+        aName,
+        routingKeys,
+        isDurable,
+        isAutoDeleted,
+        isExclusive,
+        async (queue) => {
+          resolve(queue);
+        },
+        async (error) => {
+          reject(error);
+        },
+      );
+    });
+    return queue;
+  }
+
+  static async bindQueue(
+    aQueue: Queue,
+    anExchange: Exchange,
+    routingKey: string,
+    cb: ArbFunction | null = null,
+  ) {
+    const channel = aQueue.getChannel();
+    if (channel) {
+      await channel.bindQueue(
+        aQueue.getName(),
+        anExchange.getName(),
+        routingKey,
+      );
+      cb?.(aQueue);
+    }
+  }
+  async setup(
+    params: QueueSetupParam,
+    onSetupFinish?: ArbFunction,
+  ): Promise<void> {
+    const channel = this.getChannel();
+    if (channel) {
+      const assertQueue = await channel.assertQueue(this.getName(), {
+        exclusive: params.exclusive,
+        durable: params.durable,
+        autoDelete: params.autoDelete,
+      });
+      // update name, if we use auto-generated name for channel
+      // (as passing empty string name to queue constructor)
+      this.setName(assertQueue.queue);
+      if (onSetupFinish) {
+        await onSetupFinish(this);
+      }
+    }
+  }
+
+  setQueueIsReady(aBool: boolean) {
+    this.isReady = aBool;
+  }
+
+  isQueueReady() {
+    return this.isReady;
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/rabbitmq/broker-component.ts`:
+
+```ts
+import { FutureArbFnc } from '@type_util/function';
+import amqp from 'amqp-connection-manager';
+import { IAmqpConnectionManager } from 'amqp-connection-manager/dist/esm/AmqpConnectionManager';
+import { Channel, Connection } from 'amqplib';
+import { ConnectionSettings } from './connection-setting';
+
+export abstract class BrokerComponent<SetupParam> {
+  // My channel
+  private channel?: Channel;
+
+  // My connection, which is the connection to my host broker
+  private connection: Connection;
+
+  // My connection manager
+  private connectionMn: IAmqpConnectionManager;
+
+  // My durable prop, which indicates whether or not messages are durable
+  private durable = false;
+
+  private connectionSettings: ConnectionSettings;
+
+  private _isOpen = false;
+
+  private onSetupFinish?: FutureArbFnc;
+
+  private onSetupError?: FutureArbFnc;
+
+  private name: string;
+
+  private setupParams: SetupParam;
+
+  constructor(props: {
+    setupParams: SetupParam;
+    onSetupFinish?: FutureArbFnc;
+    onSetupError?: FutureArbFnc;
+    init?: {
+      aConnectionSettings: ConnectionSettings;
+      aName: string;
+    };
+    clone?: {
+      aBrokerComponent: BrokerComponent<any>;
+      aName: string;
+    };
+  }) {
+    this.onSetupFinish = props.onSetupFinish;
+    this.onSetupError = props.onSetupError;
+    this.setupParams = props.setupParams;
+    if (props?.init) {
+      const { aConnectionSettings, aName } = props.init;
+      this.factoryConnection(aConnectionSettings);
+      this.setName(aName);
+    } else if (props.clone) {
+      const { aBrokerComponent, aName } = props.clone;
+      this.setName(aName);
+      this.setConnectionSettings(aBrokerComponent.getConnectionSettings());
+      this.setConnection(aBrokerComponent.getConnection());
+      this.connectionMn = aBrokerComponent.getConnectionMn();
+      const currentChannel = aBrokerComponent.getChannel();
+      if (currentChannel) {
+        this.setChannel(currentChannel);
+      }
+      this.setup(this.setupParams, this.onSetupFinish);
+    } else {
+      throw Error('[PARAM_NOT_VALID] Cannot initialize Broker component');
+    }
+  }
+
+  private handleError(error?: Error) {
+    if (error && this.onSetupError) {
+      this.onSetupError(error);
+    } else if (error) {
+      throw error;
+    }
+  }
+
+  private factoryConnection(
+    aConnectionSettings: ConnectionSettings,
+  ): Connection | undefined {
+    const connectionMn = amqp.connect(aConnectionSettings.toUrl());
+    this.connectionMn = connectionMn;
+    connectionMn.addListener('connect', () =>
+      this.onConnectionOpen(connectionMn),
+    );
+    connectionMn.addListener('connectFailed', (error: Error) => {
+      this.handleError(error);
+    });
+    return connectionMn.connection;
+  }
+
+  private onConnectionOpen(connectionMn: IAmqpConnectionManager) {
+    console.info('Connection open successfully');
+    this.openChannel(connectionMn);
+  }
+
+  private openChannel(connectionManager: IAmqpConnectionManager) {
+    try {
+      const channelWrapper = connectionManager.createChannel({
+        setup: this.onChannelOpened.bind(this),
+      });
+      channelWrapper.on('close', this.onChannelClosed);
+      channelWrapper.addListener('error', (error: Error) => {
+        this.handleError(error);
+      });
+    } catch (error) {
+      this.handleError(error as Error);
+    }
+  }
+
+  abstract setup(
+    params: SetupParam,
+    onSetupFinish: FutureArbFnc,
+  ): Promise<void>;
+
+  private async onChannelOpened(channel: Channel) {
+    this.setChannel(channel);
+    try {
+      await this.setup(this.setupParams, this.onSetupFinish);
+    } catch (error) {
+      this.handleError(error as Error);
+    }
+  }
+
+  private async onChannelClosed(channel: Channel) {
+    /*
+    Invoked by pika when RabbitMQ unexpectedly closes the channel.
+    Channels are usually closed if you attempt to do something that
+    violates the protocol, such as re-declare an exchange or queue with
+    different parameters. In this case, we'll close the connection
+    to shutdown the object.
+    :param amqp.Channel channel: The closed channel
+    */
+    console.info(`Channel ${channel} was closed`);
+    this.channel = undefined;
+
+    if (this.isOpen()) {
+      await this.connection.close();
+      this.setIsOpen(true);
+    }
+  }
+
+  setIsOpen(aBoolean: boolean) {
+    this._isOpen = aBoolean;
+  }
+
+  isOpen() {
+    return this._isOpen;
+  }
+
+  setChannel(aChannel: Channel) {
+    this.channel = aChannel;
+  }
+
+  getChannel(): Channel | undefined {
+    return this.channel;
+  }
+
+  setConnectionSettings(aConnectionSettings: ConnectionSettings) {
+    this.connectionSettings = aConnectionSettings;
+  }
+
+  getConnectionSettings(): ConnectionSettings {
+    return this.connectionSettings;
+  }
+
+  getConnection(): Connection {
+    return this.connection;
+  }
+
+  setConnection(connection: Connection) {
+    this.connection = connection;
+  }
+
+  getConnectionMn(): IAmqpConnectionManager {
+    return this.connectionMn;
+  }
+
+  isDurable() {
+    return this.durable;
+  }
+  getName() {
+    return this.name;
+  }
+  exchangeName() {
+    return this.isExchange() ? this.name : null;
+  }
+
+  queueName() {
+    return this.isQueue() ? this.name : null;
+  }
+
+  isQueue() {
+    return false;
+  }
+
+  isExchange() {
+    return false;
+  }
+
+  public setIsDurable(aBool: boolean) {
+    this.durable = aBool;
+  }
+
+  public setName(aName: string) {
+    this.name = aName;
+  }
+
+  private async closeChannel() {
+    await this.channel?.close();
+  }
+
+  private async closeConnection() {
+    await this.connectionMn.close();
+  }
+
+  public async close() {
+    this.setIsOpen(false);
+    await this.closeChannel();
+    await this.closeConnection();
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/rabbitmq/connection-setting.ts`:
+
+```ts
+export class ConnectionSettings {
+  hostname: string;
+  port?: number;
+  username?: string;
+  password?: string;
+  vhost?: string;
+
+  constructor(
+    hostname: string,
+    port?: number,
+    username?: string,
+    password?: string,
+    vhost?: string,
+  ) {
+    // TODO: Validation
+    this.hostname = hostname;
+    this.port = port;
+    this.username = username;
+    this.password = password;
+    this.vhost = vhost;
+  }
+
+  static factory(
+    hostname: string,
+    port?: number,
+    username?: string,
+    password?: string,
+    vhost?: string,
+  ) {
+    return new ConnectionSettings(hostname, port, username, password, vhost);
+  }
+
+  toUrl() {
+    const hostPortPath = `${this.hostname}${this.port ? `:${this.port}` : ''}/${
+      this.vhost || '/'
+    }`;
+    if (this.hasCredential()) {
+      return `amqp://${this.username}:${this.password}@${hostPortPath}`;
+    }
+    return `amqp://${hostPortPath}`;
+  }
+
+  hasCredential() {
+    return this.username && this.password;
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/rabbitmq/exchange.ts`:
+
+```ts
+import { FutureArbFnc } from '@type_util/function';
+import { Replies } from 'amqplib';
+import { BrokerComponent } from './broker-component';
+import { ConnectionSettings } from './connection-setting';
+
+export enum ExchangeType {
+  DIRECT = 'direct',
+  TOPIC = 'topic',
+  HEADERS = 'headers',
+  FANOUT = 'fanout',
+  MATCH = 'match',
+}
+
+type ExchangeSetupParam = {
+  durable: boolean;
+  autoDelete: boolean;
+};
+
+export class Exchange extends BrokerComponent<ExchangeSetupParam> {
+  private _isExchangeReady: boolean;
+  private _type: ExchangeType;
+  private _isAutoDelete: boolean;
+  private _rawExchange: Replies.AssertExchange;
+
+  constructor(
+    aConnSettings: ConnectionSettings,
+    aName: string,
+    aType: ExchangeType,
+    isDurable: boolean,
+    isAutoDelete = false,
+    onSetupFinish?: FutureArbFnc,
+    onSetupError?: FutureArbFnc,
+  ) {
+    super({
+      init: { aConnectionSettings: aConnSettings, aName },
+      onSetupError,
+      onSetupFinish,
+      setupParams: { durable: isDurable, autoDelete: isAutoDelete },
+    });
+    this.setIsDurable(isDurable);
+    this.setExchangeType(aType);
+    this._isAutoDelete = isAutoDelete;
+  }
+
+  static factory(
+    aConnSettings: ConnectionSettings,
+    aName: string,
+    aType: ExchangeType,
+    isDurable: boolean,
+    isAutoDelete = false,
+    onSetupFinish?: FutureArbFnc,
+    onSetupError?: FutureArbFnc,
+  ) {
+    return new Exchange(
+      aConnSettings,
+      aName,
+      aType,
+      isDurable,
+      isAutoDelete,
+      onSetupFinish,
+      onSetupError,
+    );
+  }
+
+  static directInstance(
+    aConnSettings: ConnectionSettings,
+    aName: string,
+    isDurable: boolean,
+    isAutoDelete?: boolean,
+    onSetupFinish?: FutureArbFnc,
+    onSetupError?: FutureArbFnc,
+  ) {
+    return new Exchange(
+      aConnSettings,
+      aName,
+      ExchangeType.DIRECT,
+      isDurable,
+      isAutoDelete,
+      onSetupFinish,
+      onSetupError,
+    );
+  }
+
+  static async asyncDirectInstance(
+    aConnSettings: ConnectionSettings,
+    aName: string,
+    isDurable: boolean,
+    isAutoDelete?: boolean,
+  ) {
+    const exchange: Exchange = await new Promise((resolve, reject) => {
+      Exchange.directInstance(
+        aConnSettings,
+        aName,
+        isDurable,
+        isAutoDelete,
+        async (exchange) => {
+          resolve(exchange);
+        },
+        async (error) => {
+          reject(error);
+        },
+      );
+    });
+    return exchange;
+  }
+
+  static fanoutInstance(
+    aConnSettings: ConnectionSettings,
+    aName: string,
+    isDurable: boolean,
+    isAutoDelete?: boolean,
+    onSetupFinish?: FutureArbFnc,
+    onSetupError?: FutureArbFnc,
+  ) {
+    return new Exchange(
+      aConnSettings,
+      aName,
+      ExchangeType.FANOUT,
+      isDurable,
+      isAutoDelete,
+      onSetupFinish,
+      onSetupError,
+    );
+  }
+
+  static headerInstance(
+    aConnSettings: ConnectionSettings,
+    aName: string,
+    isDurable: boolean,
+    isAutoDelete?: boolean,
+    onSetupFinish?: FutureArbFnc,
+    onSetupError?: FutureArbFnc,
+  ) {
+    return new Exchange(
+      aConnSettings,
+      aName,
+      ExchangeType.HEADERS,
+      isDurable,
+      isAutoDelete,
+      onSetupFinish,
+      onSetupError,
+    );
+  }
+
+  async setup(
+    setupParams: ExchangeSetupParam,
+    onSetupFinish: FutureArbFnc,
+  ): Promise<void> {
+    console.info(`[EXCHANGE] setup exchange ${this.getName()} start`);
+    if (!this.getChannel()) {
+      throw new Error('cannot do setupping, channel is not ready');
+    }
+    this._rawExchange = await this.getChannel().assertExchange(
+      this.getName(),
+      this.exchangeType(),
+      {
+        durable: setupParams.durable,
+        autoDelete: setupParams.autoDelete,
+      },
+    );
+
+    console.info(`[EXCHANGE] declare exchange ${this.getName()} successfully`);
+    this.setExchangeReadyStatus(true);
+    if (onSetupFinish) {
+      await onSetupFinish(this);
+    }
+  }
+
+  isExchange() {
+    return true;
+  }
+
+  isAutoDelete() {
+    return this._isAutoDelete;
+  }
+
+  isExchangeReady() {
+    return this._isExchangeReady;
+  }
+
+  setExchangeReadyStatus(aBool: boolean) {
+    this._isExchangeReady = aBool;
+  }
+
+  exchangeType(): ExchangeType {
+    return this._type;
+  }
+
+  rawExchange(): Replies.AssertExchange {
+    return this._rawExchange;
+  }
+
+  setExchangeType(anExchangeType: ExchangeType) {
+    this._type = anExchangeType;
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/rabbitmq/exchange-listener.ts`:
+
+```ts
+import {
+  ConsoleDomainLogger,
+  getConsoleDomainLogger,
+} from '@ports/domain-logger';
+import { ArbFunction } from '@type_util/function';
+import { EventHandlingTracker } from '../event-handling-tracker.base';
+import { ConnectionSettings } from './connection-setting';
+import { Exchange, ExchangeType } from './exchange';
+import { MessageConsumer } from './message-consumer';
+import { MessageListener } from './message-listener';
+import { MessageType } from './message-type';
+import { Queue } from './queue';
+
+export class ExchangeListener {
+  private messageConsumer?: MessageConsumer;
+  private queue?: Queue;
+  private exchange?: Exchange;
+  private isReady = false;
+  connectionSetting: ConnectionSettings;
+  autoAck = false;
+  isRetry = false;
+  label = '';
+  logger: ConsoleDomainLogger;
+  eventHandlingTracker: EventHandlingTracker;
+
+  // Exchange Property
+  exchangeDurable = true;
+  exchangeAutoDelete = false;
+  exchangeType: ExchangeType;
+
+  // Queue Property
+  queueDurable = true;
+  queueAutoDeleted = false;
+  queueExclusive = true;
+  queueRoutingKeys?: string[];
+
+  private onReady?: ArbFunction;
+
+  _queueRoutingKeys() {
+    return this.queueRoutingKeys ?? this.listenTo();
+  }
+
+  constructor(eventHandlingTracker: EventHandlingTracker) {
+    this.logger = getConsoleDomainLogger(`ExchangeListener ${this.label}`);
+    this.eventHandlingTracker = eventHandlingTracker;
+  }
+
+  start(onStartError?: ArbFunction) {
+    this.attachToQueue(onStartError);
+  }
+
+  registerOnReady(cb: ArbFunction) {
+    this.onReady = cb;
+  }
+
+  getMessageConsumer(): MessageConsumer | null | undefined {
+    return this.messageConsumer;
+  }
+
+  setMessageConsumer(aMessageConsumer: MessageConsumer) {
+    this.messageConsumer = aMessageConsumer;
+  }
+
+  checkIfReady() {
+    return this.isReady;
+  }
+
+  async close() {
+    if (this.queue) {
+      await this.queue.close();
+    }
+  }
+  /*
+  Answers the String name of the exchange I listen to.
+  @return str
+  */
+  exchangeName(): string {
+    throw Error('This method need to be overridden');
+  }
+
+  filteredDispatch(params: {
+    aType: string;
+    aMessageId: string;
+    aTimeStamp: Date;
+    aMessage: string;
+    aDeliveryTag: number;
+    isRedelivery: boolean;
+  }): Promise<void> {
+    throw Error('This method need to be overridden' + params);
+  }
+
+  /*
+  Answers the kinds of messages I listen to.
+  @return: List[str]
+  */
+  listenTo(): string[] {
+    throw Error('This method need to be overridden');
+  }
+  /*
+  Answers the str name of the queue I listen to. By
+  default it is the simple name of my concrete class.
+  May be overridden to change the name.
+  @return: str
+  */
+  queueName(): string {
+    throw Error('This method need to be overridden');
+  }
+
+  setExchange(anExchange: Exchange) {
+    this.exchange = anExchange;
+  }
+
+  getExchange() {
+    return this.exchange;
+  }
+
+  setQueue(aQueue: Queue) {
+    this.queue = aQueue;
+  }
+
+  getQueue(): Queue | undefined {
+    return this.queue;
+  }
+
+  attachToQueue(onAttachError?: ArbFunction) {
+    const exchange = Exchange.factory(
+      this.connectionSetting,
+      this.exchangeName(),
+      this.exchangeType,
+      this.exchangeDurable,
+      this.exchangeAutoDelete,
+      (async (exchange: Exchange) => {
+        const queue = Queue.factoryExchangeSubcriberWithRoutingKeysWithName(
+          exchange,
+          this.queueName(),
+          this._queueRoutingKeys(),
+          this.queueDurable,
+          this.queueAutoDeleted,
+          this.queueExclusive,
+          this.registerConsumer.bind(this),
+        );
+        this.setQueue(queue);
+      }).bind(this),
+      onAttachError,
+    );
+    this.setExchange(exchange);
+  }
+
+  private async idempotentHandleDispatch(
+    aType: string,
+    aMessageId: string,
+    aTimeStamp: Date,
+    aMessage: Buffer,
+    aDeliveryTag: number,
+    isRedelivery: boolean,
+  ) {
+    const idempotentHandle = async (isHandled: boolean) => {
+      if (!isHandled) {
+        await this.filteredDispatch({
+          aType,
+          aMessageId,
+          aTimeStamp,
+          aMessage: aMessage.toString(), // utf8 decode
+          aDeliveryTag,
+          isRedelivery,
+        });
+        await this.eventHandlingTracker.markNotifAsHandled(aMessageId);
+      }
+    };
+    const isEventHandled =
+      await this.eventHandlingTracker.checkIfNotifHandled(aMessageId);
+    await idempotentHandle(isEventHandled);
+  }
+
+  async registerConsumer(queue: Queue) {
+    this.logger.info('Queue declaring finished, now register consumer');
+    const idempotentHandleDispatch = this.idempotentHandleDispatch.bind(this);
+    class MessageListenerAdapter extends MessageListener {
+      handleMessage(
+        aType: string,
+        aMessageId: string,
+        aTimeStamp: Date,
+        aMessage: Buffer,
+        aDeliveryTag: number,
+        isRedelivery: boolean,
+      ) {
+        return idempotentHandleDispatch(
+          aType,
+          aMessageId,
+          aTimeStamp,
+          aMessage,
+          aDeliveryTag,
+          isRedelivery,
+        );
+      }
+    }
+    const messageConsumer = await MessageConsumer.factory(
+      queue,
+      this.autoAck,
+      this.isRetry,
+      this.label,
+    );
+    this.setMessageConsumer(messageConsumer);
+    await messageConsumer.receiveOnly(
+      this.listenTo(),
+      new MessageListenerAdapter(MessageType.TEXT),
+    );
+    this.logger.info('Message Consumer registered successfully');
+    this.isReady = true;
+    if (this.onReady) {
+      this.onReady(this);
+    }
+  }
+
+  isReadyForConsuming(): boolean {
+    return this.messageConsumer?.isConsuming?.() || false;
+  }
+
+  async stop() {
+    const messageConsumer = this.messageConsumer;
+    if (messageConsumer) {
+      await messageConsumer.close();
+    }
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/pubsub/event-handling-tracker.base.ts`:
+
+```ts
+export interface EventHandlingTracker {
+  checkIfNotifHandled(aMessageId: string): Promise<boolean>;
+  markNotifAsHandled(aMessageId: string): Promise<void>;
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/json.ts`:
+
+```ts
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+import { Either, tryCatch } from 'fp-ts/lib/Either';
+import { UnknownRecord } from 'type-fest';
+
+interface JsonUtil {
+  parse: <T = UnknownRecord>(s: string) => Either<BaseException, T>;
+}
+
+export const JsonUtil: JsonUtil = {
+  parse: (s) =>
+    tryCatch(
+      () => JSON.parse(s),
+      (e) =>
+        BaseExceptionTrait.construct((e as Error).message, 'JSON_PARSE_FAILED'),
+    ),
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/index.ts`:
+
+```ts
+export { Logger, LoggerWithCtx } from './logger.base';
+export { getConsoleDomainLogger } from './domain-logger';
+export * from './repository.base';
+export * from './mapper.base';
+export { UnitOfWorkPort } from './uow';
+export { AbstractKeyValueRepository } from './database/keyvalue/key-value.repository';
+export { RedisKeyValueRepository } from './database/keyvalue/implement/redis/redis.key-value.repository';
+export { EventHandlingTracker } from './pubsub/event-handling-tracker.base';
+export { KVEventHandlingTracker } from './pubsub/implement/kv-even-handling-tracker';
+export * from './database/keyvalue';
+export * from './json';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/repository.base.ts`:
+
+```ts
+/*  Most of repositories will probably need generic 
+    save/find/delete operations, so it's easier
+    to have some shared interfaces.
+    More specific interfaces should be defined
+    in a respective module/use case.
+*/
+
+import { BaseException } from '@logic/exception.base';
+import { TE } from '@logic/fp';
+import { AggregateRoot } from '@model/aggregate-root.base';
+import { Identifier } from 'src/typeclasses/obj-with-id';
+
+export interface Save<A extends AggregateRoot> {
+  save(aggregateRoot: A): TE.TaskEither<BaseException, void>;
+}
+
+export interface Add<A extends AggregateRoot> {
+  add(entity: A): TE.TaskEither<BaseException, void>;
+}
+
+export interface SaveMultiple<A extends AggregateRoot> {
+  saveMultiple(entities: A[]): TE.TaskEither<BaseException, void>;
+}
+
+export interface FindOne<A extends AggregateRoot, QueryParams = any> {
+  findOneOrThrow(params: QueryParams): TE.TaskEither<BaseException, A>;
+}
+
+export interface FindOneById<A extends AggregateRoot> {
+  findOneByIdOrThrow(id: Identifier): TE.TaskEither<BaseException, A>;
+}
+
+export interface FindMany<A extends AggregateRoot, QueryParams = any> {
+  findMany(params: QueryParams): TE.TaskEither<BaseException, A[]>;
+}
+
+export interface OrderBy {
+  [key: number]: 'ASC' | 'DESC';
+}
+
+export interface PaginationMeta {
+  skip?: number;
+  limit?: number;
+  page?: number;
+}
+
+export interface FindManyPaginatedParams<QueryParams = any> {
+  params?: QueryParams;
+  pagination?: PaginationMeta;
+  orderBy?: OrderBy;
+}
+
+export interface DataWithPaginationMeta<T> {
+  data: T;
+  count: number;
+  limit?: number;
+  page?: number;
+}
+
+export interface FindManyPaginated<A extends AggregateRoot, QueryParams = any> {
+  findManyPaginated(
+    options: FindManyPaginatedParams<QueryParams>,
+  ): TE.TaskEither<BaseException, DataWithPaginationMeta<A[]>>;
+}
+
+export interface DeleteOne<A extends AggregateRoot> {
+  delete?(entity: A): TE.TaskEither<BaseException, unknown>;
+}
+
+export interface RepositoryPort<A extends AggregateRoot, QueryParams = any>
+  extends Save<A>,
+    FindOne<A, QueryParams>,
+    FindOneById<A>,
+    FindMany<A, QueryParams>,
+    Add<A>,
+    FindManyPaginated<A, QueryParams>,
+    DeleteOne<A>,
+    SaveMultiple<A> {
+  setCorrelationId?(correlationId: string): this;
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/logger.base.ts`:
+
+```ts
+import { IO } from '@logic/fp';
+
+export interface Logger {
+  info(message: string, ...meta: unknown[]): IO.IO<void>;
+  error(message: string, trace?: unknown, ...meta: unknown[]): IO.IO<void>;
+  warn(message: string, ...meta: unknown[]): IO.IO<void>;
+  debug(message: string, ...meta: unknown[]): IO.IO<void>;
+}
+
+export interface LoggerWithCtx extends Logger {
+  context(): string;
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/uow.ts`:
+
+```ts
+export interface UnitOfWorkPort {
+  execute<T>(
+    correlationId: string,
+    callback: () => Promise<T>,
+    options?: unknown,
+  ): Promise<T>;
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/keyvalue/implement/redis/redis.key-value.repository.ts`:
+
+```ts
+import {
+  getConsoleDomainLogger,
+  ConsoleDomainLogger,
+} from '@ports/domain-logger';
+import { ArbFunction } from '@type_util/function';
+import * as redis from 'redis';
+import { AbstractKeyValueRepository } from '../../key-value.repository';
+
+type RedisClient = ReturnType<typeof redis.createClient>;
+export class RedisKeyValueRepository extends AbstractKeyValueRepository {
+  private redisClient: RedisClient;
+  onError?: ArbFunction;
+  logger: ConsoleDomainLogger;
+
+  constructor(redisClient: RedisClient, prefix?: string) {
+    super(prefix);
+    this.logger = getConsoleDomainLogger('test_redis');
+    this.redisClient = redisClient;
+  }
+
+  static async factory(
+    host: string,
+    port: number,
+    username: string,
+    password: string,
+    prefix?: string,
+    onError?: ArbFunction,
+  ) {
+    const redisClient = redis.createClient({
+      url: `redis://${username}:${password}@${host}:${port}`,
+    });
+    await redisClient.connect();
+    const instance = new RedisKeyValueRepository(redisClient, prefix);
+    instance.onError = onError;
+    redisClient.on('error', instance.handleOnError.bind(instance));
+    return instance;
+  }
+
+  private handleOnError(error: Error) {
+    this.onError?.(error);
+    this.logger.error('Error occurred ', error);
+  }
+
+  registerErrorHandler(handler: ArbFunction) {
+    this.onError = handler;
+  }
+
+  private finalizeKey(key: string) {
+    return this.keyWithPrefix(key);
+  }
+
+  public async set(
+    key: string,
+    value: string | number,
+    expiredSeconds?: number,
+  ): Promise<void> {
+    try {
+      await this.redisClient.set(this.finalizeKey(key), value, {
+        EX: expiredSeconds,
+      });
+    } catch (error) {
+      this.handleOnError(
+        new Error(error + ` on setting key ${key} and value ${value}`),
+      );
+      throw error;
+    }
+  }
+  public async get(key: string): Promise<string | number | null> {
+    try {
+      return await this.redisClient.get(this.finalizeKey(key));
+    } catch (error) {
+      this.handleOnError(new Error(error + ` on getting key ${key}`));
+      throw error;
+    }
+  }
+
+  emitOnClient(event: string, ...args: any[]) {
+    this.redisClient.emit(event, ...args);
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/keyvalue/index.ts`:
+
+```ts
+export * from './key-value.repository';
+export * as redis from './implement/redis/redis.key-value.repository';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/keyvalue/key-value.repository.ts`:
+
+```ts
+export abstract class AbstractKeyValueRepository {
+  protected _prefix: string = '';
+
+  constructor(prefix?: string) {
+    this.setPrefix(prefix || '');
+  }
+
+  setPrefix(prefix: string) {
+    this._prefix = prefix;
+  }
+
+  keyWithPrefix(key: string): string {
+    return this.prefix() ? `${this.prefix()}:${key}` : key;
+  }
+
+  public prefix(): string {
+    return this._prefix;
+  }
+
+  public abstract set(
+    key: string,
+    value: string | number,
+    expired_seconds?: number,
+  ): Promise<void>;
+
+  public abstract get(key: string): Promise<string | number | null>;
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/typeorm/datasource.ts`:
+
+```ts
+import { DataSourceOptions } from 'typeorm';
+import { PostgresDatabaseConfig } from './dbconfig.base';
+
+export function generateDatasourcePostgresOpts(params: {
+  postgresConfig: PostgresDatabaseConfig;
+  absEntityPath: string;
+  absMigrationPath: string;
+}) {
+  const { postgresConfig, absEntityPath, absMigrationPath } = params;
+  return {
+    type: 'postgres',
+    host: postgresConfig.host,
+    port: postgresConfig.port,
+    username: postgresConfig.username,
+    password: postgresConfig.password,
+    database: postgresConfig.database,
+    dropSchema: false,
+    keepConnectionAlive: true,
+    logging: false, // Assuming logging is false by default, adjust as needed
+    entities: [absEntityPath],
+    migrations: [absMigrationPath],
+    extra: {
+      max: postgresConfig.maxConnections,
+      ssl: postgresConfig.sslEnabled
+        ? {
+            rejectUnauthorized: true,
+            ca: postgresConfig.ca ?? undefined,
+            key: postgresConfig.key ?? undefined,
+            cert: postgresConfig.cert ?? undefined,
+          }
+        : undefined,
+    },
+  } as DataSourceOptions;
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/typeorm/columns.ts`:
+
+```ts
+import {
+  Column,
+  PrimaryGeneratedColumn,
+  ValueTransformer,
+  CreateDateColumn,
+  UpdateDateColumn,
+  PrimaryColumn,
+  ColumnType,
+} from 'typeorm';
+import { ColumnCommonOptions } from 'typeorm/decorator/options/ColumnCommonOptions';
+
+export const Column4Char = () =>
+  Column({
+    type: 'varchar',
+    length: 4,
+    nullable: true,
+  });
+
+export const Column8Char = (props?: ColumnCommonOptions) =>
+  Column({
+    type: 'varchar',
+    length: 8,
+    nullable: true,
+    ...props,
+  });
+
+export const ColumnUUID = (props: ColumnCommonOptions) =>
+  Column({
+    type: 'varchar',
+    length: 36,
+    nullable: true,
+    ...props,
+  });
+
+export const Column16Char = () =>
+  Column({
+    type: 'varchar',
+    length: 16,
+    nullable: true,
+  });
+
+export const Column32Char = () =>
+  Column({
+    type: 'varchar',
+    length: 32,
+    nullable: true,
+  });
+
+export const Column64Char = () =>
+  Column({
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  });
+
+export const Column128Char = () =>
+  Column({
+    type: 'varchar',
+    length: 128,
+    nullable: true,
+  });
+
+export const Column255Char = (option = { select: true }) =>
+  Column({
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+    select: option.select,
+  });
+
+export const Column512Char = (option = { select: true }) =>
+  Column({
+    type: 'varchar',
+    length: 512,
+    nullable: true,
+    select: option.select,
+  });
+
+export const ColumnNChar = (length: number) =>
+  Column({
+    type: 'varchar',
+    length,
+    nullable: true,
+  });
+
+export const ColumnBlob = () =>
+  Column({
+    type: 'mediumblob',
+    nullable: true,
+  });
+
+export const ColumnBoolean = () =>
+  Column({
+    type: 'boolean',
+    nullable: true,
+  });
+
+export const ColumnDate = () =>
+  Column({
+    type: 'date',
+    nullable: true,
+  });
+
+export const ColumnDateTime = () =>
+  Column({
+    type: 'timestamp',
+    precision: 0,
+    nullable: true,
+    default: 'CURRENT_TIMESTAMP',
+  });
+
+export const ColumnDecimal = () =>
+  Column({
+    type: 'double',
+    nullable: true,
+    precision: 255,
+    scale: 2,
+  });
+
+export const ColumnJsonText = () =>
+  Column({
+    type: 'text',
+    nullable: true,
+    transformer: StringObject,
+  });
+
+export const ColumnJsonVarchar = () =>
+  Column({
+    type: 'varchar',
+    nullable: true,
+    transformer: StringObject,
+  });
+
+export const ColumnSmallInt = () =>
+  Column({
+    type: 'smallint',
+    nullable: true,
+  });
+
+export const ColumnText = () =>
+  Column({
+    type: 'text',
+    nullable: true,
+  });
+
+export const ColumnTinyInt = (option = { default: null }) =>
+  Column({
+    type: 'smallint',
+    nullable: true,
+    default: option.default,
+  });
+
+export const ColumnBigInt = (option = { default: null }) =>
+  Column({
+    type: 'bigint',
+    nullable: true,
+    default: option.default,
+  });
+
+export const ColumnInt = (option = { default: null }) =>
+  Column({
+    type: 'int',
+    nullable: true,
+    default: option.default,
+  });
+
+export const ColumnUnsignedForeignKey = () =>
+  Column({
+    unsigned: true,
+    nullable: true,
+  });
+
+export const ColumnPrimaryKey = () =>
+  PrimaryGeneratedColumn({
+    unsigned: false,
+  });
+
+export const ColumnNotAutoGenPrimaryKey = (
+  option = { type: 'bigint' as ColumnType },
+) =>
+  PrimaryColumn({
+    unsigned: false,
+    type: option.type,
+  });
+
+export const ColumnUnsignedPrimaryKey = () =>
+  PrimaryGeneratedColumn({
+    unsigned: true,
+  });
+
+export const CreatedAt = (option = { select: true }) =>
+  CreateDateColumn({
+    type: 'timestamp',
+    nullable: true,
+    precision: 0,
+    select: option.select,
+    default: () => 'CURRENT_TIMESTAMP',
+  });
+
+export const UpdatedAt = (option = { select: true }) =>
+  UpdateDateColumn({
+    type: 'timestamp',
+    nullable: true,
+    precision: 0,
+    select: option.select,
+    default: () => 'CURRENT_TIMESTAMP',
+    onUpdate: 'CURRENT_TIMESTAMP',
+  });
+
+export const ColumnJson = () =>
+  Column({
+    nullable: true,
+    type: 'json',
+  });
+
+export const ColumnJsonB = () =>
+  Column({
+    nullable: true,
+    type: 'jsonb',
+  });
+
+export const ColumnFloat = (option = { default: null }) =>
+  Column({
+    type: 'float',
+    nullable: true,
+    default: option.default,
+  });
+
+export const StringObject: ValueTransformer = {
+  to: (value: string) => {
+    if (value) {
+      if (typeof value === 'string') {
+        return JSON.stringify(JSON.parse(value));
+      }
+      return JSON.stringify(value);
+    }
+  },
+  from: (value: string) => {
+    if (value) {
+      return JSON.parse(value);
+    }
+  },
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/typeorm/base-repository-with-mapper.ts`:
+
+```ts
+import {
+  FindOptionsWhere,
+  ObjectLiteral,
+  Repository,
+  FindOptionsOrder,
+  EntityManager,
+} from 'typeorm';
+import {
+  FindManyPaginatedParams,
+  RepositoryPort,
+  DataWithPaginationMeta,
+} from '@ports/repository.base';
+import { Logger } from '@ports/logger.base';
+import { Arr, pipe, TE, Option } from '@logic/fp';
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+import { AggregateRoot } from '@model/aggregate-root.base';
+import { Identifier } from 'src/typeclasses/obj-with-id';
+import { IBaseMapper } from '@ports/mapper.base';
+
+export type WhereCondition<OrmEntity> =
+  | FindOptionsWhere<OrmEntity>[]
+  | FindOptionsWhere<OrmEntity>[]
+  | ObjectLiteral
+  | string;
+
+export interface BaseAggregateQueryParams {
+  id: Identifier;
+}
+
+export abstract class BaseRepositoryWithMapper<
+  A extends AggregateRoot,
+  DE extends ObjectLiteral,
+  QueryParams = any,
+> implements RepositoryPort<A, QueryParams>
+{
+  protected correlationId?: string;
+
+  constructor(
+    protected readonly mapper: IBaseMapper<A, DE>,
+    protected readonly repository: Repository<DE>,
+    protected readonly logger: Logger,
+    protected readonly defaultRelations: string[] = [],
+  ) {}
+
+  // Abstract method to prepare query from params
+  protected abstract prepareQuery(params: QueryParams): FindOptionsWhere<DE>;
+
+  save(aggregateRoot: A): TE.TaskEither<BaseException, void> {
+    return pipe(
+      this.mapper.toData({
+        domainModel: aggregateRoot,
+        initState: Option.none,
+      }),
+      TE.fromEither,
+      TE.chain((dataEntity) =>
+        TE.tryCatch(
+          async () => {
+            await this.repository.save(dataEntity);
+          },
+          (error) =>
+            BaseExceptionTrait.construct(
+              'SAVE_AGGREGATE_FIELD',
+              `Failed to save aggregate: ${error}`,
+            ),
+        ),
+      ),
+    );
+  }
+
+  add(entity: A): TE.TaskEither<BaseException, void> {
+    return pipe(
+      this.mapper.toData({
+        domainModel: entity,
+        initState: Option.none,
+      }),
+      TE.fromEither,
+      TE.chain((dataEntity) =>
+        TE.tryCatch(
+          async () => {
+            await this.repository.insert(dataEntity);
+          },
+          (error) =>
+            BaseExceptionTrait.construct(
+              'SAVE_AGGREGATE_FIELD',
+              `Failed to save aggregate: ${error}`,
+            ),
+        ),
+      ),
+    );
+  }
+
+  saveMultiple(entities: A[]): TE.TaskEither<BaseException, void> {
+    if (entities.length === 0) {
+      return TE.right(undefined);
+    }
+
+    return pipe(
+      this.mapper.withTransaction((manager) =>
+        pipe(
+          entities,
+          Arr.traverse(TE.ApplicativeSeq)((entity) =>
+            pipe(
+              this.mapper.toData({
+                domainModel: entity,
+                initState: Option.none,
+              }),
+              TE.fromEither,
+              TE.chain((dataEntity) =>
+                TE.tryCatch(
+                  async () => {
+                    await manager.save(dataEntity);
+                  },
+                  (error) =>
+                    BaseExceptionTrait.construct(
+                      'ENTITY_SAVE_FAILED',
+                      `Failed to save entity in batch: ${error}`,
+                    ),
+                ),
+              ),
+            ),
+          ),
+          TE.map(() => undefined),
+        ),
+      ),
+    );
+  }
+
+  findOneOrThrow(params: QueryParams): TE.TaskEither<BaseException, A> {
+    return pipe(
+      TE.tryCatch(
+        async () => {
+          const entity = await this.repository.findOne({
+            where: this.prepareQuery(params),
+            relations: this.defaultRelations,
+          });
+          if (!entity) {
+            throw new Error('Entity not found');
+          }
+          return entity;
+        },
+        (error) =>
+          BaseExceptionTrait.construct(
+            'FIND_ONE_FAILED',
+            `Failed to find entity: ${error}`,
+          ),
+      ),
+      TE.chain((entity) => pipe(this.mapper.toDomain(entity), TE.fromEither)),
+    );
+  }
+
+  findOneByIdOrThrow(id: Identifier): TE.TaskEither<BaseException, A> {
+    return pipe(
+      TE.tryCatch(
+        async () => {
+          const entity = await this.repository.findOne({
+            where: { id } as unknown as FindOptionsWhere<DE>,
+            relations: this.defaultRelations,
+          });
+          if (!entity) {
+            throw new Error(`Entity with id ${id} not found`);
+          }
+          return entity;
+        },
+        (error) =>
+          BaseExceptionTrait.construct(
+            'FIND_ONE_FAILED',
+            `Failed to find entity by id: ${error}`,
+          ),
+      ),
+      TE.chain((entity) => pipe(this.mapper.toDomain(entity), TE.fromEither)),
+    );
+  }
+
+  findMany(params: QueryParams): TE.TaskEither<BaseException, A[]> {
+    return pipe(
+      TE.tryCatch(
+        async () => {
+          const entities = await this.repository.find({
+            where: this.prepareQuery(params),
+            relations: this.defaultRelations,
+          });
+          return entities;
+        },
+        (error) =>
+          BaseExceptionTrait.construct(
+            'FIND_MANY_FAILED',
+            `Failed to find entities: ${error}`,
+          ),
+      ),
+      TE.chain((entities) =>
+        pipe(
+          entities,
+          Arr.traverse(TE.ApplicativeSeq)((entity) =>
+            pipe(this.mapper.toDomain(entity), TE.fromEither),
+          ),
+        ),
+      ),
+    );
+  }
+
+  findManyPaginated(
+    options: FindManyPaginatedParams<QueryParams>,
+  ): TE.TaskEither<BaseException, DataWithPaginationMeta<A[]>> {
+    const { params, pagination, orderBy } = options;
+    const skip =
+      pagination?.skip ??
+      (pagination?.page
+        ? (pagination.page - 1) * (pagination?.limit ?? 10)
+        : 0);
+    const take = pagination?.limit ?? 10;
+
+    return pipe(
+      TE.Do,
+      TE.bind('total', () =>
+        TE.tryCatch(
+          async () =>
+            this.repository.count({
+              where: params ? this.prepareQuery(params) : undefined,
+            }),
+          (error) =>
+            BaseExceptionTrait.construct(
+              'COUNT_ENTITY_FAILED',
+              `Failed to count entities: ${error}`,
+            ),
+        ),
+      ),
+      TE.bind('entities', () =>
+        TE.tryCatch(
+          async () =>
+            this.repository.find({
+              where: params ? this.prepareQuery(params) : undefined,
+              skip,
+              take,
+              order: orderBy as FindOptionsOrder<DE>,
+              relations: this.defaultRelations,
+            }),
+          (error) =>
+            BaseExceptionTrait.construct(
+              'PAGINATED_ENTITY_FAILED',
+              `Failed to find paginated entities: ${error}`,
+            ),
+        ),
+      ),
+      TE.chain(({ total, entities }) =>
+        pipe(
+          entities,
+          Arr.traverse(TE.ApplicativeSeq)((entity) =>
+            pipe(this.mapper.toDomain(entity), TE.fromEither),
+          ),
+          TE.map((domainEntities) => ({
+            data: domainEntities,
+            count: total,
+            limit: take,
+            page: pagination?.page ?? Math.floor(skip / take) + 1,
+          })),
+        ),
+      ),
+    );
+  }
+
+  delete(entity: A): TE.TaskEither<BaseException, void> {
+    return TE.tryCatch(
+      async () => {
+        await this.repository.delete(entity.id);
+      },
+      (error) =>
+        BaseExceptionTrait.construct(
+          'DELETE_ENTITY_FAILED',
+          `Failed to delete entity: ${error}`,
+        ),
+    );
+  }
+
+  setCorrelationId(correlationId: string): this {
+    this.correlationId = correlationId;
+    // this.logger.setCorrelationId(correlationId);
+    return this;
+  }
+
+  protected withTransaction<T>(
+    work: (manager: EntityManager) => Promise<T>,
+  ): TE.TaskEither<BaseException, T> {
+    return TE.tryCatch(
+      async () => {
+        const queryRunner =
+          this.repository.manager.connection.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        try {
+          const result = await work(queryRunner.manager);
+          await queryRunner.commitTransaction();
+          return result;
+        } catch (error) {
+          await queryRunner.rollbackTransaction();
+          throw error;
+        } finally {
+          await queryRunner.release();
+        }
+      },
+      (error) =>
+        BaseExceptionTrait.construct(
+          'TRANSACTION_FAILED',
+          `Transaction failed: ${error}`,
+        ),
+    );
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/typeorm/index.ts`:
+
+```ts
+export * from './base-entity';
+export * from './base-repository';
+export * from './base-repository-with-mapper';
+export * from './columns';
+export * from './unit-of-work';
+export * from './base-mapper';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/typeorm/dbconfig.base.ts`:
+
+```ts
+export type PostgresDatabaseConfig = {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  database: string;
+  logging?: boolean;
+  maxConnections: number;
+  sslEnabled?: boolean;
+  ca?: string;
+  key?: string;
+  cert?: string;
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/typeorm/inject-repository.ts`:
+
+```ts
+import { DataSource, EntitySchema } from 'typeorm';
+
+export const injectRepositoryFactory =
+  (datasource: DataSource) => (entity: EntitySchema) => {
+    const repository = datasource.getRepository(entity);
+    return (
+      target: (...args: any[]) => any,
+      propertyKey: string,
+      descriptor: PropertyDescriptor,
+    ) => {
+      const consWithRepository = (...params: any[]) => {
+        return descriptor.value.call(this, ...params, repository);
+      };
+      descriptor.value = consWithRepository;
+    };
+  };
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/typeorm/base-entity.ts`:
+
+```ts
+import {
+  CreateDateColumn,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+
+export abstract class TypeormEntityBase {
+  constructor(props?: unknown) {
+    if (props) {
+      Object.assign(this, props);
+    }
+  }
+
+  @CreateDateColumn({
+    type: 'timestamptz',
+    update: false,
+  })
+  createdAt: Date;
+
+  @UpdateDateColumn({
+    type: 'timestamptz',
+  })
+  updatedAt: Date;
+}
+
+export abstract class TypeormGeneratedUUIDEntityBase extends TypeormEntityBase {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+}
+
+export abstract class AggregateTypeORMEntityBase extends TypeormGeneratedUUIDEntityBase {
+  constructor(props?: unknown) {
+    super(props);
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/typeorm/unit-of-work.ts`:
+
+```ts
+import {
+  DataSource,
+  EntityTarget,
+  ObjectLiteral,
+  QueryRunner,
+  Repository,
+} from 'typeorm';
+import { IsolationLevel } from 'typeorm/driver/types/IsolationLevel';
+import { Err, Result } from 'oxide.ts/dist';
+import { Logger } from '@ports/logger.base';
+import { UnitOfWorkPort } from '@ports/uow';
+
+/**
+ * Keep in mind that this is a naive implementation
+ * of a Unit of Work as it only wraps execution into
+ * a transaction. Proper Unit of Work implementation
+ * requires storing all changes in memory first and
+ * then execute a transaction as a singe database call.
+ * Mikro-orm (https://www.npmjs.com/package/mikro-orm)
+ * is a nice ORM for nodejs that can be used instead
+ * of typeorm to have a proper Unit of Work pattern.
+ * Read more about mikro-orm unit of work:
+ * https://mikro-orm.io/docs/unit-of-work/.
+ */
+export class TypeormUnitOfWork implements UnitOfWorkPort {
+  constructor(
+    private readonly logger: Logger,
+    private readonly datasource: DataSource,
+  ) {}
+
+  private queryRunners: Map<string, QueryRunner> = new Map();
+
+  getQueryRunner(correlationId: string): QueryRunner {
+    const queryRunner = this.queryRunners.get(correlationId);
+    if (!queryRunner) {
+      throw new Error(
+        'Query runner not found. Incorrect correlationId or transaction is not started. To start a transaction wrap operations in a "execute" method.',
+      );
+    }
+    return queryRunner;
+  }
+
+  getOrmRepository<Entity extends ObjectLiteral>(
+    entity: EntityTarget<Entity>,
+    correlationId: string,
+  ): Repository<Entity> {
+    const queryRunner = this.getQueryRunner(correlationId);
+    return queryRunner.manager.getRepository(entity);
+  }
+
+  /**
+   * Execute a UnitOfWork.
+   * Database operations wrapped in a `execute` method will run
+   * in a single transactional operation, so everything gets
+   * saved (including changes done by Domain Events) or nothing at all.
+   */
+  async execute<T>(
+    correlationId: string,
+    callback: () => Promise<T>,
+    options?: { isolationLevel: IsolationLevel },
+  ): Promise<T> {
+    if (!correlationId) {
+      throw new Error('Correlation ID must be provided');
+    }
+    // this.logger.setContext(`${this.constructor.name}:${correlationId}`);
+    const queryRunner = this.datasource.createQueryRunner();
+    this.queryRunners.set(correlationId, queryRunner);
+    this.logger.debug(`[Starting transaction]`);
+    await queryRunner.startTransaction(options?.isolationLevel);
+    // const queryRunner = this.getQueryRunner(correlationId);
+    let result: T | Result<T, Error>;
+    try {
+      result = await callback();
+      if ((result as unknown as Result<T, Error>)?.isErr?.()) {
+        await this.rollbackTransaction(
+          correlationId,
+          (result as unknown as Err<Error>).unwrapErr(),
+        );
+        return result;
+      }
+    } catch (error) {
+      await this.rollbackTransaction(correlationId, error as Error);
+      throw error;
+    }
+    try {
+      await queryRunner.commitTransaction();
+    } finally {
+      await this.finish(correlationId);
+    }
+
+    this.logger.debug(`[Transaction committed]`);
+
+    return result;
+  }
+
+  private async rollbackTransaction(correlationId: string, error: Error) {
+    const queryRunner = this.getQueryRunner(correlationId);
+    try {
+      await queryRunner.rollbackTransaction();
+      this.logger.debug(
+        `[Transaction rolled back] ${(error as Error).message}`,
+      );
+    } finally {
+      await this.finish(correlationId);
+    }
+  }
+
+  private async finish(correlationId: string): Promise<void> {
+    const queryRunner = this.getQueryRunner(correlationId);
+    try {
+      await queryRunner.release();
+    } finally {
+      this.queryRunners.delete(correlationId);
+    }
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/typeorm/base-repository.ts`:
+
+```ts
+import {
+  Repository,
+  FindOptionsWhere,
+  FindOptionsOrder,
+  DataSource,
+  EntityManager,
+  ObjectLiteral,
+  EntityTarget,
+} from 'typeorm';
+import {
+  FindManyPaginatedParams,
+  RepositoryPort,
+  DataWithPaginationMeta,
+} from '@ports/repository.base';
+import { Arr, pipe, TE, Option, Either } from '@logic/fp';
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+import { AggregateRoot } from '@model/aggregate-root.base';
+import { Identifier } from 'src/typeclasses/obj-with-id';
+import { BaseAggregateQueryParams } from './base-repository-with-mapper';
+import {
+  ENTITY_MANAGER_KEY,
+  getNamespaceInstance,
+} from 'src/infra/nestjs/cls.middleware';
+
+export abstract class TypeormRepositoryBase<
+  DM extends AggregateRoot,
+  OrmEntity extends ObjectLiteral,
+  QueryParams extends BaseAggregateQueryParams = BaseAggregateQueryParams,
+> implements RepositoryPort<DM>
+{
+  protected abstract relations: string[];
+  protected tableName: string;
+
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly entity: new () => OrmEntity,
+  ) {}
+
+  public getEntityManager(): EntityManager {
+    const namespace = getNamespaceInstance();
+    return namespace.get(ENTITY_MANAGER_KEY);
+  }
+
+  public getEntityRepository<T extends ObjectLiteral>(
+    entity: new () => T,
+  ): Repository<T> {
+    return this.getEntityManager().getRepository(entity);
+  }
+
+  public getRepository(): Repository<OrmEntity> {
+    let entityManager: EntityManager = this.getEntityManager();
+
+    if (!entityManager) {
+      //For no transactional
+      entityManager = this.dataSource.manager;
+    }
+    return entityManager.getRepository(this.entity);
+  }
+  // Abstract methods for conversion
+  protected abstract toDomain(
+    ormEntity: OrmEntity,
+  ): Either.Either<BaseException, DM>;
+  protected abstract toEntity(
+    domain: DM,
+    initial: Option.Option<OrmEntity>,
+  ): TE.TaskEither<BaseException, OrmEntity>;
+  protected abstract prepareQuery(
+    params: QueryParams,
+  ): FindOptionsWhere<OrmEntity>;
+
+  save(entity: DM): TE.TaskEither<BaseException, void> {
+    return pipe(
+      this.toEntity(entity, Option.none),
+      TE.chain((ormEntity) =>
+        TE.tryCatch(
+          async () => {
+            await this.getRepository().save([ormEntity]);
+          },
+          (error) => {
+            return BaseExceptionTrait.construct(
+              'SAVE_AGGREGATE_FIELD',
+              `Failed to save aggregate: ${error}`,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  add(entity: DM): TE.TaskEither<BaseException, void> {
+    return pipe(
+      this.toEntity(entity, Option.none),
+      TE.chain((ormEntity) =>
+        TE.tryCatch(
+          async () => {
+            await this.getRepository().save(ormEntity);
+          },
+          (error) =>
+            BaseExceptionTrait.construct(
+              'SAVE_AGGREGATE_FIELD',
+              `Failed to save aggregate: ${error}`,
+            ),
+        ),
+      ),
+    );
+  }
+
+  saveMultiple(entities: DM[]): TE.TaskEither<BaseException, void> {
+    if (entities.length === 0) {
+      return TE.right(undefined);
+    }
+
+    return pipe(
+      entities,
+      Arr.traverse(TE.ApplicativeSeq)((entity) =>
+        pipe(this.toEntity(entity, Option.none)),
+      ),
+      TE.chain((ormEntities) =>
+        TE.tryCatch(
+          async () => {
+            await this.getRepository().save(ormEntities);
+          },
+          (error) =>
+            BaseExceptionTrait.construct(
+              'ENTITY_SAVE_FAILED',
+              `Failed to save aggregate in batch: ${error}`,
+            ),
+        ),
+      ),
+    );
+  }
+
+  findOne(
+    params: Partial<QueryParams> = {},
+  ): TE.TaskEither<BaseException, Option.Option<DM>> {
+    return pipe(
+      TE.tryCatch(
+        async () => {
+          const entity = await this.getRepository().findOne({
+            where: this.prepareQuery(params as QueryParams),
+            relations: this.relations,
+          });
+          return entity;
+        },
+        (error) =>
+          BaseExceptionTrait.construct(
+            'FIND_ONE_FAILED',
+            `Failed to find entity: ${error}`,
+          ),
+      ),
+      TE.chain((entity) =>
+        entity
+          ? pipe(this.toDomain(entity), Either.map(Option.some), TE.fromEither)
+          : TE.right(Option.none),
+      ),
+    );
+  }
+
+  findOneOrThrow(
+    params: Partial<QueryParams> = {},
+  ): TE.TaskEither<BaseException, DM> {
+    return pipe(
+      this.findOne(params),
+      TE.chain((optionEntity) =>
+        pipe(
+          optionEntity,
+          Option.fold(
+            () =>
+              TE.left(
+                BaseExceptionTrait.construct(
+                  'FIND_ONE_FAILED_NOT_FOUND',
+                  `Failed to find aggregate`,
+                ),
+              ),
+            TE.right,
+          ),
+        ),
+      ),
+    );
+  }
+
+  findOneByIdOrThrow(id: Identifier): TE.TaskEither<BaseException, DM> {
+    return pipe(
+      TE.tryCatch(
+        async () => {
+          const entity = await this.getRepository().findOne({
+            where: { id } as unknown as FindOptionsWhere<OrmEntity>,
+            relations: this.relations,
+          });
+          if (!entity) {
+            throw new Error(`Entity with id ${id} not found`);
+          }
+          return entity;
+        },
+        (error) =>
+          BaseExceptionTrait.construct(
+            'FIND_ONE_BY_ID_FAILED',
+            `Failed to find entity by id: ${error}`,
+          ),
+      ),
+      TE.chain((entity) => pipe(this.toDomain(entity), TE.fromEither)),
+    );
+  }
+
+  findMany(
+    params: Partial<QueryParams> = {},
+  ): TE.TaskEither<BaseException, DM[]> {
+    return pipe(
+      TE.tryCatch(
+        async () => {
+          const entities = await this.getRepository().find({
+            where: this.prepareQuery(params as QueryParams),
+            relations: this.relations,
+          });
+          return entities;
+        },
+        (error) =>
+          BaseExceptionTrait.construct(
+            'FIND_MANY_FAILED',
+            `Failed to find entities: ${error}`,
+          ),
+      ),
+      TE.chain((entities) =>
+        pipe(
+          entities,
+          Arr.traverse(TE.ApplicativeSeq)((entity) =>
+            pipe(this.toDomain(entity), TE.fromEither),
+          ),
+        ),
+      ),
+    );
+  }
+
+  findManyPaginated({
+    params = {} as any,
+    pagination,
+    orderBy,
+  }: FindManyPaginatedParams<QueryParams>): TE.TaskEither<
+    BaseException,
+    DataWithPaginationMeta<DM[]>
+  > {
+    const skip =
+      pagination?.skip ??
+      (pagination?.page
+        ? (pagination.page - 1) * (pagination?.limit ?? 10)
+        : 0);
+    const take = pagination?.limit ?? 10;
+
+    return pipe(
+      TE.Do,
+      TE.bind('total', () =>
+        TE.tryCatch(
+          async () =>
+            this.getRepository().count({
+              where: this.prepareQuery(params as QueryParams),
+            }),
+          (error) =>
+            BaseExceptionTrait.construct(
+              'COUNT_ENTITY_FAILED',
+              `Failed to count entities: ${error}`,
+            ),
+        ),
+      ),
+      TE.bind('entities', () =>
+        TE.tryCatch(
+          async () =>
+            this.getRepository().find({
+              where: this.prepareQuery(params as QueryParams),
+              skip,
+              take,
+              order: orderBy as FindOptionsOrder<OrmEntity>,
+              relations: this.relations,
+            }),
+          (error) =>
+            BaseExceptionTrait.construct(
+              'PAGINATED_ENTITY_FAILED',
+              `Failed to find paginated entities: ${error}`,
+            ),
+        ),
+      ),
+      TE.chain(({ total, entities }) =>
+        pipe(
+          entities,
+          Arr.traverse(TE.ApplicativeSeq)((entity) =>
+            pipe(this.toDomain(entity), TE.fromEither),
+          ),
+          TE.map((domainEntities) => ({
+            data: domainEntities,
+            count: total,
+            limit: take,
+            page: pagination?.page ?? Math.floor(skip / take) + 1,
+          })),
+        ),
+      ),
+    );
+  }
+
+  delete(entity: DM): TE.TaskEither<BaseException, void> {
+    return TE.tryCatch(
+      async () => {
+        await this.getRepository().delete(entity.id);
+      },
+      (error) =>
+        BaseExceptionTrait.construct(
+          'DELETE_ENTITY_FAILED',
+          `Failed to delete entity: ${error}`,
+        ),
+    );
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/database/typeorm/base-mapper.ts`:
+
+```ts
+import {
+  Repository,
+  EntityManager,
+  FindOptionsWhere,
+  ObjectLiteral,
+} from 'typeorm';
+import { IBaseMapper } from '@ports/mapper.base';
+import { DomainModel } from '@model/domain-model.base.type';
+import { Either, Option, TE, unsafeUnwrapTE } from '@logic/fp';
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+
+export abstract class BaseMapper<
+  DM extends DomainModel,
+  DE extends ObjectLiteral,
+> implements IBaseMapper<DM, DE>
+{
+  constructor(
+    protected readonly repository: Repository<DE>,
+    protected readonly entityConstructor: new () => DE,
+  ) {}
+
+  abstract toDomain(data: DE): Either.Either<BaseException, DM>;
+  abstract toData(params: {
+    domainModel: DM;
+    initState: Option.Option<DE>;
+  }): Either.Either<BaseException, DE>;
+
+  loadRelations(
+    entity: DE,
+    relations: string[],
+  ): TE.TaskEither<BaseException, DE> {
+    return TE.tryCatch(
+      async () => {
+        const loaded = await this.repository.findOne({
+          where: { id: entity.id } as FindOptionsWhere<DE>,
+          relations,
+        });
+        if (!loaded) {
+          throw new Error('Entity not found when loading relations');
+        }
+        return loaded;
+      },
+      (error) =>
+        BaseExceptionTrait.construct(
+          'LOAD_RELATIONS_FAIL',
+          `Failed to load relations: ${error}`,
+        ),
+    );
+  }
+
+  mapRelations(
+    relations: string[],
+    entity: DE,
+  ): TE.TaskEither<BaseException, DE> {
+    // Default implementation - override for specific relation mapping
+    return TE.right(entity);
+  }
+
+  withTransaction<T>(
+    work: (manager: EntityManager) => TE.TaskEither<BaseException, T>,
+  ): TE.TaskEither<BaseException, T> {
+    return TE.tryCatch(
+      async () => {
+        const queryRunner =
+          this.repository.manager.connection.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+
+        try {
+          const result = await unsafeUnwrapTE(work(queryRunner.manager));
+          await queryRunner.commitTransaction();
+          return result;
+        } catch (error) {
+          await queryRunner.rollbackTransaction();
+          throw error;
+        } finally {
+          await queryRunner.release();
+        }
+      },
+      (error) =>
+        BaseExceptionTrait.construct(
+          'TRANSACTION_FAILED',
+          `Transaction failed: ${error}`,
+        ),
+    );
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/ports/domain-logger.ts`:
+
+```ts
+import { IO, Reader } from '@logic/fp';
+import { LoggerWithCtx } from './logger.base';
+
+export interface ConsoleDomainLogger extends LoggerWithCtx {}
+
+export const getConsoleDomainLogger: Reader.Reader<
+  string,
+  ConsoleDomainLogger
+> = (context: string) => {
+  const formatMessageWithContext = (message: string) =>
+    `[${context}] ${message}`;
+
+  return {
+    info:
+      (message: string, ...meta: unknown[]): IO.IO<void> =>
+      () =>
+        console.info(`${formatMessageWithContext(message)}`, ...meta),
+
+    error:
+      (message: string, trace?: unknown, ...meta: unknown[]): IO.IO<void> =>
+      () =>
+        console.error(
+          `${formatMessageWithContext(message)} ${trace || '[No trace info]'}`,
+          ...meta,
+        ),
+
+    warn:
+      (message: string, ...meta: unknown[]): IO.IO<void> =>
+      () =>
+        console.warn(formatMessageWithContext(message), ...meta),
+
+    debug:
+      (message: string, ...meta: unknown[]): IO.IO<void> =>
+      () =>
+        console.debug(formatMessageWithContext(message), ...meta),
+
+    context: () => context,
+  };
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/typeclasses/index.ts`:
+
+```ts
+export * from './obj-with-id';
+export * from './withtime';
+export * from './has-props';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/typeclasses/obj-with-id.ts`:
+
+```ts
+import * as Optic from '@fp-ts/optic';
+import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
+import { Either, Eq, S } from '@logic/fp';
+import { Parser } from '@model/invariant-validation';
+import { PrimitiveVOTrait } from '@model/value-object.base';
+import { Brand } from '@type_util/index';
+import { v4 as uuidv4 } from 'uuid';
+
+export type Identifier = Brand<string, 'Identifier'>;
+
+export const parseId: Parser<Identifier, string, BaseException> = (
+  v: string,
+) => {
+  const isId = (v: unknown): v is Identifier =>
+    typeof v === 'string' && v.length > 0;
+  return Either.fromPredicate(isId, () =>
+    BaseExceptionTrait.construct('invalid identifier', 'INVALID_IDENTIFIER'),
+  )(v);
+};
+
+export const IdEq = Eq.fromEquals((id1: Identifier, id2: Identifier) =>
+  S.Eq.equals(id1, id2),
+);
+
+interface IidentifierTrait extends PrimitiveVOTrait<Identifier, BaseException> {
+  uuid(): Identifier;
+}
+
+export const IdentifierTrait: IidentifierTrait = {
+  parse: parseId,
+  new: parseId,
+  uuid: () => uuidv4() as Identifier,
+};
+export type ObjectWithId = {
+  readonly id: Identifier;
+};
+
+export const idLens = Optic.id<ObjectWithId>().at('id');
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/typeclasses/has-props.ts`:
+
+```ts
+import { Optics } from '@logic/fp';
+
+export type HasProps<T> = {
+  readonly props: T;
+};
+
+export type GetProps<T extends HasProps<unknown>> = T['props'];
+
+export type KeyProps<T extends HasProps<unknown>> = keyof T['props'];
+
+export const propsLen = <A extends HasProps<unknown>>() =>
+  Optics.id<A>().at('props') as Optics.Lens<A, GetProps<A>>;
+
+export const getRawProps = <A extends HasProps<unknown>>(a: A) =>
+  Optics.get(propsLen<A>())(a);
+
+export const queryOnProps =
+  <A extends HasProps<unknown>, R = unknown>(key: keyof GetProps<A>) =>
+  (a: A) =>
+    Optics.get(propsLen<A>())(a)[key] as R;
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/typeclasses/withtime.ts`:
+
+```ts
+import { Optics, Option } from '@logic/fp';
+
+export type WithTime = {
+  readonly createdAt: Option.Option<Date>;
+  readonly updatedAt: Option.Option<Date>;
+};
+
+export const updatedAtLen = <T extends WithTime = WithTime>() =>
+  Optics.id<T>().at('updatedAt');
+export const createdAtLen = <T extends WithTime = WithTime>() =>
+  Optics.id<T>().at('createdAt');
+export const getUpdatedAt = <T extends WithTime = WithTime>(withTimeObj: T) =>
+  Optics.get(updatedAtLen<T>())(withTimeObj);
+export const getCreatedAt = <T extends WithTime = WithTime>(withTimeObj: T) =>
+  Optics.get(createdAtLen<T>())(withTimeObj);
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/serializer/index.ts`:
+
+```ts
+export * from './JsonReader';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/serializer/JsonReader.ts`:
+
+```ts
+import { BaseExceptionTrait } from '@logic/exception.base';
+import R from 'ramda';
+
+export class JsonMediaReader {
+  private representation: Record<string, any>;
+
+  constructor(aJson: string) {
+    try {
+      this.representation = JSON.parse(aJson);
+    } catch (error) {
+      BaseExceptionTrait.panic(
+        BaseExceptionTrait.construct(
+          'This media instance is not in json format',
+          'MEDIA_NOT_IN_JSON_FORMAT',
+        ),
+      );
+    }
+  }
+
+  getRepresentation() {
+    return this.representation;
+  }
+
+  static read(aJson: string) {
+    return new JsonMediaReader(aJson);
+  }
+  getValue(path: string) {
+    if (!/(^(?:\/[a-zA-Z0-9_]+)+$)/g.test(path)) {
+      BaseExceptionTrait.panic(
+        BaseExceptionTrait.construct(
+          `Json Path Reader is in illegal ${path}`,
+          'JSON_PATH_ILLGEGAL',
+        ),
+      );
+    }
+    return R.path(path.split('/').slice(1), this.representation);
+  }
+
+  stringValue(path: string) {
+    return this.getValue(path) ? String(this.getValue(path)) : null;
+  }
+
+  booleanValue(path: string) {
+    const value = this.getValue(path);
+    return value === 'true' || value === true;
+  }
+
+  dateValue(path: string) {
+    return this.getValue(path) ? Date.parse(String(this.getValue(path))) : null;
+  }
+
+  numberValue(path: string) {
+    return this.getValue(path) ? Number(this.getValue(path)) : null;
+  }
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/typeorm.ts`:
+
+```ts
+export * from './ports/database/typeorm/base-entity';
+export * from './ports/database/typeorm/columns';
+export * from './ports/database/typeorm/inject-repository';
+export * from './ports/database/typeorm/unit-of-work';
+export * from './ports/database/typeorm/base-repository';
+export * from './ports/database/typeorm/datasource';
+export * from './ports/database/typeorm/dbconfig.base';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/application/index.ts`:
+
+```ts
+export * from './command.base';
+export * from './transaction-monad';
+export * from './usecase.base';
+export * from './lifecyle.meta';
+export * from './query.base';
+export * from './di';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/application/di.ts`:
+
+```ts
+import { DomainService } from '@model/domain-service.base';
+import { UsecaseHandler } from './usecase.base';
+import { Reader } from '@logic/fp';
+import { IBaseMapper } from '@ports/mapper.base';
+
+export type WithDeps<
+  A extends
+    | UsecaseHandler
+    | DomainService<unknown, unknown>
+    | IBaseMapper<any, any>,
+  Deps = void,
+> = Reader.Reader<Deps, A>;
+
+export type InsWithDeps<
+  WD extends WithDeps<
+    UsecaseHandler | DomainService<unknown, unknown>,
+    unknown
+  >,
+> = ReturnType<WD>;
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/application/lifecyle.meta.ts`:
+
+```ts
+import { Optics, Option, RRecord, pipe } from '@logic/fp';
+import { v4 as uuidv4 } from 'uuid';
+
+export type LifeCycleContext = Record<string, never>;
+
+export type LifeCycleMeta = {
+  createdTimestamp: number;
+  /** ID for correlation purposes (for UnitOfWork, for commands that
+   *  arrive from other microservices,logs correlation etc). */
+  correlationId: string;
+  context: RRecord.ReadonlyRecord<string, never>;
+};
+
+export const correlationIdLens = Optics.id<LifeCycleMeta>().at('correlationId');
+
+export const LifeCycleMetaMod = {
+  factory: (
+    correlationId: Option.Option<string>,
+    context: Option.Option<RRecord.ReadonlyRecord<string, never>>,
+  ): LifeCycleMeta => ({
+    createdTimestamp: Date.now(),
+    correlationId: pipe(
+      correlationId,
+      Option.getOrElse(() => uuidv4()),
+    ),
+    context: pipe(
+      context,
+      Option.getOrElse(() => ({})),
+    ),
+  }),
+  autoFactory: () => LifeCycleMetaMod.factory(Option.none, Option.none),
+  correlationId: (meta: LifeCycleMeta) => meta.correlationId,
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/application/usecase.base.ts`:
+
+```ts
+import { Query } from './query.base';
+import { Command } from './command.base';
+import { BaseTE } from '@logic/fp';
+
+export type CommandHandler<Cmd extends Command<unknown>, Res> = (
+  command: Cmd,
+) => BaseTE<Res>;
+
+export type QueryHandler<Q extends Query<unknown>, Res> = (
+  query: Q,
+) => BaseTE<Res>;
+
+export type UsecaseHandler =
+  | CommandHandler<Command<unknown>, unknown>
+  | QueryHandler<Query<unknown>, unknown>;
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/application/transaction-monad.ts`:
+
+```ts
+import { BaseException } from '@logic/exception.base';
+import { TE, Either, Task, IOEither } from '@logic/fp';
+import { pipe } from 'fp-ts/lib/function';
+
+export interface IEntityManager {
+  begin(): Task.Task<IOEither.IOEither<BaseException, void>>;
+  commit(): Task.Task<IOEither.IOEither<BaseException, void>>;
+  rollback(): Task.Task<IOEither.IOEither<BaseException, void>>;
+}
+
+export type Transaction<EM extends IEntityManager, RT> = {
+  op: (em: EM) => Task.Task<IOEither.IOEither<BaseException, RT>>;
+};
+
+const ofPrim: <EM extends IEntityManager, A>(a: A) => Transaction<EM, A> = (
+  a,
+) => ({ op: () => Task.of(IOEither.right(a)) });
+
+const of: <EM extends IEntityManager, A>(
+  f: (em: EM) => Task.Task<IOEither.IOEither<BaseException, A>>,
+) => Transaction<EM, A> = (f) => ({
+  op: f,
+});
+
+const ofTask: <EM extends IEntityManager, A>(
+  f: (em: EM) => TE.TaskEither<BaseException, A>,
+) => Transaction<EM, A> = (f) => ({
+  op: (em) =>
+    pipe(
+      f(em),
+      TE.match(
+        (e) => IOEither.left(e),
+        (a) => IOEither.right(a),
+      ),
+    ),
+});
+
+const map: <A, B>(
+  f: (a: A) => B,
+) => <EM extends IEntityManager>(
+  fa: Transaction<EM, A>,
+) => Transaction<EM, B> = (f) => (fa) => ({
+  op: (em) => pipe(fa.op(em), Task.map(IOEither.map(f))),
+});
+
+const chain: <A, B, EM extends IEntityManager>(
+  f: (a: A) => Transaction<EM, B>,
+) => (fa: Transaction<EM, A>) => Transaction<EM, B> = (f) => (fa) => ({
+  op: (em) =>
+    pipe(
+      fa.op(em),
+      Task.flatMap((aIOE) => {
+        const a = aIOE();
+        return pipe(
+          a,
+          Either.match(
+            (error) => Task.of(IOEither.left(error)),
+            (data) => run(f(data))(em),
+          ),
+        );
+      }),
+    ),
+});
+const run =
+  <EM extends IEntityManager, B>(transaction: Transaction<EM, B>) =>
+  (em: EM) => {
+    const eitherIO = pipe(
+      em.begin(),
+      Task.chain((ioE) => {
+        const task = IOEither.match(
+          (e: BaseException) => Task.of(IOEither.left(e)),
+          () => transaction.op(em),
+        )(ioE)();
+        return task;
+      }),
+      Task.tap(() => em.commit()),
+      Task.flatMap((ioE) => {
+        const task = pipe(
+          ioE,
+          IOEither.match(
+            (err: BaseException) => {
+              console.error('[Transaction Monad Err] ', err);
+              return pipe(
+                em.rollback(),
+                Task.flatMap(() => Task.of(IOEither.left(err))),
+              );
+            },
+            (data: B) => Task.of(IOEither.right(data)),
+          ),
+        )();
+        return task;
+      }),
+    );
+    return eitherIO;
+  };
+
+const unsafeRun =
+  <EM extends IEntityManager, B>(em: EM) =>
+  async (transaction: Transaction<EM, B>) => {
+    const result = (await run(transaction)(em)())();
+    return pipe(
+      result,
+      Either.match(
+        (err) => Promise.reject(err),
+        (data) => Promise.resolve(data),
+      ),
+    );
+  };
+export const TransactionMonad = {
+  of,
+  ofTask,
+  ofPrim,
+  map,
+  chain,
+  run,
+  unsafeRun,
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/application/command.base.ts`:
+
+```ts
+import { Option } from '@logic/fp';
+import { pipe } from 'fp-ts/lib/function';
+import { LifeCycleMeta, LifeCycleMetaMod } from './lifecyle.meta';
+import {
+  GetProps,
+  HasProps,
+  getRawProps,
+  queryOnProps,
+} from 'src/typeclasses/has-props';
+
+export type Command<T> = HasProps<T> & {
+  readonly lifecycle: LifeCycleMeta;
+};
+
+const factory = <Cmd extends Command<unknown>>({
+  lifecycle,
+  props,
+}: {
+  lifecycle: Option.Option<LifeCycleMeta>;
+  props: GetProps<Cmd>;
+}) => {
+  return pipe(
+    lifecycle,
+    Option.getOrElse(() => LifeCycleMetaMod.factory(Option.none, Option.none)),
+    (lc) => ({
+      lifecycle: lc,
+      props,
+    }),
+  );
+};
+
+const correlationId = <T>(command: Command<T>) =>
+  LifeCycleMetaMod.correlationId(command.lifecycle);
+
+export const CommandTrait = {
+  factory,
+  queryProps: queryOnProps,
+  getProps: getRawProps,
+  correlationId,
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/application/query.base.ts`:
+
+```ts
+import { GetProps, queryOnProps } from 'src/typeclasses/has-props';
+
+export type Query<T> = {
+  readonly props: T;
+};
+
+const factory = <Q extends Query<unknown>>(props: GetProps<Q>) =>
+  ({ props }) as Q;
+
+export const QueryTrait = {
+  factory,
+  queryProps: queryOnProps,
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/logic/index.ts`:
+
+```ts
+export * from './fp';
+export * from './exception.base';
+export * from './parser';
+export * as aufn from './utils';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/logic/utils/index.ts`:
+
+```ts
+export * from './array';
+export * from './date';
+export * from './string';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/logic/utils/date.ts`:
+
+```ts
+export const now = () => new Date();
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/logic/utils/string.ts`:
+
+```ts
+export function toSnakeCase(str: string): string {
+  return str
+    .replace(/[\s]+/g, '_') // Replace spaces with underscores
+    .replace(/([a-z])([A-Z])/g, '$1_$2') // Add underscores between camel case
+    .replace(/[-]+/g, '_') // Replace hyphens with underscores
+    .replace(/[^a-zA-Z0-9_]+/g, '') // Remove non-alphanumeric characters
+    .toLowerCase(); // Convert to lowercase
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/logic/utils/array.ts`:
+
+```ts
+export function randomItem<T>(items: T[]): T {
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/logic/fp.ts`:
+
+```ts
+import * as Optics from '@fp-ts/optic';
+import * as Eq from 'fp-ts/Eq';
+import * as S from 'fp-ts/string';
+import * as Record from 'fp-ts/Record';
+import * as Apply from 'fp-ts/Apply';
+import * as O from 'fp-ts/Option';
+import * as Reader from 'fp-ts/Reader';
+import * as TaskEither from 'fp-ts/TaskEither';
+import * as Task from 'fp-ts/Task';
+import * as Either from 'fp-ts/Either';
+import * as IO from 'fp-ts/IO';
+import * as State from 'fp-ts/State';
+import * as IOEither from 'fp-ts/IOEither';
+import * as Arr from 'fp-ts/Array';
+import * as ReadOnlyArr from 'fp-ts/ReadonlyArray';
+import * as NEA from 'fp-ts/NonEmptyArray';
+import * as NUM from 'fp-ts/number';
+import * as RRecord from 'fp-ts/ReadonlyRecord';
+import * as io from 'io-ts';
+import * as IoTypes from 'io-ts-types';
+export * as rd from 'ramda';
+import { pipe, flow, identity } from 'fp-ts/lib/function';
+import { ValidationErr } from '@model/invariant-validation';
+import { TE } from './fp';
+
+type SumException = ValidationErr;
+export type BaseTE<
+  T,
+  EX extends SumException = SumException,
+> = TaskEither.TaskEither<EX, T>;
+
+export type BaseEither<
+  T,
+  EX extends SumException = SumException,
+> = Either.Either<EX, T>;
+
+export const absordTE = <T extends TaskEither.TaskEither<any, any>>(te: T) =>
+  pipe(
+    te,
+    TaskEither.map(() => {}),
+  );
+
+export const unsafeUnwrapEither = <E, R>(t: Either.Either<E, R>) => {
+  return pipe(
+    t,
+    Either.match((error) => {
+      throw error;
+    }, identity),
+  );
+};
+
+export const tapPrintTE =
+  <T>(formater: (result: T) => string = (result) => `${result}`) =>
+  (printer: (content: string) => void = console.log) =>
+  (result: T) => {
+    printer(formater(result));
+    return TE.right(result);
+  };
+export const tapPrintEither =
+  <T>(formater: (result: T) => string = (result) => `${result}`) =>
+  (printer: (content: string) => void = console.log) =>
+  (result: T) => {
+    printer(formater(result));
+    return Either.right(result);
+  };
+
+export const unsafeUnwrapTE = <E, R>(te: TE.TaskEither<E, R>) => {
+  return pipe(
+    te,
+    TE.match((e) => {
+      throw e;
+    }, identity),
+  )();
+};
+
+export {
+  Optics,
+  Eq,
+  pipe,
+  flow,
+  O as Option,
+  S,
+  NUM,
+  Reader,
+  TaskEither as TE,
+  IO,
+  IOEither,
+  io,
+  Task,
+  Arr,
+  Either,
+  NEA,
+  State,
+  RRecord,
+  Record,
+  IoTypes,
+  Apply,
+  ReadOnlyArr,
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/logic/parser.ts`:
+
+```ts
+import { Validation } from '@model/invariant-validation';
+import { BaseException, BaseExceptionTrait } from './exception.base';
+import { Either, NEA, pipe, Option } from './fp';
+import { isArray } from 'util';
+import { apply } from 'fp-ts/lib/function';
+
+export interface BasicAssertParam {
+  message: string;
+  exception: Option.Option<BaseException>;
+  loc: string[];
+  code: Option.Option<string>;
+  isWithKey: boolean;
+  key: string;
+}
+
+export function constructException(
+  aMessage: string,
+  exception: Option.Option<BaseException> = Option.none,
+  loc: string[] = [],
+  code: Option.Option<string> = Option.none,
+) {
+  return NEA.of(
+    pipe(
+      Option.getOrElse<BaseException>,
+      apply(() =>
+        BaseExceptionTrait.construct(
+          aMessage,
+          pipe(
+            code,
+            Option.getOrElse(() => 'NOT_WORK'),
+          ),
+          loc,
+        ),
+      ),
+      apply(exception),
+    ),
+  );
+}
+export function assertArgumentNotEmpty({
+  aString,
+  message,
+  exception,
+  loc,
+  code,
+}: { aString: string } & BasicAssertParam): Validation<string> {
+  const isEmpty = (v: string) => v == undefined || v.length === 0;
+
+  return pipe(
+    aString,
+    Either.fromPredicate(isEmpty, () =>
+      constructException(message, exception, loc, code),
+    ),
+  );
+}
+
+export function assertArgumentNotNull({
+  aValue,
+  message,
+  exception,
+  loc,
+  code,
+}: { aValue: any } & BasicAssertParam): Validation<string> {
+  const isNull = (v: any) => v == undefined;
+  return pipe(
+    aValue,
+    Either.fromPredicate(isNull, () =>
+      constructException(message, exception, loc, code),
+    ),
+  );
+}
+
+export function assertStateTrue({
+  aBoolean,
+  message: aMessage,
+  exception,
+  loc,
+  code,
+}: { aBoolean: boolean } & BasicAssertParam): Validation<boolean> {
+  return pipe(
+    aBoolean,
+    Either.fromPredicate(
+      (v) => v,
+      () => constructException(aMessage, exception, loc, code),
+    ),
+  );
+}
+
+export function assertStateFalse({
+  aBoolean,
+  message: aMessage,
+  exception,
+  loc,
+  code,
+}: { aBoolean: boolean } & BasicAssertParam): Validation<boolean> {
+  return pipe(
+    aBoolean,
+    Either.fromPredicate(
+      (v) => !v,
+      () => constructException(aMessage, exception, loc, code),
+    ),
+  );
+}
+
+export function assertLargerThanOrEqual({
+  aNumber,
+  threshold,
+  allowEqual = true,
+  message: aMessage,
+  exception,
+  loc,
+  code,
+}: {
+  aNumber: number;
+  threshold: number;
+  allowEqual?: boolean;
+} & BasicAssertParam): Validation<number> {
+  const isNot = (v: number) =>
+    (!allowEqual && v <= threshold) || (allowEqual && v < threshold);
+  return pipe(
+    aNumber,
+    Either.fromPredicate(
+      (v: number) => !isNot(v),
+      () => constructException(aMessage, exception, loc, code),
+    ),
+  );
+}
+
+export const shouldBeArray =
+  <A>({ code, message }: { code: string; message: string }) =>
+  (v: unknown): Validation<A[], BaseException> =>
+    pipe(
+      v,
+      Either.fromPredicate(isArray, () =>
+        BaseExceptionTrait.construct(message, code),
+      ),
+      Either.map((a) => a as A[]),
+    );
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/logic/exception.base.ts`:
+
+```ts
+import { prop, toString } from 'ramda';
+
+const TAG = 'BaseException';
+export interface BaseException {
+  readonly code: string;
+  readonly loc: string[];
+  readonly instruction: string[];
+  readonly messages: string[];
+  tag: typeof TAG;
+}
+
+const panic = (baseException: BaseException) => {
+  throw toPanicErr(baseException);
+};
+
+const toPanicErr = (baseException: BaseException, delimiter: string = '__') => {
+  const error = new Error(
+    `BaseException: ${
+      Array.isArray(baseException.messages)
+        ? baseException.messages.join(delimiter)
+        : baseException.messages
+    }`,
+  );
+  error.name = baseException.code;
+  return error;
+};
+
+const print = (baseException: BaseException) =>
+  JSON.stringify({
+    code: baseException.code,
+    messages: baseException.messages,
+    loc: baseException.loc,
+  });
+
+const factory = (
+  message: string | string[],
+  code: string,
+  loc: string[] = [],
+  instruction: string[] = [],
+): BaseException => ({
+  code,
+  loc,
+  instruction: instruction,
+  messages: Array.isArray(message) ? message : [message],
+  tag: TAG,
+});
+
+const getCode = (exception: BaseException) => exception.code;
+
+const getMessage = (exception: BaseException) => exception.messages;
+
+const getLoc = (exception: BaseException) => exception.loc;
+
+export const unknownErrToBaseException = (err: unknown) =>
+  BaseExceptionTrait.construct(toString(err), '');
+
+export const BaseExceptionTrait = {
+  construct: factory,
+  getCode,
+  getMessage,
+  getLoc,
+  panic,
+  toPanicErr,
+  isInstance: (candidate: unknown): candidate is BaseException =>
+    prop('tag', candidate) === TAG,
+  print,
+  fromErr: (code: string) => (err: Error) =>
+    BaseExceptionTrait.construct(err.message, code),
+};
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/aim/index.ts`:
+
+```ts
+export * as supertoken from './supertoken';
+
+```
+
+`/home/p77u4n/Documents/project/carie-service/packages/seedwork/src/aim/supertoken/index.ts`:
+
+```ts
+import supertokens from 'supertokens-node';
+import { ProviderInput } from 'supertokens-node/lib/build/recipe/thirdparty/types';
+import Session from 'supertokens-node/recipe/session';
+import ThirdParty from 'supertokens-node/recipe/thirdparty';
+import ThirdPartyPasswordless from 'supertokens-node/recipe/thirdpartypasswordless';
+import Dashboard from 'supertokens-node/recipe/dashboard';
+import { Option, pipe } from '@logic/fp';
+import { match } from 'ts-pattern';
+
+export enum RECIPE {
+  SOCIAL_LOGIN = 'SOCIAL_LOGIN',
+  SOCIAL_LOGIN_PASSWORDLESS_OPT_EMAIL_PHONE = 'SOCIAL_LOGIN_PASSWORDLESS_OPT_EMAIL_PHONE',
+}
+
+export enum FRAMEWORK {
+  NEST = 'NEST',
+  EXPRESS = 'EXPRESS',
+}
+
+interface InitParam {
+  spInstanceUri: string;
+  appId: Option.Option<string>;
+  appName: string;
+  apiDomain: string;
+  websiteDomain: string;
+  apiBasePath: Option.Option<string>;
+  websiteBasePath: Option.Option<string>;
+  apiKey: string;
+  providers: ProviderInput[];
+  hasDashboard: boolean;
+  recipe: RECIPE;
+  framework: FRAMEWORK;
+}
+
+export const init = (params: InitParam) => {
+  const recipeList = match(params.recipe)
+    .with(RECIPE.SOCIAL_LOGIN, () => [
+      ThirdParty.init({
+        signInAndUpFeature: {
+          providers: params.providers,
+        },
+      }),
+    ])
+    .with(RECIPE.SOCIAL_LOGIN_PASSWORDLESS_OPT_EMAIL_PHONE, () => [
+      ThirdPartyPasswordless.init({
+        flowType: 'USER_INPUT_CODE',
+        contactMethod: 'EMAIL_OR_PHONE',
+        providers: params.providers,
+      }),
+    ])
+    .exhaustive();
+
+  const frameworkConf = match(params.framework)
+    .with(FRAMEWORK.NEST, () => ({}))
+    .with(FRAMEWORK.EXPRESS, () => ({
+      framework: 'express',
+    }))
+    .exhaustive();
+
+  return supertokens.init({
+    ...frameworkConf,
+    supertokens: {
+      // https://try.supertokens.com is for demo purposes. Replace this with the address of your core instance (sign up on supertokens.com), or self host a core.
+      connectionURI: pipe(
+        params.appId,
+        Option.fold(
+          () => params.spInstanceUri,
+          (appId) => `${params.spInstanceUri}$/appid-${appId}`,
+        ),
+      ),
+      apiKey: params.apiKey,
+    },
+    appInfo: {
+      // learn more about this on https://supertokens.com/docs/session/appinfo
+      appName: params.appName,
+      apiDomain: params.apiDomain,
+      websiteDomain: params.websiteDomain,
+      apiBasePath: pipe(
+        params.apiBasePath,
+        Option.getOrElse(() => '/auth'),
+      ),
+      websiteBasePath: pipe(
+        params.websiteBasePath,
+        Option.getOrElse(() => '/auth'),
+      ),
+    },
+    recipeList: [
+      ...recipeList,
+      Session.init(), // initializes session features
+    ].concat(params.hasDashboard ? [Dashboard.init()] : []),
+  });
+};
+
+```

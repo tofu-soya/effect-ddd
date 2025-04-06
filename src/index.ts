@@ -9,3 +9,4 @@ export * from './ports/pubsub';
 export * from './aim';
 export * from './typeclasses';
 export * as typeorm from './ports/database/typeorm';
+export * as nestjs from './infra/nestjs';

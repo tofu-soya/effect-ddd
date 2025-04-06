@@ -1,4 +1,4 @@
-import { Arr, IOEither, State } from '@logic/fp';
+import { IOEither } from '@logic/fp';
 import { DomainEvent } from './event/domain-event.base';
 import { pipe } from 'fp-ts/lib/function';
 import { BaseException } from '@logic/exception.base';
@@ -29,6 +29,10 @@ const of = <S>(state: S, itsEvent: DomainEvent[]) =>
     state,
   }) as BehaviorMonad<S>;
 
+const getState = <S>(behavior: BehaviorMonad<S>) => behavior.state;
+
+const getEvents = <S>(behavior: BehaviorMonad<S>) => behavior.events;
+
 const chain =
   <A extends Entity, B extends Entity = A>(f: (a: A) => BehaviorMonad<B>) =>
   (ma: BehaviorMonad<A>) => {
@@ -58,4 +62,6 @@ export const BehaviorMonadTrait = {
   of,
   chain,
   run,
+  getState,
+  getEvents,
 };
