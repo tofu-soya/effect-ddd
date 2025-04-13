@@ -5,7 +5,7 @@ import { pipe } from 'effect/Function';
 import { Eq } from 'effect/Equal';
 import { Array } from 'effect/Array';
 import { ParseIssue, ParseResult, Parser } from './validation';
-import { DomainModel, PropsParser } from './domain-model.base';
+import { DomainModel, DomainModelTrait, PropsParser } from './domain-model.base';
 import { Identifier } from 'src/typeclasses/obj-with-id';
 import { GetProps } from 'src/typeclasses';
 import { Brand } from '@type_util/index';
@@ -49,10 +49,7 @@ export interface EntityTrait<
   E extends Entity,
   NewParams = unknown,
   ParseParams = unknown
-> {
-  parse: Parser<E, WithEntityMetaInput<ParseParams>>;
-  new: Parser<E, NewParams>;
-}
+> extends DomainModelTrait<E, NewParams, WithEntityMetaInput<ParseParams>> {}
 
 /**
  * Generic entity trait interface
