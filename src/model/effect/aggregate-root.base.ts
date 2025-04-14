@@ -4,6 +4,7 @@ import { ParseResult } from './validation';
 import { Entity, EntityTrait, IEntityGenericTrait } from './entity.base';
 import { DomainEvent } from '../event/domain-event.base';
 import { EntityGenericTrait } from './entity.impl';
+import { IDomainEvent } from './domain-event.interface';
 
 /**
  * AggregateRoot type that extends Entity
@@ -14,7 +15,7 @@ export type AggregateRoot<
     unknown
   >,
 > = Entity<Props> & {
-  readonly domainEvents: ReadonlyArray<DomainEvent>;
+  readonly domainEvents: ReadonlyArray<IDomainEvent>;
 };
 
 /**
@@ -24,7 +25,7 @@ export type WithAggregateMetaInput<OriginInput> = OriginInput & {
   id?: string;
   createdAt?: Date;
   updatedAt?: Option.Option<Date>;
-  domainEvents?: ReadonlyArray<DomainEvent>;
+  domainEvents?: ReadonlyArray<IDomainEvent>;
 };
 
 /**
@@ -50,10 +51,10 @@ export interface AggregateRootTrait<
 export interface IAggGenericTrait extends IEntityGenericTrait {
   getDomainEvents: <A extends AggregateRoot>(
     aggregate: A,
-  ) => ReadonlyArray<DomainEvent>;
+  ) => ReadonlyArray<IDomainEvent>;
   clearEvents: <A extends AggregateRoot>(aggregate: A) => A;
   addDomainEvent: <A extends AggregateRoot>(
-    event: DomainEvent,
+    event: IDomainEvent,
   ) => (aggregate: A) => A;
   createAggregateRootTrait: <A extends AggregateRoot, N = unknown, P = unknown>(
     propsParser: AggregatePropsParser<A, P>,
