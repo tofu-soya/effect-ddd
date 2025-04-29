@@ -1,4 +1,5 @@
 import { ReadonlyRecord } from 'effect/Record';
+import * as Option from 'effect/Option';
 import { ParseResult, Parser } from './validation';
 import { GetProps } from 'src/typeclasses';
 import { Effect } from 'effect';
@@ -33,6 +34,9 @@ export interface IGenericDomainModelTrait {
   asQuery: <DM extends DomainModel, R>(
     queryLogic: (props: GetProps<DM>, dm: DM) => Effect.Effect<R, BaseException, never>
   ) => QueryOnModel<DM, R>;
+  asQueryOpt: <DM extends DomainModel, R>(
+    queryLogic: (props: GetProps<DM>, dm: DM) => Option.Option<R>
+  ) => (dm: DM) => Option.Option<R>;
 }
 
 export interface DomainModelTrait<

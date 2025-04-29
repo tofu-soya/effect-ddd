@@ -1,4 +1,5 @@
 import { Effect, pipe } from 'effect';
+import * as Option from 'effect/Option';
 import {
   DomainModel,
   IGenericDomainModelTrait,
@@ -82,6 +83,18 @@ export const GenericDomainModelTrait: IGenericDomainModelTrait = {
       );
     };
   },
+
+  // Create a query function that returns Option instead of Effect
+  asQueryOpt: <DM extends DomainModel, R>(
+    queryLogic: (props: GetProps<DM>, dm: DM) => Option.Option<R>
+  ): ((dm: DM) => Option.Option<R>) => {
+    return (dm: DM) => {
+      return pipe(
+        GenericDomainModelTrait.unpack(dm),
+        (props) => queryLogic(props as GetProps<DM>, dm)
+      );
+    };
+  },
 };
 
 /**
@@ -97,6 +110,18 @@ export const asQuery = <DM extends DomainModel, R>(
   ) => Effect.Effect<R, BaseException, never>,
 ): QueryOnModel<DM, R> => {
   return GenericDomainModelTrait.asQuery(queryLogic);
+};
+
+/**
+ * Implementation of asQueryOpt function
+ * 
+ * This function allows creating queries that extract information from domain models
+ * and return Option instead of Effect.
+ */
+export const asQueryOpt = <DM extends DomainModel, R>(
+  queryLogic: (props: GetProps<DM>, dm: DM) => Option.Option<R>
+): ((dm: DM) => Option.Option<R>) => {
+  return GenericDomainModelTrait.asQueryOpt(queryLogic);
 };
 
 // Helper function to create a domain model trait with schema validation
