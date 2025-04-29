@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Identifier } from 'src/typeclasses/obj-with-id';
-import { AggregateRoot, AggGenericTrait } from '..';
+import { AggregateRoot, AggGenericTrait } from '../aggregate-root.base';
 
 /**
  * Domain event metadata

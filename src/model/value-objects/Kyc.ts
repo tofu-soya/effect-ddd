@@ -2,17 +2,17 @@ import { Either, Option, pipe } from '@logic/fp';
 import { apply } from 'fp-ts/lib/function';
 import { BooleanFromString } from 'io-ts-types';
 import {
-  Parser,
   VOLiken,
   ValueObject,
   ValueObjectAuFn,
   ValueObjectTrait,
-  decodeWithValidationErr,
-  parseDate,
-} from '..';
+} from '../value-object.base';
 import { GenericDomainModelTrait } from '@model/domain-model.base';
 import { optionizeParser } from '@model/parser';
 import { GetProps } from 'src/typeclasses/has-props';
+import { decodeWithValidationErr } from '@model/io-related-auxiliry-func';
+import { parseDate } from '.';
+import { Parser } from '@model/invariant-validation';
 
 export type Kyc = ValueObject<{
   isVerified: boolean;

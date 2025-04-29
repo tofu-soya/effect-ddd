@@ -1,5 +1,5 @@
 import { Brand } from '@type_util/index';
-import { ValidationTrait } from '..';
+import { ValidationTrait } from '../invariant-validation';
 import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
 
 export type URL = Brand<string, 'URL'>;

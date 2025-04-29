@@ -2,7 +2,7 @@ import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
 import { Either, flow } from '@logic/fp';
 import { PrimitiveVOTrait } from '@model/value-object.base';
 import { Brand } from '@type_util/index';
-import { ValidationErr } from '..';
+import { ValidationErr } from '../invariant-validation';
 
 export const isEmptyStringMaxNLength =
   <T>(maxLength: number) =>

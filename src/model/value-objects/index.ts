@@ -1,7 +1,7 @@
 import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
 import { Arr, Either, pipe } from '@logic/fp';
 import { DateFromISOString, NumberFromString } from 'io-ts-types';
-import { Parser } from '..';
+import { Parser } from '../invariant-validation';
 export * from './Kyc';
 export * from './NoneEmptyString';
 export * from './Person';
