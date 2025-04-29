@@ -30,6 +30,9 @@ export interface IGenericDomainModelTrait {
     propsParsing: PropsParser<DM>,
     tag: string,
   ) => DomainModelTrait<DM, N, I>;
+  asQuery: <DM extends DomainModel, R>(
+    queryLogic: (props: GetProps<DM>, dm: DM) => Effect.Effect<R, BaseException, never>
+  ) => QueryOnModel<DM, R>;
 }
 
 export interface DomainModelTrait<
@@ -49,3 +52,19 @@ export type CommandResult<DM extends DomainModel> = Effect.Effect<
 export type CommandOnModel<DM extends DomainModel> = (
   dm: DM,
 ) => CommandResult<DM>;
+
+/**
+ * Query function type that extracts data from a domain model
+ */
+export type QueryOnModel<DM extends DomainModel, R> = (
+  dm: DM
+) => Effect.Effect<R, BaseException, never>;
+
+/**
+ * AsQuery function type
+ */
+export interface AsQuery {
+  <DM extends DomainModel, R>(
+    queryLogic: (props: GetProps<DM>, dm: DM) => Effect.Effect<R, BaseException, never>
+  ): QueryOnModel<DM, R>;
+}
