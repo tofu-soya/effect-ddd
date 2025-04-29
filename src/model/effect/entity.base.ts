@@ -49,6 +49,17 @@ export interface EntityTrait<
 > extends DomainModelTrait<E, NewParams, WithEntityMetaInput<ParseParams>> {}
 
 /**
+ * Type for entity invariant parser
+ */
+export type EntityInvariantParser<
+  E extends Entity,
+  IsProperty extends boolean,
+  V
+> = IsProperty extends true
+  ? (entity: E) => (value: unknown) => ParseResult<V>
+  : (entity: E) => (value: unknown) => ParseResult<V>;
+
+/**
  * Generic entity trait interface
  */
 export interface IEntityGenericTrait {

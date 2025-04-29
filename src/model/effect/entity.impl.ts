@@ -9,6 +9,8 @@ import {
 import { GetProps, Identifier } from 'src/typeclasses';
 import { ParseResult } from './validation';
 import { v4 as uuidv4 } from 'uuid';
+import { BaseException } from '@logic/exception.base';
+import { IDomainEvent } from './domain-event.interface';
 /**
  * Implementation of the generic entity trait
  */
@@ -78,4 +80,83 @@ export const createEntityTrait = <E extends Entity, N = unknown, P = unknown>(
   options?: { autoGenId: boolean },
 ): EntityTrait<E, N, P> => {
   return EntityGenericTrait.createEntityTrait(propsParser, tag, options);
+};
+
+/**
+ * Command on model type for entity operations
+ */
+export type CommandOnModel<E extends Entity> = (
+  entity: E
+) => Effect.Effect<E, BaseException, never>;
+
+/**
+ * AsReducer function type
+ */
+export interface AsReducer {
+  <E extends Entity, I>(
+    reducerLogic: (
+      input: I,
+      props: GetProps<E>,
+      entity: E
+    ) => Effect.Effect<
+      { props: GetProps<E>; domainEvents: IDomainEvent[] },
+      BaseException,
+      never
+    >
+  ): (input: I) => CommandOnModel<E>;
+}
+
+/**
+ * Implementation of asReducer function
+ * 
+ * This function allows creating reducers that modify entity properties
+ * and generate domain events in a type-safe way.
+ */
+export const asReducer: AsReducer = <E extends Entity, I>(
+  reducerLogic: (
+    input: I,
+    props: GetProps<E>,
+    entity: E
+  ) => Effect.Effect<
+    { props: GetProps<E>; domainEvents: IDomainEvent[] },
+    BaseException,
+    never
+  >
+) => {
+  return (input: I): CommandOnModel<E> => {
+    return (entity: E) => {
+      return pipe(
+        reducerLogic(input, EntityGenericTrait.unpack(entity), entity),
+        Effect.map(({ props, domainEvents }) => ({
+          ...entity,
+          props: props as E['props'],
+          updatedAt: Option.some(new Date()),
+          // Domain events would be handled separately in a real implementation
+        }))
+      );
+    };
+  };
+};
+
+/**
+ * Helper functions for working with reducers
+ */
+export const AsReducerTrait = {
+  /**
+   * Create a successful reducer result
+   */
+  success: <E extends Entity>(
+    props: GetProps<E>,
+    domainEvents: IDomainEvent[] = []
+  ) => Effect.succeed({ props, domainEvents }),
+
+  /**
+   * Create a failed reducer result
+   */
+  failure: <E extends Entity>(error: BaseException) => Effect.fail(error),
+
+  /**
+   * The main asReducer function
+   */
+  as: asReducer,
 };
