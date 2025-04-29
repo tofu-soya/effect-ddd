@@ -6,10 +6,33 @@
 */
 
 import { BaseException } from '@logic/exception.base';
-import { Context, Effect } from 'effect';
+import { TE } from '@logic/fp';
 import { AggregateRoot } from '@model/aggregate-root.base';
 import { Identifier } from 'src/typeclasses/obj-with-id';
-import { IDomainEventPublisher } from '../model/effect/domain-event-publisher.interface';
+
+export interface Save<A extends AggregateRoot> {
+  save(aggregateRoot: A): TE.TaskEither<BaseException, void>;
+}
+
+export interface Add<A extends AggregateRoot> {
+  add(entity: A): TE.TaskEither<BaseException, void>;
+}
+
+export interface SaveMultiple<A extends AggregateRoot> {
+  saveMultiple(entities: A[]): TE.TaskEither<BaseException, void>;
+}
+
+export interface FindOne<A extends AggregateRoot, QueryParams = any> {
+  findOneOrThrow(params: QueryParams): TE.TaskEither<BaseException, A>;
+}
+
+export interface FindOneById<A extends AggregateRoot> {
+  findOneByIdOrThrow(id: Identifier): TE.TaskEither<BaseException, A>;
+}
+
+export interface FindMany<A extends AggregateRoot, QueryParams = any> {
+  findMany(params: QueryParams): TE.TaskEither<BaseException, A[]>;
+}
 
 export interface OrderBy {
   [key: number]: 'ASC' | 'DESC';
@@ -34,61 +57,24 @@ export interface DataWithPaginationMeta<T> {
   page?: number;
 }
 
-/**
- * Repository interface using Effect for error handling and dependency management
- */
-export interface RepositoryPort<A extends AggregateRoot, QueryParams = any> {
-  /**
-   * Save an existing aggregate root
-   */
-  save(aggregateRoot: A): Effect.Effect<void, BaseException, IDomainEventPublisher>;
-  
-  /**
-   * Add a new aggregate root
-   */
-  add(entity: A): Effect.Effect<void, BaseException, IDomainEventPublisher>;
-  
-  /**
-   * Save multiple aggregate roots
-   */
-  saveMultiple(entities: A[]): Effect.Effect<void, BaseException, IDomainEventPublisher>;
-  
-  /**
-   * Find one aggregate root by query parameters
-   */
-  findOneOrThrow(params: QueryParams): Effect.Effect<A, BaseException, never>;
-  
-  /**
-   * Find one aggregate root by ID
-   */
-  findOneByIdOrThrow(id: Identifier): Effect.Effect<A, BaseException, never>;
-  
-  /**
-   * Find many aggregate roots by query parameters
-   */
-  findMany(params: QueryParams): Effect.Effect<A[], BaseException, never>;
-  
-  /**
-   * Find many aggregate roots with pagination
-   */
+export interface FindManyPaginated<A extends AggregateRoot, QueryParams = any> {
   findManyPaginated(
     options: FindManyPaginatedParams<QueryParams>,
-  ): Effect.Effect<DataWithPaginationMeta<A[]>, BaseException, never>;
-  
-  /**
-   * Delete an aggregate root
-   */
-  delete(entity: A): Effect.Effect<void, BaseException, never>;
-  
-  /**
-   * Set correlation ID for tracking
-   */
-  setCorrelationId?(correlationId: string): this;
+  ): TE.TaskEither<BaseException, DataWithPaginationMeta<A[]>>;
 }
 
-/**
- * Repository Context Tag
- */
-export class RepositoryContext<A extends AggregateRoot, Q = any> extends Context.Tag(
-  'Repository',
-)<RepositoryContext<A, Q>, RepositoryPort<A, Q>>() {}
+export interface DeleteOne<A extends AggregateRoot> {
+  delete?(entity: A): TE.TaskEither<BaseException, unknown>;
+}
+
+export interface RepositoryPort<A extends AggregateRoot, QueryParams = any>
+  extends Save<A>,
+    FindOne<A, QueryParams>,
+    FindOneById<A>,
+    FindMany<A, QueryParams>,
+    Add<A>,
+    FindManyPaginated<A, QueryParams>,
+    DeleteOne<A>,
+    SaveMultiple<A> {
+  setCorrelationId?(correlationId: string): this;
+}

@@ -32,10 +32,13 @@ export interface IGenericDomainModelTrait {
     tag: string,
   ) => DomainModelTrait<DM, N, I>;
   asQuery: <DM extends DomainModel, R>(
-    queryLogic: (props: GetProps<DM>, dm: DM) => Effect.Effect<R, BaseException, never>
+    queryLogic: (
+      props: GetProps<DM>,
+      dm: DM,
+    ) => Effect.Effect<R, BaseException, never>,
   ) => QueryOnModel<DM, R>;
   asQueryOpt: <DM extends DomainModel, R>(
-    queryLogic: (props: GetProps<DM>, dm: DM) => Option.Option<R>
+    queryLogic: (props: GetProps<DM>, dm: DM) => Option.Option<R>,
   ) => (dm: DM) => Option.Option<R>;
 }
 
@@ -48,20 +51,11 @@ export interface DomainModelTrait<
   new: Parser<D, NewParams>;
 }
 
-export type CommandResult<DM extends DomainModel> = Effect.Effect<
-  DM,
-  BaseException
->;
-
-export type CommandOnModel<DM extends DomainModel> = (
-  dm: DM,
-) => CommandResult<DM>;
-
 /**
  * Query function type that extracts data from a domain model
  */
 export type QueryOnModel<DM extends DomainModel, R> = (
-  dm: DM
+  dm: DM,
 ) => Effect.Effect<R, BaseException, never>;
 
 /**
@@ -69,6 +63,9 @@ export type QueryOnModel<DM extends DomainModel, R> = (
  */
 export interface AsQuery {
   <DM extends DomainModel, R>(
-    queryLogic: (props: GetProps<DM>, dm: DM) => Effect.Effect<R, BaseException, never>
+    queryLogic: (
+      props: GetProps<DM>,
+      dm: DM,
+    ) => Effect.Effect<R, BaseException, never>,
   ): QueryOnModel<DM, R>;
 }

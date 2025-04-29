@@ -1,9 +1,10 @@
 import { ReadonlyRecord } from 'effect/Record';
-import { Option } from 'effect';
+import { Effect, Option } from 'effect';
 import { ParseResult } from './validation';
 import { DomainModel, DomainModelTrait } from './domain-model.base';
 import { Identifier } from 'src/typeclasses/obj-with-id';
 import { GetProps } from 'src/typeclasses';
+import { BaseException } from '@logic/exception.base';
 
 /**
  * Entity type that extends DomainModel with additional properties
@@ -54,11 +55,17 @@ export interface EntityTrait<
 export type EntityInvariantParser<
   E extends Entity,
   IsProperty extends boolean,
-  V
+  V,
 > = IsProperty extends true
   ? (entity: E) => (value: unknown) => ParseResult<V>
   : (entity: E) => (value: unknown) => ParseResult<V>;
 
+/**
+ * Command on model type for entity operations
+ */
+export type CommandResult<DM extends Entity> = Effect.Effect<DM, BaseException>;
+
+export type CommandOnModel<DM extends Entity> = (dm: DM) => CommandResult<DM>;
 /**
  * Generic entity trait interface
  */
@@ -75,4 +82,11 @@ export interface IEntityGenericTrait {
     tag: string,
     options?: { autoGenId: boolean },
   ) => EntityTrait<E, N, P>;
+  asCommand: <E extends Entity, I>(
+    reducerLogic: (
+      input: I,
+      props: GetProps<E>,
+      entity: E,
+    ) => Effect.Effect<{ props: GetProps<E> }, BaseException, never>,
+  ) => (input: I) => CommandOnModel<E>;
 }

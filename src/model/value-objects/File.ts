@@ -1,6 +1,5 @@
 import { Brand } from '@type_util/index';
 import {
-  NEStringAuFn,
   PrimitiveVOTrait,
   VOGenericTrait,
   VOLiken,
@@ -8,8 +7,9 @@ import {
   ValueObjectTrait,
   getBaseVOTrait,
   getPrimitiveVOTrait,
-} from '..';
+} from '../value-object.base';
 import { isString } from 'fp-ts/lib/string';
+import { NEStringAuFn } from './NoneEmptyString';
 
 export type FileType = Brand<string, 'FileType'>;
 

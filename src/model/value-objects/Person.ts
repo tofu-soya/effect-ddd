@@ -2,7 +2,7 @@ import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
 import { Either } from '@logic/fp';
 import { Brand } from '@type_util/index';
 import validator from 'validator';
-import { Parser } from '..';
+import { Parser } from '../invariant-validation';
 
 export type Username = Brand<string, 'Username'>;
 

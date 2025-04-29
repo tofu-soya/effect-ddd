@@ -1,10 +1,17 @@
 import { ReadonlyRecord } from 'effect/Record';
-import { Option } from 'effect';
+import { Effect, Option, pipe } from 'effect';
 import { ParseResult } from './validation';
-import { Entity, EntityTrait, IEntityGenericTrait } from './entity.base';
+import {
+  CommandOnModel,
+  Entity,
+  EntityTrait,
+  IEntityGenericTrait,
+} from './entity.base';
 import { DomainEvent } from '../event/domain-event.base';
 import { EntityGenericTrait } from './entity.impl';
 import { IDomainEvent } from './domain-event.interface';
+import { GetProps } from 'src/typeclasses';
+import { BaseException } from '@logic/exception.base';
 
 /**
  * AggregateRoot type that extends Entity
@@ -48,7 +55,8 @@ export interface AggregateRootTrait<
 /**
  * Generic aggregate root trait interface
  */
-export interface IAggGenericTrait extends IEntityGenericTrait {
+export interface IAggGenericTrait
+  extends Omit<IEntityGenericTrait, 'asCommand'> {
   getDomainEvents: <A extends AggregateRoot>(
     aggregate: A,
   ) => ReadonlyArray<IDomainEvent>;
@@ -61,6 +69,17 @@ export interface IAggGenericTrait extends IEntityGenericTrait {
     tag: string,
     options?: { autoGenId: boolean },
   ) => AggregateRootTrait<A, N, P>;
+  asCommand: <A extends AggregateRoot, I>(
+    reducerLogic: (
+      input: I,
+      props: GetProps<A>,
+      aggregate: A,
+    ) => Effect.Effect<
+      { props: GetProps<A>; domainEvents: IDomainEvent[] },
+      BaseException,
+      never
+    >,
+  ) => (input: I) => CommandOnModel<A>;
 }
 
 /**
@@ -91,5 +110,37 @@ export const AggGenericTrait: IAggGenericTrait = {
       tag,
       options,
     );
+  },
+  asCommand: <A extends AggregateRoot, I>(
+    reducerLogic: (
+      input: I,
+      props: GetProps<A>,
+      aggregate: A,
+    ) => Effect.Effect<
+      { props: GetProps<A>; domainEvents: IDomainEvent[] },
+      BaseException,
+      never
+    >,
+  ) => {
+    return (input: I): CommandOnModel<A> => {
+      return (aggregate: A) => {
+        return pipe(
+          reducerLogic(input, AggGenericTrait.unpack(aggregate), aggregate),
+          Effect.map(({ props, domainEvents }) => {
+            // Apply all domain events to the aggregate
+            const withEvents = domainEvents.reduce<A>(
+              (agg, event) => AggGenericTrait.addDomainEvent<A>(event)(agg),
+              aggregate,
+            );
+
+            return {
+              ...withEvents,
+              props: props as A['props'],
+              updatedAt: Option.some(new Date()),
+            };
+          }),
+        );
+      };
+    };
   },
 };

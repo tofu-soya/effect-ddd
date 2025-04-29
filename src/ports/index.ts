@@ -1,6 +1,6 @@
 export { Logger, LoggerWithCtx } from './logger.base';
 export { getConsoleDomainLogger } from './domain-logger';
-export * from './repository.base';
+// export * from './repository.base';
 export * from './mapper.base';
 export { UnitOfWorkPort } from './uow';
 export { AbstractKeyValueRepository } from './database/keyvalue/key-value.repository';

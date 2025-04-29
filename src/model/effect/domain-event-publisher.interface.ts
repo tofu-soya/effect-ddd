@@ -34,28 +34,3 @@ export interface IDomainEventPublisher {
 export class DomainEventPublisherContext extends Context.Tag(
   'DomainEventPublisher',
 )<DomainEventPublisherContext, IDomainEventPublisher>() {}
-
-/**
- * Implementation of the DomainEventPublisher
- */
-export const DomainEventPublisherLive = Layer.effect(
-  DomainEventPublisherContext,
-  Effect.succeed({
-    publish: (event) => 
-      Effect.flatMap(
-        Effect.service(DomainEventRepositoryContext),
-        (repository) => repository.save(event)
-      ),
-    
-    publishAll: (events) => 
-      Effect.flatMap(
-        Effect.service(DomainEventRepositoryContext),
-        (repository) => 
-          Effect.forEach(
-            events,
-            (event) => repository.save(event),
-            { concurrency: 'unbounded' }
-          )
-      )
-  })
-);

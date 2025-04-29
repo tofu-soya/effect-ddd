@@ -1,9 +1,10 @@
 import { Brand } from '@type_util/index';
-import { PrimitiveVOTrait, ValidationTrait } from '..';
+import { ValidationTrait } from '../invariant-validation';
 import { P, match } from 'ts-pattern';
 import { Either, pipe } from '@logic/fp';
 import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
 import validator from 'validator';
+import { PrimitiveVOTrait } from '@model/value-object.base';
 
 export type PositiveNumber = Brand<number, 'PositiveNumber'>;
 
