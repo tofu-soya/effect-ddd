@@ -67,15 +67,18 @@ export const GenericDomainModelTrait: IGenericDomainModelTrait = {
       },
     };
   },
-  
+
   // Create a query function that extracts information from a domain model
   asQuery: <DM extends DomainModel, R>(
-    queryLogic: (props: GetProps<DM>, dm: DM) => Effect.Effect<R, BaseException, never>
+    queryLogic: (
+      props: GetProps<DM>,
+      dm: DM,
+    ) => Effect.Effect<R, BaseException, never>,
   ): QueryOnModel<DM, R> => {
     return (dm: DM) => {
       return pipe(
         Effect.succeed(GenericDomainModelTrait.unpack(dm)),
-        Effect.flatMap(props => queryLogic(props as GetProps<DM>, dm))
+        Effect.flatMap((props) => queryLogic(props as GetProps<DM>, dm)),
       );
     };
   },
@@ -83,34 +86,17 @@ export const GenericDomainModelTrait: IGenericDomainModelTrait = {
 
 /**
  * Implementation of asQuery function
- * 
+ *
  * This function allows creating queries that extract information from domain models
  * in a type-safe way.
  */
 export const asQuery = <DM extends DomainModel, R>(
-  queryLogic: (props: GetProps<DM>, dm: DM) => Effect.Effect<R, BaseException, never>
+  queryLogic: (
+    props: GetProps<DM>,
+    dm: DM,
+  ) => Effect.Effect<R, BaseException, never>,
 ): QueryOnModel<DM, R> => {
   return GenericDomainModelTrait.asQuery(queryLogic);
-};
-
-/**
- * Helper functions for working with queries
- */
-export const AsQueryTrait = {
-  /**
-   * Create a successful query result
-   */
-  success: <R>(result: R) => Effect.succeed(result),
-
-  /**
-   * Create a failed query result
-   */
-  failure: <R>(error: BaseException) => Effect.fail<R, BaseException>(error),
-
-  /**
-   * The main asQuery function
-   */
-  as: asQuery,
 };
 
 // Helper function to create a domain model trait with schema validation
@@ -136,43 +122,3 @@ export const AsQueryTrait = {
 //     tag,
 //   );
 // };
-
-import { BaseException } from '@logic/exception.base';
-import { QueryOnModel } from './domain-model.base';
-
-/**
- * Implementation of asQuery function
- * 
- * This function allows creating queries that extract information from domain models
- * in a type-safe way.
- */
-export const asQuery = <DM extends DomainModel, R>(
-  queryLogic: (props: GetProps<DM>, dm: DM) => Effect.Effect<R, BaseException, never>
-): QueryOnModel<DM, R> => {
-  return (dm: DM) => {
-    return pipe(
-      Effect.succeed(GenericDomainModelTrait.unpack(dm)),
-      Effect.flatMap(props => queryLogic(props as GetProps<DM>, dm))
-    );
-  };
-};
-
-/**
- * Helper functions for working with queries
- */
-export const AsQueryTrait = {
-  /**
-   * Create a successful query result
-   */
-  success: <R>(result: R) => Effect.succeed(result),
-
-  /**
-   * Create a failed query result
-   */
-  failure: <R>(error: BaseException) => Effect.fail<R, BaseException>(error),
-
-  /**
-   * The main asQuery function
-   */
-  as: asQuery,
-};
