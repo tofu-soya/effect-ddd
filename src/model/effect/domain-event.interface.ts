@@ -5,7 +5,7 @@ import { BaseException } from '../../logic/exception.base';
 /**
  * Interface for domain events
  */
-export interface DomainEventFactory {
+export interface IDomainEventTrait {
   create<P>(params: {
     name: string;
     payload: P;
@@ -28,7 +28,7 @@ export interface IDomainEvent<P = any> {
   readonly payload: P;
   readonly aggregateId?: Identifier;
   readonly aggregateType?: string;
-  
+
   getPayload(): P;
 }
 
@@ -40,12 +40,12 @@ export interface IDomainEventRepository {
    * Save a domain event
    */
   save(event: IDomainEvent): Effect.Effect<void, BaseException, never>;
-  
+
   /**
    * Get unhandled domain events
    */
   getUnhandledEvents(): Effect.Effect<IDomainEvent[], BaseException, never>;
-  
+
   /**
    * Mark a domain event as handled
    */
