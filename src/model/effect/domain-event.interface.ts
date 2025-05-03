@@ -6,14 +6,13 @@ import { BaseException } from '../../logic/exception.base';
  * Interface for domain events
  */
 export interface IDomainEventTrait {
-  create<P>(params: {
+  create<P, A extends AggregateRoot>(params: {
     name: string;
     payload: P;
     correlationId: string;
     causationId?: string;
     userId?: string;
-    aggregateId?: Identifier;
-    aggregateType?: string;
+    aggregate?: A;
   }): IDomainEvent<P>;
 }
 

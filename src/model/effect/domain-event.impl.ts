@@ -5,14 +5,13 @@ import { IDomainEventTrait, IDomainEvent } from './domain-event.interface';
  * DomainEventPublisher implementation
  */
 export const DomainEventTrait: IDomainEventTrait = {
-  create<P>(params: {
+  create<P, A extends AggregateRoot>(params: {
     name: string;
     payload: P;
     correlationId: string;
     causationId?: string;
     userId?: string;
-    aggregateId?: Identifier;
-    aggregateType?: string;
+    aggregate?: A;
   }): IDomainEvent<P> {
     return {
       name: params.name,
@@ -23,8 +22,8 @@ export const DomainEventTrait: IDomainEventTrait = {
         userId: params.userId,
       },
       payload: params.payload,
-      aggregateId: params.aggregateId,
-      aggregateType: params.aggregateType,
+      aggregateId: params.aggregate?.id,
+      aggregateType: params.aggregate?.constructor.name,
       getPayload: () => params.payload,
     };
   },
