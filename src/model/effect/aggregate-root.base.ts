@@ -80,7 +80,7 @@ export interface IAggGenericTrait
     ) => Effect.Effect<
       { props: GetProps<A>; domainEvents: IDomainEvent[] },
       BaseException,
-      never
+      any
     >,
   ) => (input: I) => CommandOnModel<A>;
 }
@@ -127,7 +127,7 @@ export const AggGenericTrait: IAggGenericTrait = {
     ) => Effect.Effect<
       { props: GetProps<A>; domainEvents: IDomainEvent[] },
       BaseException,
-      never
+      any
     >,
   ) => {
     return (input: I): CommandOnModel<A> => {

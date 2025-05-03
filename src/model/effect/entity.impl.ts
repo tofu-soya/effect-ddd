@@ -45,8 +45,11 @@ export const EntityGenericTrait: IEntityGenericTrait = {
         Effect.succeed(input),
         Effect.flatMap((data) => {
           const id = options.autoGenId && !data.id ? uuidv4() : data.id || '';
-          const createdAt = data.createdAt || new Date();
-          const updatedAt = data.updatedAt || Option.none();
+          const createdAt = pipe(
+            data.createdAt,
+            Option.getOrElse(() => new Date()),
+          );
+          const updatedAt = data.updatedAt;
 
           return pipe(
             propsParser(data),
