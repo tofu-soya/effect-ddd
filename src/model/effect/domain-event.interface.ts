@@ -5,6 +5,18 @@ import { BaseException } from '../../logic/exception.base';
 /**
  * Interface for domain events
  */
+export interface DomainEventFactory {
+  create<P>(params: {
+    name: string;
+    payload: P;
+    correlationId: string;
+    causationId?: string;
+    userId?: string;
+    aggregateId?: Identifier;
+    aggregateType?: string;
+  }): IDomainEvent<P>;
+}
+
 export interface IDomainEvent<P = any> {
   readonly name: string;
   readonly metadata: {
