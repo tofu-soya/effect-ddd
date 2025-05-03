@@ -77,12 +77,13 @@ export interface IAggGenericTrait
       input: I,
       props: GetProps<A>,
       aggregate: A,
+      correlationId: string,
     ) => Effect.Effect<
       { props: GetProps<A>; domainEvents: IDomainEvent[] },
       BaseException,
       any
     >,
-  ) => (input: I) => CommandOnModel<A>;
+  ) => (input: I & { correlationId: string }) => CommandOnModel<A>;
 }
 
 /**
@@ -133,7 +134,7 @@ export const AggGenericTrait: IAggGenericTrait = {
     return (input: I): CommandOnModel<A> => {
       return (aggregate: A) => {
         return pipe(
-          reducerLogic(input, AggGenericTrait.unpack(aggregate), aggregate),
+          reducerLogic(input, AggGenericTrait.unpack(aggregate), aggregate, input.correlationId),
           Effect.map(({ props, domainEvents }) => {
             // Apply all domain events to the aggregate
             const withEvents = domainEvents.reduce<A>(

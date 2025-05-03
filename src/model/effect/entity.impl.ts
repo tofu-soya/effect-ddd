@@ -78,12 +78,13 @@ export const EntityGenericTrait: IEntityGenericTrait = {
       input: I,
       props: GetProps<E>,
       entity: E,
+      correlationId: string,
     ) => Effect.Effect<{ props: GetProps<E> }, BaseException, never>,
   ) => {
-    return (input: I): CommandOnModel<E> => {
+    return (input: I & { correlationId: string }): CommandOnModel<E> => {
       return (entity: E) => {
         return pipe(
-          reducerLogic(input, EntityGenericTrait.unpack(entity), entity),
+          reducerLogic(input, EntityGenericTrait.unpack(entity), entity, input.correlationId),
           Effect.map(
             ({ props }): E => ({
               ...entity,
