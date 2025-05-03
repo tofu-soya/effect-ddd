@@ -64,6 +64,9 @@ export interface IAggGenericTrait
   addDomainEvent: <A extends AggregateRoot>(
     event: IDomainEvent,
   ) => (aggregate: A) => A;
+  addDomainEvents: <A extends AggregateRoot>(
+    events: ReadonlyArray<IDomainEvent>,
+  ) => (aggregate: A) => A;
   createAggregateRootTrait: <A extends AggregateRoot, N = unknown, P = unknown>(
     propsParser: AggregatePropsParser<A, P>,
     tag: string,
@@ -99,6 +102,11 @@ export const AggGenericTrait: IAggGenericTrait = {
   addDomainEvent: (event) => (aggregate) => ({
     ...aggregate,
     domainEvents: [...aggregate.domainEvents, event],
+  }),
+
+  addDomainEvents: (events) => (aggregate) => ({
+    ...aggregate,
+    domainEvents: [...aggregate.domainEvents, ...events],
   }),
   createAggregateRootTrait: <A extends AggregateRoot, N = unknown, P = unknown>(
     propsParser: AggregatePropsParser<A, P>,
