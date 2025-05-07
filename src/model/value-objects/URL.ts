@@ -1,19 +1,14 @@
-import { Brand } from '@type_util/index';
-import { ValidationTrait } from '../invariant-validation';
+import * as Schema from '@effect/schema/Schema';
 import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
 
-export type URL = Brand<string, 'URL'>;
+const URLRegex =
+  /^(https:\/\/www\.|http:\/\/www\.|https:\/\/|http:\/\/)?[a-zA-Z]{2,}(\.[a-zA-Z]{2,})(\.[a-zA-Z]{2,})?\/[a-zA-Z0-9]{2,}|^((https:\/\/www\.|http:\/\/www\.|https:\/\/|http:\/\/)?[a-zA-Z]{2,}(\.[a-zA-Z]{2,})(\.[a-zA-Z]{2,})?)$|^(https:\/\/www\.|http:\/\/www\.|https:\/\/|http:\/\/)?[a-zA-Z0-9]{2,}\.[a-zA-Z0-9]{2,}\.[a-zA-Z0-9]{2,}(\.[a-zA-Z0-9]{2,})?$/;
 
-const isUrl = (s: string): s is URL => {
-  const regex =
-    /^(https:\/\/www\.|http:\/\/www\.|https:\/\/|http:\/\/)?[a-zA-Z]{2,}(\.[a-zA-Z]{2,})(\.[a-zA-Z]{2,})?\/[a-zA-Z0-9]{2,}|^((https:\/\/www\.|http:\/\/www\.|https:\/\/|http:\/\/)?[a-zA-Z]{2,}(\.[a-zA-Z]{2,})(\.[a-zA-Z]{2,})?)$|^(https:\/\/www\.|http:\/\/www\.|https:\/\/|http:\/\/)?[a-zA-Z0-9]{2,}\.[a-zA-Z0-9]{2,}\.[a-zA-Z0-9]{2,}(\.[a-zA-Z0-9]{2,})?$/g;
-  return regex.test(s);
-};
+export const URL = Schema.string.pipe(
+  Schema.filter((s): s is string => URLRegex.test(s), {
+    message: () => BaseExceptionTrait.construct('url is malformed', 'URL_INCORRECT')
+  }),
+  Schema.brand('URL')
+);
 
-export const parseURL = (s: string) => {
-  return isUrl(s)
-    ? ValidationTrait.right<URL, BaseException>(s)
-    : ValidationTrait.left<URL, BaseException>(
-        BaseExceptionTrait.construct('url is malformed', 'URL_INCORRECT'),
-      );
-};
+export type URL = Schema.Schema.Type<typeof URL>;
