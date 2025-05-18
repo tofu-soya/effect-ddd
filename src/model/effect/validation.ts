@@ -6,4 +6,4 @@ export type ParseResult<R, C = unknown> = Effect.Effect<
   C
 >;
 
-export type Parser<A, I = any, C = unknown> = (value: I) => ParseResult<A, C>;
+export type Parser<A, I = any, C = any> = (value: I) => ParseResult<A, C>;
