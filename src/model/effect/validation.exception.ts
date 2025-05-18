@@ -1,29 +1,37 @@
-import { BaseException } from './exception.base';
+import { BaseException, BaseExceptionTrait } from './exception.base';
 
-export class ValidationException extends BaseException {
+export class ValidationException implements BaseException {
+  readonly _tag = 'ValidationException';
+  
   constructor(
     readonly code: string,
-    readonly messages: string[],
-    readonly loc: string[] = [],
-    readonly instruction: string[] = [],
-  ) {
-    super();
-    this.tag = 'ValidationException';
-  }
+    readonly message: string,
+    readonly content?: {
+      loc?: string[];
+      instruction?: string[];
+      details?: string[];
+    }
+  ) {}
 }
 
 export const ValidationExceptionTrait = {
   construct: (
     code: string,
-    messages: string | string[],
-    loc: string[] = [],
-    instruction: string[] = [],
+    message: string,
+    content?: {
+      loc?: string[];
+      instruction?: string[];
+      details?: string[];
+    }
   ): ValidationException => {
-    return new ValidationException(
-      code,
-      Array.isArray(messages) ? messages : [messages],
-      loc,
-      instruction,
-    );
+    return new ValidationException(code, message, content);
   },
+
+  fromBase: (base: BaseException): ValidationException => {
+    return new ValidationException(
+      base.code,
+      base.message,
+      { details: [base.message] }
+    );
+  }
 };
