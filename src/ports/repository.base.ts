@@ -5,9 +5,8 @@
     in a respective module/use case.
 */
 
-import { BaseException } from '@logic/exception.base';
 import { TE } from '@logic/fp';
-import { AggregateRoot } from '@model/aggregate-root.base';
+import { AggregateRoot, BaseException } from '@model/effect';
 import { Identifier } from 'src/typeclasses/obj-with-id';
 
 export interface Save<A extends AggregateRoot> {
