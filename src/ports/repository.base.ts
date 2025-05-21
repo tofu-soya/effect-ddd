@@ -5,32 +5,32 @@
     in a respective module/use case.
 */
 
-import { TE } from '@logic/fp';
+import { Effect } from 'effect';
 import { AggregateRoot, BaseException } from '@model/effect';
 import { Identifier } from 'src/typeclasses/obj-with-id';
 
 export interface Save<A extends AggregateRoot> {
-  save(aggregateRoot: A): TE.TaskEither<BaseException, void>;
+  save(aggregateRoot: A): Effect.Effect<void, BaseException, any>;
 }
 
 export interface Add<A extends AggregateRoot> {
-  add(entity: A): TE.TaskEither<BaseException, void>;
+  add(entity: A): Effect.Effect<void, BaseException, any>;
 }
 
 export interface SaveMultiple<A extends AggregateRoot> {
-  saveMultiple(entities: A[]): TE.TaskEither<BaseException, void>;
+  saveMultiple(entities: A[]): Effect.Effect<void, BaseException, any>;
 }
 
 export interface FindOne<A extends AggregateRoot, QueryParams = any> {
-  findOneOrThrow(params: QueryParams): TE.TaskEither<BaseException, A>;
+  findOneOrThrow(params: QueryParams): Effect.Effect<A, BaseException, any>;
 }
 
 export interface FindOneById<A extends AggregateRoot> {
-  findOneByIdOrThrow(id: Identifier): TE.TaskEither<BaseException, A>;
+  findOneByIdOrThrow(id: Identifier): Effect.Effect<A, BaseException, any>;
 }
 
 export interface FindMany<A extends AggregateRoot, QueryParams = any> {
-  findMany(params: QueryParams): TE.TaskEither<BaseException, A[]>;
+  findMany(params: QueryParams): Effect.Effect<A[], BaseException, any>;
 }
 
 export interface OrderBy {
@@ -59,11 +59,11 @@ export interface DataWithPaginationMeta<T> {
 export interface FindManyPaginated<A extends AggregateRoot, QueryParams = any> {
   findManyPaginated(
     options: FindManyPaginatedParams<QueryParams>,
-  ): TE.TaskEither<BaseException, DataWithPaginationMeta<A[]>>;
+  ): Effect.Effect<DataWithPaginationMeta<A[]>, BaseException, any>;
 }
 
 export interface DeleteOne<A extends AggregateRoot> {
-  delete?(entity: A): TE.TaskEither<BaseException, unknown>;
+  delete?(entity: A): Effect.Effect<void, BaseException, any>;
 }
 
 export interface RepositoryPort<A extends AggregateRoot, QueryParams = any>
