@@ -1,6 +1,256 @@
-# Domain Model with Effect
+# Effect Domain Model API Documentation
 
-This document describes the domain model implementation using Effect for functional error handling and dependency management.
+This document provides comprehensive API documentation for building domain models using Effect's functional programming capabilities.
+
+## Table of Contents
+1. [Core Building Blocks](#core-building-blocks)
+2. [Value Objects](#value-objects)
+3. [Entities](#entities) 
+4. [Aggregate Roots](#aggregate-roots)
+5. [Domain Events](#domain-events)
+6. [Repositories](#repositories)
+7. [Testing Utilities](#testing-utilities)
+8. [Best Practices](#best-practices)
+
+## Core Building Blocks
+
+### Base Types
+
+#### `ValueObject<Props>`
+Base type for immutable domain concepts.
+
+#### `Entity<Props>`
+Base type for mutable domain objects with identity.
+
+#### `AggregateRoot<Props>`
+Extends `Entity` with domain event capabilities.
+
+### Traits (Interfaces)
+
+#### `ValueObjectTrait<VO, N, P>`
+```typescript
+interface ValueObjectTrait<VO extends ValueObject, N, P> {
+  parse: (raw: P) => Effect.Effect<VO, ValidationException>
+  new: (params: N) => Effect.Effect<VO, ValidationException>
+}
+```
+
+#### `EntityTrait<E, N, P>`
+```typescript
+interface EntityTrait<E extends Entity, N, P> {
+  parse: (raw: P) => Effect.Effect<E, ValidationException>
+  new: (params: N) => Effect.Effect<E, ValidationException>
+  asCommand: <I>(handler: CommandHandler<E, I>) => CommandOnModel<E>
+}
+```
+
+#### `AggregateRootTrait<A, N, P>`
+Extends `EntityTrait` with domain event capabilities.
+
+## Value Objects
+
+### Creating a Value Object
+
+```typescript
+import { Schema, Effect } from 'effect'
+import { ValueObjectGenericTrait } from './effect'
+
+// Define props type
+type EmailProps = {
+  value: string
+}
+
+// Create trait
+const EmailTrait = ValueObjectGenericTrait.createValueObjectTrait<Email, string>(
+  (raw) => 
+    Schema.decode(Schema.String.pipe(
+      Schema.email(),
+      Schema.brand('Email')
+    ))(raw),
+  'Email'
+)
+
+// Usage
+const email = EmailTrait.new('test@example.com')
+```
+
+### Common Value Objects
+
+Pre-built value objects available:
+
+- `NonEmptyString`
+- `PositiveNumber`
+- `URL`
+- `Email`
+- `PhoneNumber`
+
+## Entities
+
+### Creating an Entity
+
+```typescript
+import { EntityGenericTrait } from './effect'
+
+type UserProps = {
+  name: string
+  email: string
+}
+
+const UserTrait = EntityGenericTrait.createEntityTrait<User, UserProps>(
+  (params) => Effect.gen(function* () {
+    const name = yield* NonEmptyStringTrait.parse(params.name)
+    const email = yield* EmailTrait.parse(params.email)
+    return { name, email }
+  }),
+  'User'
+)
+```
+
+### Entity Commands
+
+```typescript
+const updateEmail = EntityGenericTrait.asCommand<User, string>(
+  (newEmail, props) => 
+    EmailTrait.parse(newEmail).pipe(
+      Effect.map(email => ({ 
+        props: { ...props, email } 
+      }))
+    )
+)
+```
+
+## Aggregate Roots
+
+### Creating an Aggregate
+
+```typescript
+import { AggGenericTrait } from './effect'
+
+type OrderProps = {
+  items: OrderItem[]
+  status: OrderStatus
+}
+
+const OrderTrait = AggGenericTrait.createAggregateRootTrait<Order, OrderProps>(
+  (params) => /* parsing logic */,
+  'Order'
+)
+```
+
+### Domain Events
+
+```typescript
+const addItem = AggGenericTrait.asCommand<Order, OrderItem>(
+  (item, props, order) => 
+    Effect.succeed({
+      props: { ...props, items: [...props.items, item] },
+      domainEvents: [
+        DomainEventTrait.create({
+          name: 'ITEM_ADDED',
+          payload: { itemId: item.id },
+          correlationId: '123',
+          aggregate: order  
+        })
+      ]
+    })
+)
+```
+
+## Domain Events
+
+### Event Creation
+
+```typescript
+const event = DomainEventTrait.create({
+  name: 'USER_REGISTERED',
+  payload: { userId: '123' },
+  correlationId: '456',
+  aggregate: userAggregate
+})
+```
+
+### Event Publishing
+
+```typescript
+// Get publisher from context
+const publisher = yield* DomainEventPublisherContext
+
+// Publish single event
+yield* publisher.publish(event)
+
+// Publish multiple events  
+yield* publisher.publishAll([event1, event2])
+```
+
+## Repositories
+
+### Repository Interface
+
+```typescript
+interface RepositoryPort<A extends AggregateRoot> {
+  save(aggregate: A): Effect.Effect<void, BaseException>
+  findById(id: string): Effect.Effect<A, NotFoundException>
+  // ...other CRUD methods
+}
+```
+
+### Example Implementation
+
+```typescript
+class UserRepository implements RepositoryPort<User> {
+  save(user: User) {
+    return db.save(user).pipe(
+      Effect.mapError(() => OperationException.new('SAVE_FAILED', 'Failed to save user'))
+    )
+  }
+  // ...other methods
+}
+```
+
+## Testing Utilities
+
+### Mock Event Repository
+
+```typescript
+import { MockDomainEventRepositoryLayer } from './effect'
+
+const testLayer = MockDomainEventRepositoryLayer.pipe(
+  Layer.provide(otherDependencies)
+)
+
+Effect.runPromise(
+  Effect.provide(
+    myService,
+    testLayer
+  )
+)
+```
+
+## Best Practices
+
+1. **Validation**:
+   - Validate at value object boundaries
+   - Use Schema for structural validation
+   - Add domain invariants in entity/aggregate traits
+
+2. **Error Handling**:
+   ```typescript
+   Effect.mapError(error => 
+     ValidationException.new('INVALID_EMAIL', 'Invalid email format', {
+       details: [error.message]
+     })
+   )
+   ```
+
+3. **Testing**:
+   - Use mock implementations
+   - Test domain invariants
+   - Verify event emission
+
+4. **Design**:
+   - Keep aggregates small
+   - Make value objects immutable
+   - Use domain events for side effects
 
 ## Core Concepts
 
