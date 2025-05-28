@@ -1,7 +1,7 @@
 import { Effect, Layer } from 'effect';
-import { BaseException, BaseExceptionTrait } from '../../logic/exception.base';
 import { IDomainEvent, IDomainEventRepository } from './domain-event.interface';
 import { DomainEventRepositoryContext } from './domain-event-publisher.interface';
+import { BaseException, OperationException } from './exception';
 
 /**
  * Mock implementation of the DomainEventRepository
@@ -20,7 +20,7 @@ export class MockDomainEventRepository implements IDomainEventRepository {
         this.events.set(eventId, event);
       },
       catch: (error) =>
-        BaseExceptionTrait.construct(
+        OperationException.new(
           'SAVE_EVENT_FAILED',
           `Failed to save event: ${error}`,
         ),
@@ -42,10 +42,10 @@ export class MockDomainEventRepository implements IDomainEventRepository {
         return unhandledEvents;
       },
       catch: (error) =>
-        BaseExceptionTrait.construct(
+        OperationException.new(
           'GET_UNHANDLED_EVENT_FAILED',
           `Failed to get unhandled events: ${error}`,
-        ) as BaseException,
+        ),
     });
   }
 
@@ -61,7 +61,7 @@ export class MockDomainEventRepository implements IDomainEventRepository {
         this.handledEvents.add(eventId);
       },
       catch: (error) =>
-        BaseExceptionTrait.construct(
+        OperationException.new(
           'MARK_EVENT_AS_HANDLED_FAILED',
           `Failed to mark event as handled: ${error}`,
         ),

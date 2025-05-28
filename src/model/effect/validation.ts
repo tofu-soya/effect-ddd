@@ -1,5 +1,5 @@
 import { Effect, ParseResult } from 'effect';
-import { ValidationException } from './validation.exception';
+import { BaseException, ValidationException } from './exception';
 
 export type ParseResult<R, C = unknown> = Effect.Effect<
   R,
@@ -8,3 +8,5 @@ export type ParseResult<R, C = unknown> = Effect.Effect<
 >;
 
 export type Parser<A, I = any, C = any> = (value: I) => ParseResult<A, C>;
+
+export type CoreException = ParseResult.ParseError | BaseException;

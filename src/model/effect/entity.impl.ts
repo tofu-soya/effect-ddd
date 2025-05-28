@@ -7,11 +7,10 @@ import {
   IEntityGenericTrait,
   WithEntityMetaInput,
 } from './entity.base';
-import { GetProps, Identifier } from 'src/typeclasses';
-import { ParseResult } from './validation';
+import { GetProps, Identifier, IdentifierTrait } from 'src/typeclasses';
+import { CoreException, ParseResult } from './validation';
 import { v4 as uuidv4 } from 'uuid';
-import { BaseException } from '@logic/exception.base';
-import { IDomainEvent } from './domain-event.interface';
+import { BaseException } from './exception';
 /**
  * Implementation of the generic entity trait
  */
@@ -79,12 +78,18 @@ export const EntityGenericTrait: IEntityGenericTrait = {
       props: GetProps<E>,
       entity: E,
       correlationId: string,
-    ) => Effect.Effect<{ props: GetProps<E> }, BaseException, never>,
+    ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
   ) => {
-    return (input: I & { correlationId: string }): CommandOnModel<E> => {
-      return (entity: E) => {
+    return (input: I): CommandOnModel<E> => {
+      return (entity: E, correlationId?: string) => {
+        const _correlationId = correlationId || IdentifierTrait.uuid();
         return pipe(
-          reducerLogic(input, EntityGenericTrait.unpack(entity), entity, input.correlationId),
+          reducerLogic(
+            input,
+            EntityGenericTrait.unpack(entity),
+            entity,
+            _correlationId,
+          ),
           Effect.map(
             ({ props }): E => ({
               ...entity,

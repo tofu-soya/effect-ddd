@@ -17,7 +17,7 @@ export const ValueObjectGenericTrait: IValueObjectGenericTrait = {
     valueObject.props as GetProps<VO>,
 
   isEqual: <VO extends ValueObject>(vo1: VO, vo2: VO): boolean =>
-    vo1._tag === vo2._tag && 
+    vo1._tag === vo2._tag &&
     JSON.stringify(vo1.props) === JSON.stringify(vo2.props),
 
   createValueObjectTrait: <VO extends ValueObject, N = unknown, P = unknown>(
@@ -52,7 +52,11 @@ export const ValueObjectGenericTrait: IValueObjectGenericTrait = {
 /**
  * Helper function to create a value object trait
  */
-export const createValueObjectTrait = <VO extends ValueObject, N = unknown, P = unknown>(
+export const createValueObjectTrait = <
+  VO extends ValueObject,
+  N = unknown,
+  P = unknown,
+>(
   propsParser: (raw: P) => ParseResult<VO['props']>,
   tag: string,
 ): ValueObjectTrait<VO, N, P> => {

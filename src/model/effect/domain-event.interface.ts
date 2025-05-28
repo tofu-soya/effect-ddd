@@ -1,6 +1,7 @@
 import { Identifier } from '../../typeclasses/obj-with-id';
 import { Effect } from 'effect';
-import { BaseException } from '../../logic/exception.base';
+import { AggregateRoot } from './aggregate-root.base';
+import { BaseException } from './exception';
 
 /**
  * Interface for domain events

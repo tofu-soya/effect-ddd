@@ -10,11 +10,11 @@ export const BaseExceptionTrait = {
     tag: string,
     code: string,
     message: string,
-    content?: unknown
+    content?: unknown,
   ): BaseException => ({
     _tag: tag,
     code,
     message,
-    content
+    content,
   }),
 };

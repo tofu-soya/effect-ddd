@@ -7,10 +7,6 @@ import {
   EntityManager,
   ObjectLiteral,
 } from 'typeorm';
-import {
-  BaseException,
-  BaseExceptionTrait,
-} from '../../../logic/exception.base';
 import { AggregateRoot } from '../../../model/effect/aggregate-root.base';
 import { Identifier } from '../../../typeclasses/obj-with-id';
 import {
@@ -23,6 +19,7 @@ import {
   getNamespaceInstance,
 } from '../../../infra/nestjs/cls.middleware';
 import { RepositoryPort } from '@model/effect/repository.base';
+import { BaseException, OperationException } from '@model/effect';
 
 /**
  * Base query parameters for TypeORM repositories
@@ -109,7 +106,7 @@ export function createTypeormRepository<
               relations,
             }),
           catch: () =>
-            BaseExceptionTrait.construct(
+            OperationException.new(
               'ENTITY_DO_NOT_EXIST',
               'entity does not existed',
             ),
@@ -125,7 +122,7 @@ export function createTypeormRepository<
         yield* Effect.tryPromise({
           try: () => repo.save(ormEntity),
           catch: (error) =>
-            BaseExceptionTrait.construct(
+            OperationException.new(
               'FAILED_TO_STAVE_ENTITY',
               `Failed to save entity: ${error}`,
             ),
@@ -156,7 +153,7 @@ export function createTypeormRepository<
         yield* Effect.tryPromise({
           try: () => repo.save(ormEntity),
           catch: (error) =>
-            BaseExceptionTrait.construct(
+            OperationException.new(
               'FAILED_ADD_ENTITY',
               `Failed to add entity: ${error}`,
             ),
@@ -189,7 +186,7 @@ export function createTypeormRepository<
             relations,
           }),
         catch: (error) =>
-          BaseExceptionTrait.construct(
+          OperationException.new(
             'FAILED_FIND_ENTITY',
             `Failed to find entity: ${error}`,
           ),
@@ -212,7 +209,7 @@ export function createTypeormRepository<
           Option.match({
             onNone: () =>
               Effect.fail(
-                BaseExceptionTrait.construct(
+                OperationException.new(
                   'ENTITY_NOT_FOUND',
                   `Entity not found with params: ${JSON.stringify(params)}`,
                 ),
@@ -240,7 +237,7 @@ export function createTypeormRepository<
               relations,
             }),
           catch: (error) =>
-            BaseExceptionTrait.construct(
+            OperationException.new(
               'FIND_MANY_FAILED',
               `Failed to find entities: ${error}`,
             ),
@@ -276,7 +273,7 @@ export function createTypeormRepository<
               where: prepareQuery(params),
             }),
           catch: (error) =>
-            BaseExceptionTrait.construct(
+            OperationException.new(
               'COUNT_FAILED',
               `Failed to count entities: ${error}`,
             ),
@@ -293,7 +290,7 @@ export function createTypeormRepository<
               relations,
             }),
           catch: (error) =>
-            BaseExceptionTrait.construct(
+            OperationException.new(
               'FIND_PAGINATED_FAILED',
               `Failed to find paginated entities: ${error}`,
             ),
@@ -324,7 +321,7 @@ export function createTypeormRepository<
           await getRepository().delete(entity.id);
         },
         catch: (error) =>
-          BaseExceptionTrait.construct(
+          OperationException.new(
             'DELETE_FAILED',
             `Failed to delete entity: ${error}`,
           ) as BaseException,

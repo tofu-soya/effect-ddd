@@ -1,10 +1,9 @@
 import { ReadonlyRecord } from 'effect/Record';
-import { Effect, Option } from 'effect';
-import { ParseResult } from './validation';
+import { Effect, Option, ParseResult as ParseResultEffect } from 'effect';
+import { CoreException, ParseResult } from './validation';
 import { DomainModel, DomainModelTrait } from './domain-model.base';
 import { Identifier } from 'src/typeclasses/obj-with-id';
 import { GetProps } from 'src/typeclasses';
-import { BaseException } from '@logic/exception.base';
 
 /**
  * Entity type that extends DomainModel with additional properties
@@ -29,8 +28,8 @@ export type EntityCommonProps = Omit<Entity, 'props'>;
  */
 export type WithEntityMetaInput<OriginInput> = OriginInput & {
   id?: string;
-  createdAt?: Date;
-  updatedAt?: Option.Option<Date>;
+  createdAt: Option.Option<Date>;
+  updatedAt: Option.Option<Date>;
 };
 
 /**
@@ -63,9 +62,16 @@ export type EntityInvariantParser<
 /**
  * Command on model type for entity operations
  */
-export type CommandResult<DM extends Entity> = Effect.Effect<DM, BaseException>;
+export type CommandResult<DM extends Entity> = Effect.Effect<
+  DM,
+  CoreException,
+  any
+>;
 
-export type CommandOnModel<DM extends Entity> = (dm: DM) => CommandResult<DM>;
+export type CommandOnModel<DM extends Entity> = (
+  dm: DM,
+  correlationId?: string,
+) => CommandResult<DM>;
 /**
  * Generic entity trait interface
  */
@@ -87,6 +93,6 @@ export interface IEntityGenericTrait {
       input: I,
       props: GetProps<E>,
       entity: E,
-    ) => Effect.Effect<{ props: GetProps<E> }, BaseException, never>,
+    ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
   ) => (input: I) => CommandOnModel<E>;
 }

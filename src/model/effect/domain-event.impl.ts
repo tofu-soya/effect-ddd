@@ -1,5 +1,5 @@
-import { Identifier } from 'src/typeclasses';
 import { IDomainEventTrait, IDomainEvent } from './domain-event.interface';
+import { AggGenericTrait, AggregateRoot } from './aggregate-root.base';
 
 /**
  * DomainEventPublisher implementation
@@ -22,8 +22,9 @@ export const DomainEventTrait: IDomainEventTrait = {
         userId: params.userId,
       },
       payload: params.payload,
-      aggregateId: params.aggregate?.id,
-      aggregateType: params.aggregate?.constructor.name,
+      aggregateId: params.aggregate && AggGenericTrait.getId(params.aggregate),
+      aggregateType:
+        params.aggregate && AggGenericTrait.getTag(params.aggregate),
       getPayload: () => params.payload,
     };
   },

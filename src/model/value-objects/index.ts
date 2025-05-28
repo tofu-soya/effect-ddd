@@ -6,7 +6,6 @@ export * from './Kyc';
 export * from './NoneEmptyString';
 export * from './Person';
 export * from './PositiveNumber';
-export * from './URL';
 export * from './Money';
 export * from './Enum';
 

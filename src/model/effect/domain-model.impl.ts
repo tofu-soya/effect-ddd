@@ -9,7 +9,7 @@ import {
 import { GetProps } from 'src/typeclasses';
 import { ParseResult } from './validation';
 import { PropsParser } from './domain-model.base';
-import { BaseException } from '@logic/exception.base';
+import { BaseException } from './exception';
 
 // Generic Domain Model Trait implementation
 export const GenericDomainModelTrait: IGenericDomainModelTrait = {
@@ -86,12 +86,11 @@ export const GenericDomainModelTrait: IGenericDomainModelTrait = {
 
   // Create a query function that returns Option instead of Effect
   asQueryOpt: <DM extends DomainModel, R>(
-    queryLogic: (props: GetProps<DM>, dm: DM) => Option.Option<R>
+    queryLogic: (props: GetProps<DM>, dm: DM) => Option.Option<R>,
   ): ((dm: DM) => Option.Option<R>) => {
     return (dm: DM) => {
-      return pipe(
-        GenericDomainModelTrait.unpack(dm),
-        (props) => queryLogic(props as GetProps<DM>, dm)
+      return pipe(GenericDomainModelTrait.unpack(dm), (props) =>
+        queryLogic(props as GetProps<DM>, dm),
       );
     };
   },
@@ -114,12 +113,13 @@ export const asQuery = <DM extends DomainModel, R>(
 
 /**
  * Implementation of asQueryOpt function
- * 
+ *
  * This function allows creating queries that extract information from domain models
  * and return Option instead of Effect.
  */
+
 export const asQueryOpt = <DM extends DomainModel, R>(
-  queryLogic: (props: GetProps<DM>, dm: DM) => Option.Option<R>
+  queryLogic: (props: GetProps<DM>, dm: DM) => Option.Option<R>,
 ): ((dm: DM) => Option.Option<R>) => {
   return GenericDomainModelTrait.asQueryOpt(queryLogic);
 };

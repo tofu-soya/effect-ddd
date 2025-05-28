@@ -1,5 +1,5 @@
-import { DomainEvent } from './domain-event.base';
+import { IDomainEvent } from '@model/effect';
 
 export interface IEventBus {
-  publish(event: DomainEvent): void;
+  publish(event: IDomainEvent): void;
 }

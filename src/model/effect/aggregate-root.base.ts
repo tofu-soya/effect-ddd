@@ -1,17 +1,16 @@
 import { ReadonlyRecord } from 'effect/Record';
 import { Effect, Option, pipe } from 'effect';
-import { ParseResult } from './validation';
+import { CoreException, ParseResult } from './validation';
 import {
   CommandOnModel,
   Entity,
   EntityTrait,
   IEntityGenericTrait,
 } from './entity.base';
-import { DomainEvent } from '../event/domain-event.base';
 import { EntityGenericTrait } from './entity.impl';
 import { IDomainEvent } from './domain-event.interface';
-import { GetProps } from 'src/typeclasses';
-import { BaseException } from '@logic/exception.base';
+import { GetProps, IdentifierTrait } from 'src/typeclasses';
+import { BaseException } from './exception';
 
 /**
  * AggregateRoot type that extends Entity
@@ -80,10 +79,10 @@ export interface IAggGenericTrait
       correlationId: string,
     ) => Effect.Effect<
       { props: GetProps<A>; domainEvents: IDomainEvent[] },
-      BaseException,
+      CoreException,
       any
     >,
-  ) => (input: I & { correlationId: string }) => CommandOnModel<A>;
+  ) => (input: I) => CommandOnModel<A>;
 }
 
 /**
@@ -125,16 +124,23 @@ export const AggGenericTrait: IAggGenericTrait = {
       input: I,
       props: GetProps<A>,
       aggregate: A,
+      correlationId: string,
     ) => Effect.Effect<
       { props: GetProps<A>; domainEvents: IDomainEvent[] },
-      BaseException,
+      CoreException,
       any
     >,
   ) => {
     return (input: I): CommandOnModel<A> => {
-      return (aggregate: A) => {
+      return (aggregate: A, correlationId?: string) => {
+        const _correlationId = correlationId || IdentifierTrait.uuid();
         return pipe(
-          reducerLogic(input, AggGenericTrait.unpack(aggregate), aggregate, input.correlationId),
+          reducerLogic(
+            input,
+            AggGenericTrait.unpack(aggregate),
+            aggregate,
+            _correlationId,
+          ),
           Effect.map(({ props, domainEvents }) => {
             // Apply all domain events to the aggregate
             const withEvents = domainEvents.reduce<A>(

@@ -1,8 +1,10 @@
-import { Schema } from "effect"
+import { Schema } from 'effect';
 
-export const NonEmptyStringSchema = Schema.String.pipe(
-  Schema.nonEmpty({ message: () => "Expected non-empty string" })
-)
+export const NonEmptyString = Schema.String.pipe(
+  Schema.filter((s) => s.length > 0, {
+    message: () => 'Expected non-empty string',
+  }),
+  Schema.brand('NonEmptyString'),
+);
 
-export type NonEmptyString = Schema.Schema.Type<typeof NonEmptyStringSchema>
-)
+export type NonEmptyString = Schema.Schema.Type<typeof NonEmptyString>;
