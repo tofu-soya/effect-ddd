@@ -1,4 +1,4 @@
-import { DomainEvent } from '@model/event';
+import { IDomainEvent } from '@model/effect';
 import { IEventBus } from '@model/event/event-bus';
 import { EventBus as NestEventBus, IEvent } from '@nestjs/cqrs';
 
@@ -21,7 +21,7 @@ export class NestJsEventBusAdapter implements IEventBus {
   /**
    * Publish a domain event to the NestJS event bus
    */
-  publish(event: DomainEvent): void {
+  publish(event: IDomainEvent): void {
     const nestEvent = this.eventMapper.toNestEvent(event);
     this.nestEventBus.publish(nestEvent);
   }
@@ -54,7 +54,7 @@ export class DomainEventMapper {
   /**
    * Map a domain event to a NestJS CQRS event
    */
-  toNestEvent(domainEvent: DomainEvent): IEvent {
+  toNestEvent(domainEvent: IDomainEvent): IEvent {
     const EventClass = this.eventTypeMap[domainEvent.name];
 
     if (!EventClass) {

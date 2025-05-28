@@ -5,11 +5,10 @@
     in a respective module/use case.
 */
 
-import { BaseException } from '@logic/exception.base';
-import { Context, Effect, Option } from 'effect';
+import { Effect, Option } from 'effect';
 import { Identifier } from 'src/typeclasses/obj-with-id';
-import { IDomainEventPublisher } from './domain-event-publisher.interface';
 import { AggregateRoot } from './aggregate-root.base';
+import { BaseException } from './exception';
 
 export interface OrderBy {
   [key: number]: 'ASC' | 'DESC';

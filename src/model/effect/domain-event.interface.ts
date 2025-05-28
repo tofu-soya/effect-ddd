@@ -1,10 +1,22 @@
 import { Identifier } from '../../typeclasses/obj-with-id';
 import { Effect } from 'effect';
-import { BaseException } from '../../logic/exception.base';
+import { AggregateRoot } from './aggregate-root.base';
+import { BaseException } from './exception';
 
 /**
  * Interface for domain events
  */
+export interface IDomainEventTrait {
+  create<P, A extends AggregateRoot>(params: {
+    name: string;
+    payload: P;
+    correlationId: string;
+    causationId?: string;
+    userId?: string;
+    aggregate?: A;
+  }): IDomainEvent<P>;
+}
+
 export interface IDomainEvent<P = any> {
   readonly name: string;
   readonly metadata: {
@@ -16,7 +28,7 @@ export interface IDomainEvent<P = any> {
   readonly payload: P;
   readonly aggregateId?: Identifier;
   readonly aggregateType?: string;
-  
+
   getPayload(): P;
 }
 
@@ -28,12 +40,12 @@ export interface IDomainEventRepository {
    * Save a domain event
    */
   save(event: IDomainEvent): Effect.Effect<void, BaseException, never>;
-  
+
   /**
    * Get unhandled domain events
    */
   getUnhandledEvents(): Effect.Effect<IDomainEvent[], BaseException, never>;
-  
+
   /**
    * Mark a domain event as handled
    */

@@ -4,9 +4,6 @@ import {
   DomainEventRepositoryContext,
 } from './domain-event-publisher.interface';
 
-/**
- * DomainEventPublisher implementation
- */
 export const DomainEvenPublishImplementLayer = Layer.effect(
   DomainEventPublisherContext,
   Effect.gen(function* () {

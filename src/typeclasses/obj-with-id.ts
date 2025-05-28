@@ -1,28 +1,18 @@
 import * as Optic from '@fp-ts/optic';
-import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
-import { Either, Eq, S } from '@logic/fp';
-import { Parser } from '@model/invariant-validation';
-import { PrimitiveVOTrait } from '@model/value-object.base';
-import { Brand } from '@type_util/index';
 import { v4 as uuidv4 } from 'uuid';
+import { Schema } from 'effect';
 
-export type Identifier = Brand<string, 'Identifier'>;
+export const Identifier = Schema.UUID;
 
-export const parseId: Parser<Identifier, string, BaseException> = (
-  v: string,
-) => {
-  const isId = (v: unknown): v is Identifier =>
-    typeof v === 'string' && v.length > 0;
-  return Either.fromPredicate(isId, () =>
-    BaseExceptionTrait.construct('invalid identifier', 'INVALID_IDENTIFIER'),
-  )(v);
-};
+export type Identifier = Schema.Schema.Type<typeof Identifier>;
 
-export const IdEq = Eq.fromEquals((id1: Identifier, id2: Identifier) =>
-  S.Eq.equals(id1, id2),
-);
+export const parseId = Schema.decode(Identifier);
 
-interface IidentifierTrait extends PrimitiveVOTrait<Identifier, BaseException> {
+export const IdEq = Schema.equivalence(Identifier);
+
+interface IidentifierTrait {
+  parse: typeof parseId;
+  new: typeof parseId;
   uuid(): Identifier;
 }
 

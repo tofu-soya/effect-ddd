@@ -1,13 +1,13 @@
 import { Context, Effect, Layer } from 'effect';
-import { BaseException } from '../../logic/exception.base';
 import { IDomainEvent, IDomainEventRepository } from './domain-event.interface';
+import { BaseException } from './exception';
 
 /**
  * DomainEventRepository Context
  */
 export class DomainEventRepositoryContext extends Context.Tag(
   'DomainEventRepository',
-)<DomainEventRepositoryContext, IDomainEventRepository>() {}
+)<DomainEventRepositoryContext, IDomainEventRepository>() { }
 
 /**
  * DomainEventPublisher service interface
@@ -33,4 +33,4 @@ export interface IDomainEventPublisher {
  */
 export class DomainEventPublisherContext extends Context.Tag(
   'DomainEventPublisher',
-)<DomainEventPublisherContext, IDomainEventPublisher>() {}
+)<DomainEventPublisherContext, IDomainEventPublisher>() { }

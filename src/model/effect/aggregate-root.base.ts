@@ -1,17 +1,16 @@
 import { ReadonlyRecord } from 'effect/Record';
 import { Effect, Option, pipe } from 'effect';
-import { ParseResult } from './validation';
+import { CoreException, ParseResult } from './validation';
 import {
   CommandOnModel,
   Entity,
   EntityTrait,
   IEntityGenericTrait,
 } from './entity.base';
-import { DomainEvent } from '../event/domain-event.base';
 import { EntityGenericTrait } from './entity.impl';
 import { IDomainEvent } from './domain-event.interface';
-import { GetProps } from 'src/typeclasses';
-import { BaseException } from '@logic/exception.base';
+import { GetProps, IdentifierTrait } from 'src/typeclasses';
+import { BaseException } from './exception';
 
 /**
  * AggregateRoot type that extends Entity
@@ -64,6 +63,9 @@ export interface IAggGenericTrait
   addDomainEvent: <A extends AggregateRoot>(
     event: IDomainEvent,
   ) => (aggregate: A) => A;
+  addDomainEvents: <A extends AggregateRoot>(
+    events: ReadonlyArray<IDomainEvent>,
+  ) => (aggregate: A) => A;
   createAggregateRootTrait: <A extends AggregateRoot, N = unknown, P = unknown>(
     propsParser: AggregatePropsParser<A, P>,
     tag: string,
@@ -74,10 +76,11 @@ export interface IAggGenericTrait
       input: I,
       props: GetProps<A>,
       aggregate: A,
+      correlationId: string,
     ) => Effect.Effect<
       { props: GetProps<A>; domainEvents: IDomainEvent[] },
-      BaseException,
-      never
+      CoreException,
+      any
     >,
   ) => (input: I) => CommandOnModel<A>;
 }
@@ -100,6 +103,11 @@ export const AggGenericTrait: IAggGenericTrait = {
     ...aggregate,
     domainEvents: [...aggregate.domainEvents, event],
   }),
+
+  addDomainEvents: (events) => (aggregate) => ({
+    ...aggregate,
+    domainEvents: [...aggregate.domainEvents, ...events],
+  }),
   createAggregateRootTrait: <A extends AggregateRoot, N = unknown, P = unknown>(
     propsParser: AggregatePropsParser<A, P>,
     tag: string,
@@ -116,16 +124,23 @@ export const AggGenericTrait: IAggGenericTrait = {
       input: I,
       props: GetProps<A>,
       aggregate: A,
+      correlationId: string,
     ) => Effect.Effect<
       { props: GetProps<A>; domainEvents: IDomainEvent[] },
-      BaseException,
-      never
+      CoreException,
+      any
     >,
   ) => {
     return (input: I): CommandOnModel<A> => {
-      return (aggregate: A) => {
+      return (aggregate: A, correlationId?: string) => {
+        const _correlationId = correlationId || IdentifierTrait.uuid();
         return pipe(
-          reducerLogic(input, AggGenericTrait.unpack(aggregate), aggregate),
+          reducerLogic(
+            input,
+            AggGenericTrait.unpack(aggregate),
+            aggregate,
+            _correlationId,
+          ),
           Effect.map(({ props, domainEvents }) => {
             // Apply all domain events to the aggregate
             const withEvents = domainEvents.reduce<A>(
