@@ -1,32 +1,97 @@
-## Introduction
+# Effect Domain Modeling Library
 
-This repository showcases my dedicated exploration of Domain-Driven Design (DDD) coupled with the functional programming paradigm.
+A functional approach to Domain-Driven Design (DDD) in TypeScript using the Effect ecosystem.
 
-In the realm of DDD, the conventional approach involves leveraging Object-Oriented Programming (OOP) and an object model to implement tactical strategies. My journey began by adopting this methodology for my Python library, crafted specifically for DDD practices in Python projects.
+## Key Features
 
-However, over time, I came to the realization that OOP often steers our attention towards the tactical aspects of DDD, overshadowing the strategic elements—arguably the crux of DDD. Engaging with OOP patterns, such as the decorator pattern and grappling with the complexities of inheritance, diverted focus from modeling real-world objects to contending with the intricacies inherent in OOP. This unintentional shift led to a lapse in concentration on the more crucial strategy pattern.
+- Railway-oriented domain modeling with Effect
+- Immutable value objects and entities 
+- Aggregate roots with domain events
+- Repository pattern implementation
+- Comprehensive validation and error handling
+- Test utilities for domain logic
 
-Consequently, I made a deliberate shift towards incorporating Functional Programming into DDD. This approach streamlines the implementation of tactical patterns in DDD, allowing for a more concentrated effort on the core logic—the Essential Complexity. It frees us from the Accidental Complexity introduced by OOP, enabling a renewed emphasis on modeling the true essence of the domain, essential for robust business logic in the core domain.
+## Installation
 
-Seedwork: https://martinfowler.com/bliki/Seedwork.html
-
-CAVEAT: 
-
-If your service is simple, DDD approach may unnecessarily make 
-your app more complex because of the level of abstraction it make.
-
-You should not practice DDD-liked style blindly (like me).
-
-This seedwork is best for the DDD architecture style.
-
-## Usage
-
-```
+```bash
 yarn add node-ts-seedwork
 ```
 
-## Issues
+## Quick Start
 
-Its test coverage is far from 100%, and not coverage with jsdoc annotation too. 
-So it may have many bugs, so please create issue report on its github remote.
+```typescript
+import { 
+  Effect, 
+  Schema,
+  pipe 
+} from 'effect'
+import {
+  ValueObjectGenericTrait,
+  NonEmptyString,
+  EntityGenericTrait,
+  AggGenericTrait,
+  DomainEventTrait
+} from 'yl-ddd-ts'
+
+// Define a value object
+const EmailTrait = ValueObjectGenericTrait.createValueObjectTrait(
+  (raw: string) => Schema.decode(Schema.String.pipe(
+    Schema.email(),
+    Schema.brand('Email')
+  ))(raw),
+  'Email'
+)
+
+// Create an entity
+const UserTrait = EntityGenericTrait.createEntityTrait(
+  (params: {name: string, email: string}) => 
+    Effect.all({
+      name: Schema.decode(NonEmptyString)(params.name),
+      email: EmailTrait.new(params.email)
+    }),
+  'User'
+)
+
+// See full documentation for more examples
+```
+
+## Documentation
+
+For comprehensive usage guides and API documentation, see:  
+📖 [Effect Domain Model User Guide](./docs/user-guide.md)
+
+## Philosophy
+
+This library combines Domain-Driven Design with functional programming principles:
+
+- Focuses on essential complexity over accidental complexity
+- Uses railway-oriented programming for error handling  
+- Immutable domain objects by default
+- Clear separation of domain logic from infrastructure
+
+> "Functional programming helps us focus on the what rather than the how"  
+> - Eric Evans, Domain-Driven Design
+
+## When to Use
+
+✅ Complex domains with rich business logic  
+✅ Need for strong type safety and validation  
+✅ Event-driven architectures  
+✅ Team familiar with functional concepts
+
+## When Not to Use
+
+❌ Simple CRUD applications  
+❌ Teams new to functional programming  
+❌ Projects with tight performance constraints
+
+## Contributing
+
+Issues and PRs welcome! Please see:
+- [Contribution Guidelines](./CONTRIBUTING.md)  
+- [Code of Conduct](./CODE_OF_CONDUCT.md)
+
+## License
+
+MIT © [Your Name]
 
