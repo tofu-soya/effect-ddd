@@ -1,16 +1,20 @@
-import { BaseException, BaseExceptionTrait } from '@logic/exception.base';
-import { Either, tryCatch } from 'fp-ts/lib/Either';
+import { BaseException, BaseExceptionTrait } from '@model/exception';
+import { Effect } from 'effect';
 import { UnknownRecord } from 'type-fest';
 
 interface JsonUtil {
-  parse: <T = UnknownRecord>(s: string) => Either<BaseException, T>;
+  parse: <T = UnknownRecord>(s: string) => Effect.Effect<T, BaseException>;
 }
 
 export const JsonUtil: JsonUtil = {
   parse: (s) =>
-    tryCatch(
-      () => JSON.parse(s),
-      (e) =>
-        BaseExceptionTrait.construct((e as Error).message, 'JSON_PARSE_FAILED'),
-    ),
+    Effect.try({
+      try: () => JSON.parse(s),
+      catch: (e) =>
+        BaseExceptionTrait.construct(
+          'JSON',
+          'JSON_PARSE_FAILED',
+          (e as Error).message,
+        ),
+    }),
 };
