@@ -7,7 +7,7 @@
 
 import { Effect, Option } from 'effect';
 import { Identifier } from 'src/typeclasses/obj-with-id';
-import { AggregateRoot } from './aggregate-root.base';
+import { AggregateRoot } from './aggregate-root.interface';
 import { BaseException } from '../exception';
 
 export interface OrderBy {

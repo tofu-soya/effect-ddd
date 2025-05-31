@@ -1,8 +1,6 @@
 export { Logger, LoggerWithCtx } from './logger.base';
 export { getConsoleDomainLogger } from './domain-logger';
 // export * from './repository.base';
-export * from './mapper.base';
-export { UnitOfWorkPort } from './uow';
 export { AbstractKeyValueRepository } from './database/keyvalue/key-value.repository';
 export { RedisKeyValueRepository } from './database/keyvalue/implement/redis/redis.key-value.repository';
 export { EventHandlingTracker } from './pubsub/event-handling-tracker.base';

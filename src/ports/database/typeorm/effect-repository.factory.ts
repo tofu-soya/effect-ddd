@@ -19,7 +19,7 @@ import {
   getNamespaceInstance,
 } from '../../../infra/nestjs/cls.middleware';
 import { RepositoryPort } from '@model/effect/repository.base';
-import { BaseException, OperationException } from '@model/effect';
+import { BaseException, OperationException } from '@model/exception';
 
 /**
  * Base query parameters for TypeORM repositories
