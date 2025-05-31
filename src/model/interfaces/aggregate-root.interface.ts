@@ -1,5 +1,4 @@
-import { ReadonlyRecord } from 'effect/Record';
-import { Effect, Option } from 'effect';
+import { Effect, Option, Record } from 'effect';
 import {
   CommandOnModel,
   Entity,
@@ -11,10 +10,7 @@ import { CoreException, EntityTrait } from '@model/effect';
 import { GetProps } from 'src/typeclasses';
 
 export type AggregateRoot<
-  Props extends ReadonlyRecord<string, unknown> = ReadonlyRecord<
-    string,
-    unknown
-  >,
+  Props extends Record<string, unknown> = Record<string, unknown>,
 > = Entity<Props> & {
   readonly domainEvents: ReadonlyArray<IDomainEvent>;
 };
