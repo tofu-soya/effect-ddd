@@ -1,7 +1,7 @@
 // src/model/effect/factories/repository.factory.ts
 
 import { Effect, Context, Layer, pipe } from 'effect';
-import { DataSource, ObjectLiteral, FindOptionsWhere } from 'typeorm';
+import { ObjectLiteral, FindOptionsWhere } from 'typeorm';
 import { AggregateRoot, RepositoryPort } from '@model/interfaces';
 import {
   BaseTypeormQueryParams,
@@ -73,11 +73,13 @@ export interface ConventionConfig<
  * Auto-generate toDomain mapper using property mapping
  */
 const createAutoToDomainMapper =
-  <DM extends AggregateRoot, OrmEntity extends ObjectLiteral>() =>
+  <DM extends AggregateRoot, OrmEntity extends ObjectLiteral>(): ((
+    ormEntity: OrmEntity,
+  ) => Effect.Effect<DM, BaseException, never>) =>
   (ormEntity: OrmEntity): Effect.Effect<DM, BaseException, never> =>
     Effect.try({
-      try: () => convertOrmToDomainProps(ormEntity) as DM,
-      catch: (error) =>
+      try: (): DM => convertOrmToDomainProps(ormEntity) as DM,
+      catch: (error): BaseException =>
         OperationException.new(
           'DOMAIN_MAPPING_FAILED',
           `Failed to map ORM entity to domain: ${error}`,
@@ -88,14 +90,18 @@ const createAutoToDomainMapper =
  * Auto-generate toOrm mapper using property mapping
  */
 const createAutoToOrmMapper =
-  <DM extends AggregateRoot, OrmEntity extends ObjectLiteral>() =>
+  <DM extends AggregateRoot, OrmEntity extends ObjectLiteral>(): ((
+    domain: DM,
+    existing?: OrmEntity,
+  ) => Effect.Effect<OrmEntity, BaseException, never>) =>
   (
     domain: DM,
     existing?: OrmEntity,
   ): Effect.Effect<OrmEntity, BaseException, never> =>
     Effect.try({
-      try: () => convertDomainToOrmProps(domain, existing) as OrmEntity,
-      catch: (error) =>
+      try: (): OrmEntity =>
+        convertDomainToOrmProps(domain, existing) as OrmEntity,
+      catch: (error): BaseException =>
         OperationException.new(
           'ORM_MAPPING_FAILED',
           `Failed to map domain to ORM entity: ${error}`,
@@ -106,7 +112,9 @@ const createAutoToOrmMapper =
  * Auto-generate prepareQuery function
  */
 const createAutoPrepareQuery =
-  <OrmEntity extends ObjectLiteral, QueryParams>() =>
+  <OrmEntity extends ObjectLiteral, QueryParams>(): ((
+    params: QueryParams,
+  ) => FindOptionsWhere<OrmEntity>) =>
   (params: QueryParams): FindOptionsWhere<OrmEntity> =>
     params as FindOptionsWhere<OrmEntity>;
 
@@ -194,7 +202,8 @@ const createConventionConfig = <
   entityClass: config.entityClass,
   relations: config.relations || [],
   mappers: {
-    toDomain: (ormEntity) => config.domainTrait.parse(ormEntity),
+    toDomain: (ormEntity: OrmEntity): Effect.Effect<DM, BaseException, never> =>
+      config.domainTrait.parse(ormEntity),
     toOrm: createAutoToOrmMapper<DM, OrmEntity>(),
     prepareQuery: createAutoPrepareQuery<OrmEntity, QueryParams>(),
     ...config.customMappings,
@@ -212,7 +221,7 @@ export const createRepository = <
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   config: RepositoryConfig<DM, OrmEntity, QueryParams>,
-) =>
+): Effect.Effect<RepositoryPort<DM>, BaseException, DataSourceContext> =>
   Effect.gen(function* () {
     const dataSource = yield* DataSourceContext;
 
@@ -235,7 +244,8 @@ export const createRepositoryWithDefaults = <
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
-) => pipe(partialConfig, completeRepositoryConfig, createRepository);
+): Effect.Effect<RepositoryPort<DM>, BaseException, DataSourceContext> =>
+  pipe(partialConfig, completeRepositoryConfig, createRepository);
 
 /**
  * Create repository with convention-based mapping
@@ -246,7 +256,8 @@ export const createRepositoryWithConventions = <
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   config: ConventionConfig<DM, OrmEntity, QueryParams>,
-) => pipe(config, createConventionConfig, createRepository);
+): Effect.Effect<RepositoryPort<DM>, BaseException, DataSourceContext> =>
+  pipe(config, createConventionConfig, createRepository);
 
 // ===== LAYER FACTORIES =====
 
@@ -260,7 +271,11 @@ export const createRepositoryLayer = <
 >(
   repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
   config: RepositoryConfig<DM, OrmEntity, QueryParams>,
-) => Layer.effect(repositoryTag, createRepository(config));
+): Layer.Layer<
+  Context.Tag.Identifier<typeof repositoryTag>,
+  BaseException,
+  DataSourceContext
+> => Layer.effect(repositoryTag, createRepository(config));
 
 /**
  * Create repository layer with partial configuration
@@ -272,7 +287,11 @@ export const createRepositoryLayerWithDefaults = <
 >(
   repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
   partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
-) =>
+): Layer.Layer<
+  Context.Tag.Identifier<typeof repositoryTag>,
+  BaseException,
+  DataSourceContext
+> =>
   pipe(partialConfig, completeRepositoryConfig, (config) =>
     createRepositoryLayer(repositoryTag, config),
   );
@@ -287,7 +306,11 @@ export const createRepositoryLayerWithConventions = <
 >(
   repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
   config: ConventionConfig<DM, OrmEntity, QueryParams>,
-) =>
+): Layer.Layer<
+  Context.Tag.Identifier<typeof repositoryTag>,
+  BaseException,
+  DataSourceContext
+> =>
   pipe(config, createConventionConfig, (completeConfig) =>
     createRepositoryLayer(repositoryTag, completeConfig),
   );
@@ -412,7 +435,7 @@ export const build = <
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   state: BuilderState<DM, OrmEntity, QueryParams>,
-) =>
+): Effect.Effect<RepositoryPort<DM>, BaseException, DataSourceContext> =>
   pipe(
     {
       entityClass: state.entityClass,
@@ -433,11 +456,17 @@ export const buildLayer =
   <
     DM extends AggregateRoot,
     OrmEntity extends ObjectLiteral,
-    QueryParams = any,
+    QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
   >(
     repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
   ) =>
-  (state: BuilderState<DM, OrmEntity, QueryParams>) =>
+  (
+    state: BuilderState<DM, OrmEntity, QueryParams>,
+  ): Layer.Layer<
+    Context.Tag.Identifier<typeof repositoryTag>,
+    BaseException,
+    DataSourceContext
+  > =>
     pipe(
       {
         entityClass: state.entityClass,
@@ -462,7 +491,8 @@ export const repositoryBuilder = <
   QueryParams = any,
 >(
   entityClass: new () => OrmEntity,
-) => initBuilder<DM, OrmEntity, QueryParams>(entityClass);
+): BuilderState<DM, OrmEntity, QueryParams> =>
+  initBuilder<DM, OrmEntity, QueryParams>(entityClass);
 
 /**
  * Trait for repository factory functions

@@ -23,7 +23,7 @@ export interface ObjectSchemaState<
 }
 
 export interface ArraySchemaState<T> {
-  readonly schema: Schema.Schema<T[]>;
+  readonly schema: Schema.Schema<readonly T[]>;
 }
 
 // ===== STRING SCHEMA BUILDERS =====
@@ -39,7 +39,10 @@ export const initStringSchema = (): StringSchemaState => ({
  * Add minimum length validation
  */
 export const withMinLength =
-  (min: number, message?: string) =>
+  (
+    min: number,
+    message?: string,
+  ): ((state: StringSchemaState) => StringSchemaState) =>
   (state: StringSchemaState): StringSchemaState => ({
     ...state,
     schema: state.schema.pipe(
@@ -54,7 +57,10 @@ export const withMinLength =
  * Add maximum length validation
  */
 export const withMaxLength =
-  (max: number, message?: string) =>
+  (
+    max: number,
+    message?: string,
+  ): ((state: StringSchemaState) => StringSchemaState) =>
   (state: StringSchemaState): StringSchemaState => ({
     ...state,
     schema: state.schema.pipe(
@@ -69,7 +75,10 @@ export const withMaxLength =
  * Add pattern validation
  */
 export const withPattern =
-  (regex: RegExp, message?: string) =>
+  (
+    regex: RegExp,
+    message?: string,
+  ): ((state: StringSchemaState) => StringSchemaState) =>
   (state: StringSchemaState): StringSchemaState => ({
     ...state,
     schema: state.schema.pipe(
@@ -82,19 +91,25 @@ export const withPattern =
 /**
  * Ensure string is not empty
  */
-export const withNonEmpty = (message?: string) =>
+export const withNonEmpty = (
+  message?: string,
+): ((state: StringSchemaState) => StringSchemaState) =>
   withMinLength(1, message || 'String cannot be empty');
 
 /**
  * Add email validation
  */
-export const withEmail = (message?: string) =>
+export const withEmail = (
+  message?: string,
+): ((state: StringSchemaState) => StringSchemaState) =>
   withPattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, message || 'Invalid email format');
 
 /**
  * Add URL validation
  */
-export const withUrl = (message?: string) =>
+export const withUrl = (
+  message?: string,
+): ((state: StringSchemaState) => StringSchemaState) =>
   withPattern(
     /^https?:\/\/(?:[-\w.])+(?:\:[0-9]+)?(?:\/(?:[\w\/_.])*(?:\?(?:[\w&=%.])*)?(?:\#(?:[\w.])*)?)?$/,
     message || 'Invalid URL format',
@@ -103,14 +118,19 @@ export const withUrl = (message?: string) =>
 /**
  * Add phone number validation
  */
-export const withPhoneNumber = (message?: string) =>
+export const withPhoneNumber = (
+  message?: string,
+): ((state: StringSchemaState) => StringSchemaState) =>
   withPattern(/^\+?[\d\s\-\(\)]+$/, message || 'Invalid phone number format');
 
 /**
  * Add custom string validation
  */
 export const withStringCustom =
-  (predicate: (value: string) => boolean, message: string) =>
+  (
+    predicate: (value: string) => boolean,
+    message: string,
+  ): ((state: StringSchemaState) => StringSchemaState) =>
   (state: StringSchemaState): StringSchemaState => ({
     ...state,
     schema: state.schema.pipe(
@@ -124,14 +144,16 @@ export const withStringCustom =
  * Brand the string with a specific type
  */
 export const withStringBrand =
-  <B extends string>(brand: B) =>
+  <B extends string | symbol>(brand: B) =>
   (state: StringSchemaState) =>
     state.schema.pipe(Schema.brand(brand));
 
 /**
  * Build the final string schema
  */
-export const buildStringSchema = (state: StringSchemaState) => state.schema;
+export const buildStringSchema = (
+  state: StringSchemaState,
+): Schema.Schema<string> => state.schema;
 
 // ===== NUMBER SCHEMA BUILDERS =====
 
@@ -146,7 +168,10 @@ export const initNumberSchema = (): NumberSchemaState => ({
  * Add minimum value validation
  */
 export const withMin =
-  (min: number, message?: string) =>
+  (
+    min: number,
+    message?: string,
+  ): ((state: NumberSchemaState) => NumberSchemaState) =>
   (state: NumberSchemaState): NumberSchemaState => ({
     ...state,
     schema: state.schema.pipe(
@@ -160,7 +185,10 @@ export const withMin =
  * Add maximum value validation
  */
 export const withMax =
-  (max: number, message?: string) =>
+  (
+    max: number,
+    message?: string,
+  ): ((state: NumberSchemaState) => NumberSchemaState) =>
   (state: NumberSchemaState): NumberSchemaState => ({
     ...state,
     schema: state.schema.pipe(
@@ -173,20 +201,24 @@ export const withMax =
 /**
  * Ensure number is positive
  */
-export const withPositive = (message?: string) =>
+export const withPositive = (
+  message?: string,
+): ((state: NumberSchemaState) => NumberSchemaState) =>
   withMin(0.001, message || 'Number must be positive');
 
 /**
  * Ensure number is non-negative
  */
-export const withNonNegative = (message?: string) =>
+export const withNonNegative = (
+  message?: string,
+): ((state: NumberSchemaState) => NumberSchemaState) =>
   withMin(0, message || 'Number must be non-negative');
 
 /**
  * Ensure number is an integer
  */
 export const withInteger =
-  (message?: string) =>
+  (message?: string): ((state: NumberSchemaState) => NumberSchemaState) =>
   (state: NumberSchemaState): NumberSchemaState => ({
     ...state,
     schema: state.schema.pipe(
@@ -200,7 +232,10 @@ export const withInteger =
  * Add custom number validation
  */
 export const withNumberCustom =
-  (predicate: (value: number) => boolean, message: string) =>
+  (
+    predicate: (value: number) => boolean,
+    message: string,
+  ): ((state: NumberSchemaState) => NumberSchemaState) =>
   (state: NumberSchemaState): NumberSchemaState => ({
     ...state,
     schema: state.schema.pipe(
@@ -221,96 +256,9 @@ export const withNumberBrand =
 /**
  * Build the final number schema
  */
-export const buildNumberSchema = (state: NumberSchemaState) => state.schema;
-
-// ===== OBJECT SCHEMA BUILDERS =====
-
-/**
- * Initialize object schema state
- */
-export const initObjectSchema = <T extends Record<string, Schema.Schema<any>>>(
-  fields: T,
-): ObjectSchemaState<T> => ({
-  fields,
-  validators: [],
-});
-
-/**
- * Add cross-field validation
- */
-export const withCrossFieldValidation =
-  <T extends Record<string, Schema.Schema<any>>>(
-    predicate: (obj: Schema.Schema.Type<Schema.Struct<T>>) => boolean,
-    message: string,
-    code?: string,
-  ) =>
-  (state: ObjectSchemaState<T>): ObjectSchemaState<T> => ({
-    ...state,
-    validators: [
-      ...state.validators,
-      (obj) => {
-        if (!predicate(obj)) {
-          return Effect.fail(
-            ValidationException.new(
-              code || 'CROSS_FIELD_VALIDATION_FAILED',
-              message,
-            ),
-          );
-        }
-        return Effect.succeed(obj);
-      },
-    ],
-  });
-
-/**
- * Add conditional field validation
- */
-export const withConditionalValidation =
-  <T extends Record<string, Schema.Schema<any>>>(
-    condition: (obj: any) => boolean,
-    thenValidation: (
-      obj: any,
-    ) => Effect.Effect<any, ValidationException, never>,
-  ) =>
-  (state: ObjectSchemaState<T>): ObjectSchemaState<T> => ({
-    ...state,
-    validators: [
-      ...state.validators,
-      (obj) => {
-        if (condition(obj)) {
-          return thenValidation(obj);
-        }
-        return Effect.succeed(obj);
-      },
-    ],
-  });
-
-/**
- * Build the final object schema with custom validations
- */
-export const buildObjectSchema = <T extends Record<string, Schema.Schema<any>>>(
-  state: ObjectSchemaState<T>,
-) => {
-  const baseSchema = Schema.Struct(state.fields);
-
-  if (state.validators.length === 0) {
-    return baseSchema;
-  }
-
-  return baseSchema.pipe(
-    Schema.transformOrFail(baseSchema, {
-      decode: (obj) =>
-        Effect.gen(function* () {
-          let result = obj;
-          for (const validator of state.validators) {
-            result = yield* validator(result);
-          }
-          return result;
-        }),
-      encode: Effect.succeed,
-    }),
-  );
-};
+export const buildNumberSchema = (
+  state: NumberSchemaState,
+): Schema.Schema<number> => state.schema;
 
 // ===== ARRAY SCHEMA BUILDERS =====
 
@@ -327,7 +275,10 @@ export const initArraySchema = <T>(
  * Add minimum items validation
  */
 export const withMinItems =
-  <T>(min: number, message?: string) =>
+  <T>(
+    min: number,
+    message?: string,
+  ): ((state: ArraySchemaState<T>) => ArraySchemaState<T>) =>
   (state: ArraySchemaState<T>): ArraySchemaState<T> => ({
     ...state,
     schema: state.schema.pipe(
@@ -341,7 +292,10 @@ export const withMinItems =
  * Add maximum items validation
  */
 export const withMaxItems =
-  <T>(max: number, message?: string) =>
+  <T>(
+    max: number,
+    message?: string,
+  ): ((state: ArraySchemaState<T>) => ArraySchemaState<T>) =>
   (state: ArraySchemaState<T>): ArraySchemaState<T> => ({
     ...state,
     schema: state.schema.pipe(
@@ -354,14 +308,19 @@ export const withMaxItems =
 /**
  * Ensure array is not empty
  */
-export const withNonEmptyArray = <T>(message?: string) =>
+export const withNonEmptyArray = <T>(
+  message?: string,
+): ((state: ArraySchemaState<T>) => ArraySchemaState<T>) =>
   withMinItems<T>(1, message || 'Array cannot be empty');
 
 /**
  * Ensure all items are unique
  */
 export const withUniqueItems =
-  <T>(message?: string, keySelector?: (item: T) => any) =>
+  <T>(
+    message?: string,
+    keySelector?: (item: T) => any,
+  ): ((state: ArraySchemaState<T>) => ArraySchemaState<T>) =>
   (state: ArraySchemaState<T>): ArraySchemaState<T> => ({
     ...state,
     schema: state.schema.pipe(
@@ -380,37 +339,35 @@ export const withUniqueItems =
 /**
  * Build the final array schema
  */
-export const buildArraySchema = <T>(state: ArraySchemaState<T>) => state.schema;
+export const buildArraySchema = <T>(
+  state: ArraySchemaState<T>,
+): Schema.Schema<readonly T[]> => state.schema;
 
 // ===== HIGH-LEVEL BUILDERS =====
 
 /**
  * String schema builder pipeline starter
  */
-export const stringSchema = () => initStringSchema();
+export const stringSchema = (): StringSchemaState => initStringSchema();
 
 /**
  * Number schema builder pipeline starter
  */
-export const numberSchema = () => initNumberSchema();
-
-/**
- * Object schema builder pipeline starter
- */
-export const objectSchema = <T extends Record<string, Schema.Schema<any>>>(
-  fields: T,
-) => initObjectSchema(fields);
+export const numberSchema = (): NumberSchemaState => initNumberSchema();
 
 /**
  * Array schema builder pipeline starter
  */
-export const arraySchema = <T>(itemSchema: Schema.Schema<T>) =>
-  initArraySchema(itemSchema);
+export const arraySchema = <T>(
+  itemSchema: Schema.Schema<T>,
+): ArraySchemaState<T> => initArraySchema(itemSchema);
 
 /**
  * Create an optional schema
  */
-export const optionalSchema = <T>(schema: Schema.Schema<T>) =>
+export const optionalSchema = <T>(
+  schema: Schema.Schema<T>,
+): Schema.optionalWith<Schema.Schema<T>, { as: 'Option' }> =>
   Schema.optionalWith(schema, { as: 'Option' });
 
 /**
@@ -427,7 +384,7 @@ export const unionSchema = <
  */
 export const enumSchema = <T extends Record<string, string | number>>(
   enumObject: T,
-) => Schema.Enums(enumObject);
+): Schema.Enums<T> => Schema.Enums(enumObject);
 
 // ===== UTILITY FUNCTIONS =====
 
@@ -454,7 +411,10 @@ export const createPastDateSchema = (message?: string) =>
 /**
  * Create timestamp fields schema
  */
-export const createTimestampFields = () =>
+export const createTimestampFields = (): Schema.Struct<{
+  createdAt: typeof Schema.Date;
+  updatedAt: Schema.optionalWith<typeof Schema.Date, { as: 'Option' }>;
+}> =>
   Schema.Struct({
     createdAt: Schema.Date,
     updatedAt: Schema.optionalWith(Schema.Date, { as: 'Option' }),
@@ -463,7 +423,12 @@ export const createTimestampFields = () =>
 /**
  * Create audit fields schema
  */
-export const createAuditFields = () =>
+export const createAuditFields = (): Schema.Struct<{
+  createdAt: typeof Schema.Date;
+  updatedAt: Schema.optionalWith<typeof Schema.Date, { as: 'Option' }>;
+  createdBy: Schema.optionalWith<typeof Schema.String, { as: 'Option' }>;
+  updatedBy: Schema.optionalWith<typeof Schema.String, { as: 'Option' }>;
+}> =>
   Schema.Struct({
     createdAt: Schema.Date,
     updatedAt: Schema.optionalWith(Schema.Date, { as: 'Option' }),
@@ -531,7 +496,6 @@ export const SchemaBuilderTrait = {
   // Starters
   string: stringSchema,
   number: numberSchema,
-  object: objectSchema,
   array: arraySchema,
   optional: optionalSchema,
   union: unionSchema,
@@ -558,11 +522,6 @@ export const SchemaBuilderTrait = {
   withNumberCustom,
   withNumberBrand,
   buildNumberSchema,
-
-  // Object builders
-  withCrossFieldValidation,
-  withConditionalValidation,
-  buildObjectSchema,
 
   // Array builders
   withMinItems,
