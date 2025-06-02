@@ -13,32 +13,113 @@ import {
 } from '@model/effect';
 import { IdentifierTrait } from 'src/typeclasses';
 import { ValidationException } from '@model/exception';
+import {
+  CommandResult,
+  DomainModel,
+  Parser,
+  WithEntityMetaInput,
+} from '@model/interfaces';
+
+// ===== Enhanced Type Definitions =====
+
+/**
+ * Query function type for domain models
+ * Replaces deprecated Function type with specific signature
+ */
+export type QueryFunction<Props = any, Return = any> = (props: Props) => Return;
+
+/**
+ * Query effect function type for async queries
+ * Replaces deprecated Function type with specific Effect signature
+ */
+export type QueryEffectFunction<Props = any, Return = any> = (
+  props: Props,
+) => Effect.Effect<Return, any, any>;
+
+/**
+ * Command function type for entities
+ * Replaces deprecated Function type with specific command signature
+ */
+export type CommandFunction<E extends Entity, Input = any> = (
+  input: Input,
+) => (entity: E, correlationId?: string) => CommandResult<E>;
+
+/**
+ * Event handler function type
+ * Replaces deprecated Function type with specific event handler signature
+ */
+export type EventHandlerFunction = (event: IDomainEvent) => void;
+/**
+ * Maps Domain Model types to their appropriate Config types
+ * - ValueObject -> DomainConfig
+ * - Entity -> EntityConfig
+ * - AggregateRoot -> AggregateConfig
+ */
+export type ConfigForDomainModel<
+  DM extends DomainModel,
+  ParseParam = unknown,
+  NewParam = DM['props'],
+> = DM extends AggregateRoot
+  ? AggregateConfig<DM, ParseParam, NewParam>
+  : DM extends Entity
+    ? EntityConfig<DM, ParseParam, NewParam>
+    : DM extends ValueObject
+      ? DomainConfig<DM, ParseParam, NewParam>
+      : never;
 
 // ===== Configuration Types =====
 
-interface DomainConfig<T extends Record<string, any>, NewParams = T> {
+interface DomainConfig<
+  DM extends DomainModel,
+  ParseParam = unknown,
+  NewParam = DM['props'],
+> {
   readonly tag: string;
-  readonly schema?: Schema.Schema<T>;
-  readonly validators: ReadonlyArray<(props: T) => ParseResult<T>>;
-  readonly newMethod?: (params: NewParams) => ParseResult<T>;
-  readonly queries: Record<string, Function>;
+  readonly schema?: Schema.Schema<unknown>;
+  readonly validators: ReadonlyArray<
+    (props: DM['props']) => ParseResult<DM['props']>
+  >;
+  readonly newMethod?: (
+    params: NewParam,
+    parse: (input: ParseParam) => ParseResult<DM>,
+  ) => ParseResult<DM>;
+  readonly queries: Record<
+    string,
+    QueryFunction<DM['props']> | QueryEffectFunction<DM['props']>
+  >;
 }
 
-interface EntityConfig<T extends Record<string, any>, NewParams = T>
-  extends DomainConfig<T, NewParams> {
-  readonly commands: Record<string, Function>;
+interface EntityConfig<
+  E extends Entity,
+  ParseParam = unknown,
+  NewParam = E['props'],
+> extends DomainConfig<E, ParseParam, NewParam> {
+  readonly commands: Record<string, CommandFunction<E>>;
+  readonly newMethod?: (
+    params: NewParam,
+    parse: Parser<E, WithEntityMetaInput<ParseParam>>,
+  ) => ParseResult<E>;
 }
 
-interface AggregateConfig<T extends Record<string, any>, NewParams = T>
-  extends EntityConfig<T, NewParams> {
-  readonly eventHandlers: Record<string, Function>;
+interface AggregateConfig<
+  A extends AggregateRoot,
+  ParseParam = unknown,
+  NewParam = A['props'],
+> extends EntityConfig<A, ParseParam, NewParam> {
+  readonly eventHandlers: Record<string, EventHandlerFunction>;
 }
 
 // ===== Core Configuration Builders =====
 
-const createDomainConfig = <T extends Record<string, any>, NewParams = T>(
+// ===== Core Configuration Builders =====
+
+const createDomainConfig = <
+  DM extends DomainModel,
+  ParseParam = unknown,
+  NewParam = DM['props'],
+>(
   tag: string,
-): DomainConfig<T, NewParams> => ({
+): DomainConfig<DM, ParseParam, NewParam> => ({
   tag,
   schema: undefined,
   validators: [],
@@ -46,46 +127,68 @@ const createDomainConfig = <T extends Record<string, any>, NewParams = T>(
   queries: {},
 });
 
-const createEntityConfig = <T extends Record<string, any>, NewParams = T>(
+const createEntityConfig = <
+  E extends Entity,
+  ParseParam = unknown,
+  NewParam = E['props'],
+>(
   tag: string,
-): EntityConfig<T, NewParams> => ({
-  ...createDomainConfig<T, NewParams>(tag),
+): EntityConfig<E, ParseParam, NewParam> => ({
+  ...createDomainConfig<E, ParseParam, NewParam>(tag),
+  newMethod: undefined,
   commands: {},
 });
 
-const createAggregateConfig = <T extends Record<string, any>, NewParams = T>(
+const createAggregateConfig = <
+  A extends AggregateRoot,
+  ParseParam = unknown,
+  NewParam = A['props'],
+>(
   tag: string,
-): AggregateConfig<T, NewParams> => ({
-  ...createEntityConfig<T, NewParams>(tag),
+): AggregateConfig<A, ParseParam, NewParam> => ({
+  ...createEntityConfig<A, ParseParam, NewParam>(tag),
   eventHandlers: {},
 });
 
 // ===== Configuration Transformers =====
 
 const withSchema =
-  <S extends Record<string, any>, NewParams>(schema: Schema.Schema<S>) =>
-  (config: DomainConfig<S, NewParams>): DomainConfig<S, NewParams> => ({
+  <
+    S extends Schema.Schema<any>,
+    DM extends DomainModel<Schema.Schema.Type<S>>,
+    ParseParam,
+    NewParam,
+  >(
+    schema: S,
+  ) =>
+  (
+    config: DomainConfig<DM, ParseParam, NewParam>,
+  ): DomainConfig<DM, ParseParam, NewParam> => ({
     ...config,
     schema,
   });
 
 const withValidation =
-  <T extends Record<string, any>, NewParams>(
-    validator: (props: T) => ParseResult<T>,
+  <DM extends DomainModel, ParseParam, NewParam>(
+    validator: (props: DM['props']) => ParseResult<DM['props']>,
   ) =>
-  (config: DomainConfig<T, NewParams>): DomainConfig<T, NewParams> => ({
+  (
+    config: DomainConfig<DM, ParseParam, NewParam>,
+  ): DomainConfig<DM, ParseParam, NewParam> => ({
     ...config,
     validators: [...config.validators, validator],
   });
 
 const withInvariant =
-  <T extends Record<string, any>, NewParams>(
-    predicate: (props: T) => boolean,
+  <DM extends DomainModel, ParseParam, NewParam>(
+    predicate: (props: DM['props']) => boolean,
     errorMessage: string,
     errorCode: string = 'INVARIANT_VIOLATION',
   ) =>
-  (config: DomainConfig<T, NewParams>): DomainConfig<T, NewParams> =>
-    withValidation<T, NewParams>((props) => {
+  (
+    config: DomainConfig<DM, ParseParam, NewParam>,
+  ): DomainConfig<DM, ParseParam, NewParam> =>
+    withValidation<DM, ParseParam, NewParam>((props) => {
       if (!predicate(props)) {
         return Effect.fail(ValidationException.new(errorCode, errorMessage));
       }
@@ -93,20 +196,27 @@ const withInvariant =
     })(config);
 
 const withNew =
-  <T extends Record<string, any>, NewParams, NewNewParams>(
-    newMethod: (params: NewNewParams) => ParseResult<T>,
+  <DM extends DomainModel, ParseParam, NewParam, NewNewParam>(
+    newMethod: (
+      params: NewNewParam,
+      parse: (input: ParseParam) => ParseResult<DM>,
+    ) => ParseResult<DM>,
   ) =>
-  (config: DomainConfig<T, NewParams>): DomainConfig<T, NewNewParams> => ({
+  (
+    config: DomainConfig<DM, ParseParam, NewParam>,
+  ): DomainConfig<DM, ParseParam, NewNewParam> => ({
     ...config,
     newMethod,
   });
 
 const withQuery =
-  <T extends Record<string, any>, NewParams, R>(
+  <DM extends DomainModel, ParseParam, NewParam, R>(
     name: string,
-    query: (props: T) => R,
+    query: QueryFunction<DM['props'], R>,
   ) =>
-  (config: DomainConfig<T, NewParams>): DomainConfig<T, NewParams> => ({
+  (
+    config: DomainConfig<DM, ParseParam, NewParam>,
+  ): DomainConfig<DM, ParseParam, NewParam> => ({
     ...config,
     queries: {
       ...config.queries,
@@ -115,11 +225,13 @@ const withQuery =
   });
 
 const withQueryEffect =
-  <T extends Record<string, any>, NewParams, R>(
+  <DM extends DomainModel, ParseParam, NewParam, R>(
     name: string,
-    query: (props: T) => Effect.Effect<R, any, any>,
+    query: QueryEffectFunction<DM['props'], R>,
   ) =>
-  (config: DomainConfig<T, NewParams>): DomainConfig<T, NewParams> => ({
+  (
+    config: DomainConfig<DM, ParseParam, NewParam>,
+  ): DomainConfig<DM, ParseParam, NewParam> => ({
     ...config,
     queries: {
       ...config.queries,
@@ -128,15 +240,17 @@ const withQueryEffect =
   });
 
 const withCommand =
-  <T extends Record<string, any>, I, NewParams>(
+  <E extends Entity, ParseParam, NewParam, I>(
     name: string,
     handler: (
       input: I,
-      props: T,
-      entity: Entity<T>,
-    ) => Effect.Effect<{ props: T }, any, never>,
+      props: E['props'],
+      entity: E,
+    ) => Effect.Effect<{ props: E['props'] }, any, never>,
   ) =>
-  (config: EntityConfig<T, NewParams>): EntityConfig<T, NewParams> => ({
+  (
+    config: EntityConfig<E, ParseParam, NewParam>,
+  ): EntityConfig<E, ParseParam, NewParam> => ({
     ...config,
     commands: {
       ...config.commands,
@@ -145,16 +259,22 @@ const withCommand =
   });
 
 const withAggregateCommand =
-  <T extends Record<string, any>, I, NewParams>(
+  <A extends AggregateRoot, ParseParam, NewParam, I>(
     name: string,
     handler: (
       input: I,
-      props: T,
-      aggregate: AggregateRoot<T>,
+      props: A['props'],
+      aggregate: A,
       correlationId: string,
-    ) => Effect.Effect<{ props: T; domainEvents: IDomainEvent[] }, any, any>,
+    ) => Effect.Effect<
+      { props: A['props']; domainEvents: IDomainEvent[] },
+      any,
+      any
+    >,
   ) =>
-  (config: AggregateConfig<T, NewParams>): AggregateConfig<T, NewParams> => ({
+  (
+    config: AggregateConfig<A, ParseParam, NewParam>,
+  ): AggregateConfig<A, ParseParam, NewParam> => ({
     ...config,
     commands: {
       ...config.commands,
@@ -163,32 +283,94 @@ const withAggregateCommand =
   });
 
 const withEventHandler =
-  <T extends Record<string, any>, NewParams>(
+  <A extends AggregateRoot, ParseParam, NewParam>(
     eventName: string,
-    handler: Function,
+    handler: EventHandlerFunction,
   ) =>
-  (config: AggregateConfig<T, NewParams>): AggregateConfig<T, NewParams> => ({
+  (
+    config: AggregateConfig<A, ParseParam, NewParam>,
+  ): AggregateConfig<A, ParseParam, NewParam> => ({
     ...config,
     eventHandlers: {
       ...config.eventHandlers,
       [eventName]: handler,
     },
   });
-
 // ===== Props Parser Factory =====
 
-const createPropsParser =
-  <T extends Record<string, any>, NewParams>(
-    config: DomainConfig<T, NewParams>,
+/**
+ * Creates a props parser for ValueObject domain models
+ */
+const createValueObjectPropsParser =
+  <VO extends ValueObject, ParseParam = unknown, NewParam = VO['props']>(
+    config: DomainConfig<VO, ParseParam, NewParam>,
   ) =>
-  (raw: unknown): ParseResult<T> => {
+  (raw: ParseParam): ParseResult<VO['props']> => {
     if (!config.schema) {
       throw new Error(`Schema is required for parsing ${config.tag}`);
     }
 
     return Effect.gen(function* () {
       // First, validate with schema
-      const validated = yield* Schema.decodeUnknown(config.schema!)(raw);
+      const validated = (yield* Schema.decodeUnknown(config.schema!)(
+        raw,
+      )) as VO['props'];
+
+      // Then run custom validators
+      let result = validated;
+      for (const validator of config.validators) {
+        result = yield* validator(result);
+      }
+
+      return result;
+    });
+  };
+
+/**
+ * Creates a props parser for Entity domain models
+ */
+const createEntityPropsParser =
+  <E extends Entity, ParseParam = unknown, NewParam = E['props']>(
+    config: EntityConfig<E, ParseParam, NewParam>,
+  ) =>
+  (raw: ParseParam): ParseResult<E['props']> => {
+    if (!config.schema) {
+      throw new Error(`Schema is required for parsing ${config.tag}`);
+    }
+
+    return Effect.gen(function* () {
+      // First, validate with schema
+      const validated = (yield* Schema.decodeUnknown(config.schema!)(
+        raw,
+      )) as E['props'];
+
+      // Then run custom validators
+      let result = validated;
+      for (const validator of config.validators) {
+        result = yield* validator(result);
+      }
+
+      return result;
+    });
+  };
+
+/**
+ * Creates a props parser for AggregateRoot domain models
+ */
+const createAggregateRootPropsParser =
+  <A extends AggregateRoot, ParseParam = unknown, NewParam = A['props']>(
+    config: AggregateConfig<A, ParseParam, NewParam>,
+  ) =>
+  (raw: ParseParam): ParseResult<A['props']> => {
+    if (!config.schema) {
+      throw new Error(`Schema is required for parsing ${config.tag}`);
+    }
+
+    return Effect.gen(function* () {
+      // First, validate with schema
+      const validated = (yield* Schema.decodeUnknown(config.schema!)(
+        raw,
+      )) as A['props'];
 
       // Then run custom validators
       let result = validated;
@@ -202,31 +384,27 @@ const createPropsParser =
 
 // ===== Builders using existing traits =====
 
-const buildValueObject = <T extends Record<string, any>, NewParams>(
-  config: DomainConfig<T, NewParams>,
+const buildValueObject = <VO extends ValueObject, ParseParam, NewParam>(
+  config: DomainConfig<VO, ParseParam, NewParam>,
 ) => {
-  const propsParser = createPropsParser(config);
+  const propsParser = createValueObjectPropsParser<VO, ParseParam, NewParam>(
+    config,
+  );
 
   // Use the existing ValueObjectGenericTrait
   const baseTrait = ValueObjectGenericTrait.createValueObjectTrait<
-    ValueObject<T>,
-    NewParams,
-    unknown
+    VO,
+    NewParam,
+    ParseParam
   >(propsParser, config.tag);
 
-  // Override the new method if provided
+  // Enhanced new method that provides parse access
   const newMethod = config.newMethod
-    ? (params: NewParams) => {
-        return pipe(
-          config.newMethod!(params),
-          Effect.map(
-            (props) =>
-              ({
-                _tag: config.tag,
-                props,
-              }) as ValueObject<T>,
-          ),
-        );
+    ? (params: NewParam) => {
+        // Create a parse function that validates and creates the value object
+
+        // Call the custom newMethod with access to parse
+        return config.newMethod!(params, baseTrait.parse);
       }
     : baseTrait.new;
 
@@ -237,34 +415,25 @@ const buildValueObject = <T extends Record<string, any>, NewParams>(
   };
 };
 
-const buildEntity = <T extends Record<string, any>, NewParams>(
-  config: EntityConfig<T, NewParams>,
+const buildEntity = <E extends Entity, ParseParam, NewParam>(
+  config: EntityConfig<E, ParseParam, NewParam>,
 ) => {
-  const propsParser = createPropsParser(config);
+  const propsParser = createEntityPropsParser(config);
 
   // Use the existing EntityGenericTrait
   const baseTrait = EntityGenericTrait.createEntityTrait<
-    Entity<T>,
-    NewParams,
-    unknown
+    E,
+    NewParam,
+    ParseParam
   >(propsParser, config.tag);
 
-  // Override the new method if provided
+  // Enhanced new method that provides parse access
   const newMethod = config.newMethod
-    ? (params: NewParams) => {
-        return pipe(
-          config.newMethod!(params),
-          Effect.map(
-            (props) =>
-              ({
-                _tag: config.tag,
-                props,
-                id: IdentifierTrait.uuid(),
-                createdAt: new Date(),
-                updatedAt: Option.none(),
-              }) as Entity<T>,
-          ),
-        );
+    ? (params: NewParam) => {
+        // Create a parse function that validates and creates the entity
+
+        // Call the custom newMethod with access to parse
+        return config.newMethod!(params, baseTrait.parse);
       }
     : baseTrait.new;
 
@@ -276,23 +445,23 @@ const buildEntity = <T extends Record<string, any>, NewParams>(
   };
 };
 
-const buildAggregateRoot = <T extends Record<string, any>, NewParams>(
-  config: AggregateConfig<T, NewParams>,
+const buildAggregateRoot = <T extends AggregateRoot, ParseParam, NewParams>(
+  config: AggregateConfig<T, ParseParam, NewParams>,
 ) => {
-  const propsParser = createPropsParser(config);
+  const propsParser = createAggregateRootPropsParser(config);
 
   // Use the existing AggGenericTrait
   const baseTrait = AggGenericTrait.createAggregateRootTrait<
-    AggregateRoot<T>,
+    T,
     NewParams,
-    unknown
+    ParseParam
   >(propsParser, config.tag);
 
   // Override the new method if provided
   const newMethod = config.newMethod
     ? (params: NewParams) => {
         return pipe(
-          config.newMethod!(params),
+          config.newMethod!(params, baseTrait.parse),
           Effect.map(
             (props) =>
               ({
@@ -367,20 +536,29 @@ const buildAggregateRoot = <T extends Record<string, any>, NewParams>(
  * );
  */
 
-export const createValueObject = <T extends Record<string, any>, NewParams = T>(
-  tag: string,
-) => createDomainConfig<T, NewParams>(tag);
-
-export const createEntity = <T extends Record<string, any>, NewParams = T>(
-  tag: string,
-) => createEntityConfig<T, NewParams>(tag);
-
-export const createAggregateRoot = <
-  T extends Record<string, any>,
-  NewParams = T,
+export const createValueObject = <
+  VO extends ValueObject,
+  ParseParam = unknown,
+  NewParam = VO['props'],
 >(
   tag: string,
-) => createAggregateConfig<T, NewParams>(tag);
+) => createDomainConfig<VO, ParseParam, NewParam>(tag);
+
+export const createEntity = <
+  E extends Entity,
+  ParseParam = unknown,
+  NewParam = E['props'],
+>(
+  tag: string,
+) => createEntityConfig<E, ParseParam, NewParam>(tag);
+
+export const createAggregateRoot = <
+  A extends AggregateRoot,
+  ParseParam = unknown,
+  NewParam = A['props'],
+>(
+  tag: string,
+) => createAggregateConfig<A, ParseParam, NewParam>(tag);
 
 export {
   withSchema,
