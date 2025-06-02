@@ -1,4 +1,4 @@
-// src/model/builders/enhanced-domain-builder.ts
+// src/model/effect/builders/domain-builder.ts
 
 import { Effect, Schema, pipe, Option, Record } from 'effect';
 import {
@@ -7,20 +7,20 @@ import {
   AggregateRoot,
   ParseResult,
   IDomainEvent,
-} from '@model/interfaces';
+} from '../interfaces';
 import {
   AggGenericTrait,
   EntityGenericTrait,
   ValueObjectGenericTrait,
-} from '@model/implementations';
+} from '../implementations';
 import { IdentifierTrait } from 'src/typeclasses';
-import { ValidationException } from '@model/exception';
+import { ValidationException } from '../exception';
 import {
   CommandResult,
   DomainModel,
   Parser,
   WithEntityMetaInput,
-} from '@model/interfaces';
+} from '../interfaces';
 
 // ===== Enhanced Type Definitions =====
 
@@ -47,6 +47,13 @@ export type CommandFunction<E extends Entity, Input = any> = (
  * Event handler function type
  */
 export type EventHandlerFunction = (event: IDomainEvent) => void;
+
+/**
+ * Props parser function type
+ */
+export type PropsParser<Props = any, Input = any> = (
+  input: Input,
+) => ParseResult<Props>;
 
 /**
  * Extract query method types from a queries record
@@ -85,6 +92,7 @@ interface DomainConfig<
 > {
   readonly tag: string;
   readonly schema?: Schema.Schema<unknown>;
+  readonly propsParser?: PropsParser<DM['props'], ParseParam>;
   readonly validators: ReadonlyArray<
     (props: DM['props']) => ParseResult<DM['props']>
   >;
@@ -149,7 +157,7 @@ interface EnhancedEntityTrait<
     string,
     QueryFunction<E['props']> | QueryEffectFunction<E['props']>
   > = Record<string, never>,
-  C extends Record<string, CommandFunction<E>> = {},
+  C extends Record<string, CommandFunction<E>> = Record<string, never>,
 > extends EnhancedValueObjectTrait<E, NewParam, ParseParam, Q> {}
 
 interface EnhancedAggregateRootTrait<
@@ -177,6 +185,7 @@ const createDomainConfig = <
 ): DomainConfig<DM, ParseParam, NewParam, Record<string, never>> => ({
   tag,
   schema: undefined,
+  propsParser: undefined,
   validators: [],
   newMethod: undefined,
   queries: {},
@@ -238,6 +247,32 @@ const withSchema =
   ): DomainConfig<DM, ParseParam, NewParam, Q> => ({
     ...config,
     schema,
+    // Clear propsParser when schema is set to avoid conflicts
+    propsParser: undefined,
+  });
+
+/**
+ * Set a custom props parser that will be used instead of schema-based parsing
+ */
+const withPropsParser =
+  <
+    DM extends DomainModel,
+    ParseParam,
+    NewParam,
+    Q extends Record<
+      string,
+      QueryFunction<DM['props']> | QueryEffectFunction<DM['props']>
+    >,
+  >(
+    propsParser: PropsParser<DM['props'], ParseParam>,
+  ) =>
+  (
+    config: DomainConfig<DM, ParseParam, NewParam, Q>,
+  ): DomainConfig<DM, ParseParam, NewParam, Q> => ({
+    ...config,
+    propsParser,
+    // Clear schema when propsParser is set to avoid conflicts
+    schema: undefined,
   });
 
 const withValidation =
@@ -478,31 +513,58 @@ const withEventHandler =
     } as H & Record<K, EventHandlerFunction>,
   });
 
-// ===== Props Parser Factory =====
+// ===== Enhanced Props Parser Factory =====
 
+/**
+ * Creates a props parser based on configuration
+ * Priority: propsParser > schema > error
+ */
 const createPropsParser =
   <DM extends DomainModel, ParseParam = unknown, NewParam = DM['props']>(
     config: DomainConfig<DM, ParseParam, NewParam, any>,
   ) =>
   (raw: ParseParam): ParseResult<DM['props']> => {
-    if (!config.schema) {
-      throw new Error(`Schema is required for parsing ${config.tag}`);
+    // Priority 1: Use custom propsParser if provided
+    if (config.propsParser) {
+      return Effect.gen(function* () {
+        // Parse with custom parser
+        const validated = yield* config.propsParser!(raw);
+
+        // Then run custom validators
+        let result = validated;
+        for (const validator of config.validators) {
+          result = yield* validator(result);
+        }
+
+        return result;
+      });
     }
 
-    return Effect.gen(function* () {
-      // First, validate with schema
-      const validated = (yield* Schema.decodeUnknown(config.schema!)(
-        raw,
-      )) as DM['props'];
+    // Priority 2: Use schema if provided
+    if (config.schema) {
+      return Effect.gen(function* () {
+        // First, validate with schema
+        const validated = (yield* Schema.decodeUnknown(config.schema!)(
+          raw,
+        )) as DM['props'];
 
-      // Then run custom validators
-      let result = validated;
-      for (const validator of config.validators) {
-        result = yield* validator(result);
-      }
+        // Then run custom validators
+        let result = validated;
+        for (const validator of config.validators) {
+          result = yield* validator(result);
+        }
 
-      return result;
-    });
+        return result;
+      });
+    }
+
+    // Priority 3: Error if neither is provided
+    return Effect.fail(
+      ValidationException.new(
+        'NO_PARSER_CONFIGURED',
+        `No parser configured for ${config.tag}. Use either withSchema() or withPropsParser().`,
+      ),
+    );
   };
 
 // ===== Enhanced Builders =====
@@ -622,7 +684,7 @@ function buildAggregateRoot<
   QueryMethods<A['props'], Q> &
   CommandMethods<A, C> {
   const propsParser = createPropsParser(
-    config as DomainConfig<E, ParseParam, NewParam, Q>,
+    config as DomainConfig<A, ParseParam, NewParam, Q>,
   );
 
   // Use the existing AggGenericTrait
@@ -686,6 +748,7 @@ export const createAggregateRoot = <
 
 export {
   withSchema,
+  withPropsParser,
   withValidation,
   withInvariant,
   withNew,
