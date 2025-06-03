@@ -173,6 +173,28 @@ interface EnhancedAggregateRootTrait<
 > extends EnhancedEntityTrait<A, NewParam, ParseParam, Q, C> {
   eventHandlers: H;
 }
+// ===== Type Guards and Utilities =====
+
+type AnyDomainConfig = DomainConfig<any, any, any, any>;
+type AnyEntityConfig = EntityConfig<any, any, any, any, any>;
+type AnyAggregateConfig = AggregateConfig<any, any, any, any, any, any>;
+
+// Type predicate to check if config is EntityConfig or AggregateConfig
+type IsEntityLikeConfig<T> = T extends EntityConfig<any, any, any, any, any>
+  ? true
+  : false;
+
+// Type predicate to check if config is AggregateConfig
+type IsAggregateConfig<T> = T extends AggregateConfig<
+  any,
+  any,
+  any,
+  any,
+  any,
+  any
+>
+  ? true
+  : false;
 
 // ===== Core Configuration Builders =====
 
@@ -230,21 +252,8 @@ const createAggregateConfig = <
 // ===== Enhanced Configuration Transformers =====
 
 const withSchema =
-  <
-    S extends Schema.Schema<any>,
-    DM extends DomainModel<Schema.Schema.Type<S>>,
-    ParseParam,
-    NewParam,
-    Q extends Record<
-      string,
-      QueryFunction<DM['props']> | QueryEffectFunction<DM['props']>
-    >,
-  >(
-    schema: S,
-  ) =>
-  (
-    config: DomainConfig<DM, ParseParam, NewParam, Q>,
-  ): DomainConfig<DM, ParseParam, NewParam, Q> => ({
+  <TConfig extends AnyDomainConfig, S extends Schema.Schema<any>>(schema: S) =>
+  (config: TConfig): TConfig => ({
     ...config,
     schema,
     // Clear propsParser when schema is set to avoid conflicts
@@ -256,262 +265,230 @@ const withSchema =
  */
 const withPropsParser =
   <
-    DM extends DomainModel,
-    ParseParam,
-    NewParam,
-    Q extends Record<
-      string,
-      QueryFunction<DM['props']> | QueryEffectFunction<DM['props']>
-    >,
+    TConfig extends AnyDomainConfig,
+    NewPropsParser extends PropsParser<any, any>,
   >(
-    propsParser: PropsParser<DM['props'], ParseParam>,
+    propsParser: NewPropsParser,
   ) =>
-  (
-    config: DomainConfig<DM, ParseParam, NewParam, Q>,
-  ): DomainConfig<DM, ParseParam, NewParam, Q> => ({
-    ...config,
-    propsParser,
-    // Clear schema when propsParser is set to avoid conflicts
-    schema: undefined,
-  });
+  (config: TConfig): TConfig =>
+    ({
+      ...config,
+      propsParser,
+      // Clear schema when propsParser is set to avoid conflicts
+      schema: undefined,
+    }) as TConfig;
 
 const withValidation =
-  <
-    DM extends DomainModel,
-    ParseParam,
-    NewParam,
-    Q extends Record<
-      string,
-      QueryFunction<DM['props']> | QueryEffectFunction<DM['props']>
-    >,
-  >(
-    validator: (props: DM['props']) => ParseResult<DM['props']>,
+  <TConfig extends AnyDomainConfig>(
+    validator: TConfig extends DomainConfig<infer DM, any, any, any>
+      ? (props: DM['props']) => ParseResult<DM['props']>
+      : never,
   ) =>
-  (
-    config: DomainConfig<DM, ParseParam, NewParam, Q>,
-  ): DomainConfig<DM, ParseParam, NewParam, Q> => ({
-    ...config,
-    validators: [...config.validators, validator],
-  });
+  (config: TConfig): TConfig =>
+    ({
+      ...config,
+      validators: [...config.validators, validator],
+    }) as TConfig;
 
 const withInvariant =
-  <
-    DM extends DomainModel,
-    ParseParam,
-    NewParam,
-    Q extends Record<
-      string,
-      QueryFunction<DM['props']> | QueryEffectFunction<DM['props']>
-    >,
-  >(
-    predicate: (props: DM['props']) => boolean,
+  <TConfig extends AnyDomainConfig>(
+    predicate: TConfig extends DomainConfig<infer DM, any, any, any>
+      ? (props: DM['props']) => boolean
+      : never,
     errorMessage: string,
     errorCode: string = 'INVARIANT_VIOLATION',
   ) =>
-  (
-    config: DomainConfig<DM, ParseParam, NewParam, Q>,
-  ): DomainConfig<DM, ParseParam, NewParam, Q> =>
-    withValidation<DM, ParseParam, NewParam, Q>((props) => {
+  (config: TConfig): TConfig => {
+    const validator = (props: any) => {
       if (!predicate(props)) {
         return Effect.fail(ValidationException.new(errorCode, errorMessage));
       }
       return Effect.succeed(props);
-    })(config);
+    };
+
+    return pipe(config, withValidation(validator as any));
+  };
 
 const withNew =
-  <
-    DM extends DomainModel,
-    ParseParam,
-    NewParam,
-    NewNewParam,
-    Q extends Record<
-      string,
-      QueryFunction<DM['props']> | QueryEffectFunction<DM['props']>
-    >,
-  >(
-    newMethod: (
-      params: NewNewParam,
-      parse: (input: ParseParam) => ParseResult<DM>,
-    ) => ParseResult<DM>,
+  <TConfig extends AnyDomainConfig>(
+    newMethod: TConfig extends DomainConfig<
+      infer DM,
+      infer ParseParam,
+      infer NewParam,
+      any
+    >
+      ? (
+          params: NewParam,
+          parse: (input: ParseParam) => ParseResult<DM>,
+        ) => ParseResult<DM>
+      : never,
   ) =>
   (
-    config: DomainConfig<DM, ParseParam, NewParam, Q>,
-  ): DomainConfig<DM, ParseParam, NewNewParam, Q> => ({
+    config: TConfig,
+  ): Omit<TConfig, 'newMethod'> & { newMethod: typeof newMethod } => ({
     ...config,
     newMethod,
   });
 
+/**
+ * Extract query method types from a queries record
+ */
 const withQuery =
-  <
-    DM extends DomainModel,
-    ParseParam,
-    NewParam,
-    Q extends Record<
-      string,
-      QueryFunction<DM['props']> | QueryEffectFunction<DM['props']>
-    >,
-    K extends string,
-    R,
-  >(
+  <TConfig extends AnyDomainConfig, K extends string, R>(
     name: K,
-    query: QueryFunction<DM['props'], R>,
+    query: TConfig extends DomainConfig<infer DM, any, any, any>
+      ? QueryFunction<DM['props'], R>
+      : never,
   ) =>
   (
-    config: DomainConfig<DM, ParseParam, NewParam, Q>,
-  ): DomainConfig<
-    DM,
-    ParseParam,
-    NewParam,
-    Q & Record<K, QueryFunction<DM['props'], R>>
-  > => ({
-    ...config,
-    queries: {
-      ...config.queries,
-      [name]: query,
-    } as Q & Record<K, QueryFunction<DM['props'], R>>,
-  });
+    config: TConfig,
+  ): TConfig & {
+    queries: TConfig['queries'] & Record<K, typeof query>;
+  } =>
+    ({
+      ...config,
+      queries: {
+        ...config.queries,
+        [name]: query,
+      },
+    }) as TConfig & { queries: TConfig['queries'] & Record<K, typeof query> };
 
+/**
+ * Add async query method - works with all config types
+ */
 const withQueryEffect =
-  <
-    DM extends DomainModel,
-    ParseParam,
-    NewParam,
-    Q extends Record<
-      string,
-      QueryFunction<DM['props']> | QueryEffectFunction<DM['props']>
-    >,
-    K extends string,
-    R,
-  >(
+  <TConfig extends AnyDomainConfig, K extends string, R>(
     name: K,
-    query: QueryEffectFunction<DM['props'], R>,
+    query: TConfig extends DomainConfig<infer DM, any, any, any>
+      ? QueryEffectFunction<DM['props'], R>
+      : never,
   ) =>
   (
-    config: DomainConfig<DM, ParseParam, NewParam, Q>,
-  ): DomainConfig<
-    DM,
-    ParseParam,
-    NewParam,
-    Q & Record<K, QueryEffectFunction<DM['props'], R>>
-  > => ({
-    ...config,
-    queries: {
-      ...config.queries,
-      [name]: query,
-    } as Q & Record<K, QueryEffectFunction<DM['props'], R>>,
-  });
+    config: TConfig,
+  ): TConfig & {
+    queries: TConfig['queries'] & Record<K, typeof query>;
+  } =>
+    ({
+      ...config,
+      queries: {
+        ...config.queries,
+        [name]: query,
+      },
+    }) as TConfig & { queries: TConfig['queries'] & Record<K, typeof query> };
 
+/**
+ * Add command method - only works with Entity and Aggregate configs
+ */
 const withCommand =
-  <
-    E extends Entity,
-    ParseParam,
-    NewParam,
-    Q extends Record<
-      string,
-      QueryFunction<E['props']> | QueryEffectFunction<E['props']>
-    >,
-    C extends Record<string, CommandFunction<E>>,
-    K extends string,
-    I,
-  >(
+  <TConfig extends AnyEntityConfig, K extends string, I>(
     name: K,
-    handler: (
-      input: I,
-      props: E['props'],
-      entity: E,
-    ) => Effect.Effect<{ props: E['props'] }, any, never>,
+    handler: TConfig extends EntityConfig<infer E, any, any, any, any>
+      ? (
+          input: I,
+          props: E['props'],
+          entity: E,
+        ) => Effect.Effect<{ props: E['props'] }, any, never>
+      : never,
   ) =>
   (
-    config: EntityConfig<E, ParseParam, NewParam, Q, C>,
-  ): EntityConfig<
-    E,
-    ParseParam,
-    NewParam,
-    Q,
-    C & Record<K, CommandFunction<E, I>>
-  > => ({
-    ...config,
-    commands: {
-      ...config.commands,
-      [name]: EntityGenericTrait.asCommand(handler),
-    } as C & Record<K, CommandFunction<E, I>>,
-  });
+    config: TConfig,
+  ): TConfig & {
+    commands: TConfig['commands'] & Record<K, CommandFunction<any, I>>;
+  } => {
+    // Ensure we only accept EntityConfig or AggregateConfig
+    if (!('commands' in config)) {
+      throw new Error(
+        'withCommand can only be used with Entity or Aggregate configurations',
+      );
+    }
 
+    const commandFunction = EntityGenericTrait.asCommand(handler as any);
+
+    return {
+      ...config,
+      commands: {
+        ...config.commands,
+        [name]: commandFunction,
+      },
+    } as TConfig & {
+      commands: TConfig['commands'] & Record<K, CommandFunction<any, I>>;
+    };
+  };
+
+/**
+ * Add aggregate command - only works with Aggregate configs
+ */
 const withAggregateCommand =
-  <
-    A extends AggregateRoot,
-    ParseParam,
-    NewParam,
-    Q extends Record<
-      string,
-      QueryFunction<A['props']> | QueryEffectFunction<A['props']>
-    >,
-    C extends Record<string, CommandFunction<A>>,
-    H extends Record<string, EventHandlerFunction>,
-    K extends string,
-    I,
-  >(
+  <TConfig extends AnyAggregateConfig, K extends string, I>(
     name: K,
-    handler: (
-      input: I,
-      props: A['props'],
-      aggregate: A,
-      correlationId: string,
-    ) => Effect.Effect<
-      { props: A['props']; domainEvents: IDomainEvent[] },
-      any,
-      any
-    >,
+    handler: TConfig extends AggregateConfig<infer A, any, any, any, any, any>
+      ? (
+          input: I,
+          props: A['props'],
+          aggregate: A,
+          correlationId: string,
+        ) => Effect.Effect<
+          { props: A['props']; domainEvents: IDomainEvent[] },
+          any,
+          any
+        >
+      : never,
   ) =>
   (
-    config: AggregateConfig<A, ParseParam, NewParam, Q, C, H>,
-  ): AggregateConfig<
-    A,
-    ParseParam,
-    NewParam,
-    Q,
-    C & Record<K, CommandFunction<A, I>>,
-    H
-  > => ({
-    ...config,
-    commands: {
-      ...config.commands,
-      [name]: AggGenericTrait.asCommand(handler),
-    } as C & Record<K, CommandFunction<A, I>>,
-  });
+    config: TConfig,
+  ): TConfig & {
+    commands: TConfig['commands'] & Record<K, CommandFunction<any, I>>;
+  } => {
+    // Ensure we only accept AggregateConfig
+    if (!('eventHandlers' in config)) {
+      throw new Error(
+        'withAggregateCommand can only be used with Aggregate configurations',
+      );
+    }
 
+    const commandFunction = AggGenericTrait.asCommand(handler as any);
+
+    return {
+      ...config,
+      commands: {
+        ...config.commands,
+        [name]: commandFunction,
+      },
+    } as TConfig & {
+      commands: TConfig['commands'] & Record<K, CommandFunction<any, I>>;
+    };
+  };
+
+/**
+ * Add event handler - only works with Aggregate configs
+ */
 const withEventHandler =
-  <
-    A extends AggregateRoot,
-    ParseParam,
-    NewParam,
-    Q extends Record<
-      string,
-      QueryFunction<A['props']> | QueryEffectFunction<A['props']>
-    >,
-    C extends Record<string, CommandFunction<A>>,
-    H extends Record<string, EventHandlerFunction>,
-    K extends string,
-  >(
+  <TConfig extends AnyAggregateConfig, K extends string>(
     eventName: K,
     handler: EventHandlerFunction,
   ) =>
   (
-    config: AggregateConfig<A, ParseParam, NewParam, Q, C, H>,
-  ): AggregateConfig<
-    A,
-    ParseParam,
-    NewParam,
-    Q,
-    C,
-    H & Record<K, EventHandlerFunction>
-  > => ({
-    ...config,
-    eventHandlers: {
-      ...config.eventHandlers,
-      [eventName]: handler,
-    } as H & Record<K, EventHandlerFunction>,
-  });
+    config: TConfig,
+  ): TConfig & {
+    eventHandlers: TConfig['eventHandlers'] & Record<K, EventHandlerFunction>;
+  } => {
+    // Ensure we only accept AggregateConfig
+    if (!('eventHandlers' in config)) {
+      throw new Error(
+        'withEventHandler can only be used with Aggregate configurations',
+      );
+    }
+
+    return {
+      ...config,
+      eventHandlers: {
+        ...config.eventHandlers,
+        [eventName]: handler,
+      },
+    } as TConfig & {
+      eventHandlers: TConfig['eventHandlers'] & Record<K, EventHandlerFunction>;
+    };
+  };
 
 // ===== Enhanced Props Parser Factory =====
 
