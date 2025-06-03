@@ -388,14 +388,19 @@ describe('Repository Factory', () => {
               isActive: entity.isActive,
               registeredAt: entity.registeredAt,
             }),
-          toOrm: (domain: Entity<UserProps>, existing: ) =>
-            Effect.succeed({
-              id: domain.id,
-              name: domain.props.name,
-              email: domain.props.email,
-              isActive: domain.props.isActive,
-              registeredAt: domain.props.registeredAt,
-            } as UserEntity),
+          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+            Effect.succeed(
+              repo.create({
+                ...Option.getOrElse(existing, () => ({})),
+                id: domain.id,
+                name: domain.props.name,
+                email: domain.props.email,
+                isActive: domain.props.isActive,
+                registeredAt: domain.props.registeredAt,
+                createdAt: domain.createdAt,
+                updatedAt: Option.getOrUndefined(domain.updatedAt),
+              })
+            ),
           prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
         },
       };
@@ -530,14 +535,19 @@ describe('Repository Factory', () => {
               isActive: entity.isActive,
               registeredAt: entity.registeredAt,
             }),
-          toOrm: (domain: Entity<UserProps>) =>
-            Effect.succeed({
-              id: domain.id,
-              name: domain.props.name,
-              email: domain.props.email,
-              isActive: domain.props.isActive,
-              registeredAt: domain.props.registeredAt,
-            } as UserEntity),
+          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+            Effect.succeed(
+              repo.create({
+                ...Option.getOrElse(existing, () => ({}) as UserEntity,
+                id: domain.id,
+                name: domain.props.name,
+                email: domain.props.email,
+                isActive: domain.props.isActive,
+                registeredAt: domain.props.registeredAt,
+                createdAt: domain.createdAt,
+                updatedAt: Option.getOrUndefined(domain.updatedAt),
+              })
+            ),
           prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
         },
       };
@@ -588,8 +598,19 @@ describe('Repository Factory', () => {
               isActive: entity.isActive,
               registeredAt: entity.registeredAt,
             }),
-          toOrm: (domain: Entity<UserProps>) =>
-            Effect.succeed({} as UserEntity),
+          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+            Effect.succeed(
+              repo.create({
+                ...Option.getOrElse(existing, () => ({}) as UserEntity,
+                id: domain.id,
+                name: domain.props.name,
+                email: domain.props.email,
+                isActive: domain.props.isActive,
+                registeredAt: domain.props.registeredAt,
+                createdAt: domain.createdAt,
+                updatedAt: Option.getOrUndefined(domain.updatedAt),
+              })
+            ),
           prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
         },
       };
@@ -622,8 +643,19 @@ describe('Repository Factory', () => {
             Effect.fail(
               OperationException.new('MAPPING_ERROR', 'Failed to map entity'),
             ),
-          toOrm: (domain: Entity<UserProps>) =>
-            Effect.succeed({} as UserEntity),
+          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+            Effect.succeed(
+              repo.create({
+                ...Option.getOrElse(existing, () => ({}) as UserEntity,
+                id: domain.id,
+                name: domain.props.name,
+                email: domain.props.email,
+                isActive: domain.props.isActive,
+                registeredAt: domain.props.registeredAt,
+                createdAt: domain.createdAt,
+                updatedAt: Option.getOrUndefined(domain.updatedAt),
+              })
+            ),
           prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
         },
       };
@@ -654,8 +686,19 @@ describe('Repository Factory', () => {
               isActive: entity.isActive,
               registeredAt: entity.registeredAt,
             }),
-          toOrm: (domain: Entity<UserProps>) =>
-            Effect.succeed({} as UserEntity),
+          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+            Effect.succeed(
+              repo.create({
+                ...Option.getOrElse(existing, () => ({}) as UserEntity,
+                id: domain.id,
+                name: domain.props.name,
+                email: domain.props.email,
+                isActive: domain.props.isActive,
+                registeredAt: domain.props.registeredAt,
+                createdAt: domain.createdAt,
+                updatedAt: Option.getOrUndefined(domain.updatedAt),
+              })
+            ),
           prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
         },
       };
@@ -686,14 +729,19 @@ describe('Repository Factory', () => {
               status: entity.status as any,
               total: entity.total,
             }),
-          toOrm: (domain: AggregateRoot<OrderProps>) =>
-            Effect.succeed({
-              id: domain.id,
-              customerId: domain.props.customerId,
-              items: JSON.stringify(domain.props.items),
-              status: domain.props.status,
-              total: domain.props.total,
-            } as OrderEntity),
+          toOrm: (domain: AggregateRoot<OrderProps>, existing: Option.Option<OrderEntity>, repo: Repository<OrderEntity>) =>
+            Effect.succeed(
+              repo.create({
+                ...Option.getOrElse(existing, () => ({}) as OrderEntity,
+                id: domain.id,
+                customerId: domain.props.customerId,
+                items: JSON.stringify(domain.props.items),
+                status: domain.props.status,
+                total: domain.props.total,
+                createdAt: domain.createdAt,
+                updatedAt: Option.getOrUndefined(domain.updatedAt),
+              })
+            ),
           prepareQuery: (params: OrderQueryParams) => ({ id: params.id }),
         },
       };
@@ -736,8 +784,19 @@ describe('Repository Factory', () => {
               isActive: entity.isActive,
               registeredAt: entity.registeredAt,
             }),
-          toOrm: (domain: Entity<UserProps>) =>
-            Effect.succeed({} as UserEntity),
+          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+            Effect.succeed(
+              repo.create({
+                ...Option.getOrElse(existing, () => ({}) as UserEntity,
+                id: domain.id,
+                name: domain.props.name,
+                email: domain.props.email,
+                isActive: domain.props.isActive,
+                registeredAt: domain.props.registeredAt,
+                createdAt: domain.createdAt,
+                updatedAt: Option.getOrUndefined(domain.updatedAt),
+              })
+            ),
           prepareQuery: (params: UserQueryParams) => {
             // This should compile with correct types
             const validParams = {
