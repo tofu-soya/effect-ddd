@@ -9,10 +9,10 @@ import {
 } from 'typeorm';
 import { AggregateRoot } from '../../../model/effect/aggregate-root.base';
 import { Identifier } from '../../../typeclasses/obj-with-id';
-import {
-  DataWithPaginationMeta,
-  FindManyPaginatedParams,
-} from '../../repository.base';
+// import {
+//   DataWithPaginationMeta,
+//   FindManyPaginatedParams,
+// } from '../repository.base';
 import { DomainEventPublisherContext } from '../../../model/effect/domain-event-publisher.interface';
 import {
   ENTITY_MANAGER_KEY,
@@ -20,6 +20,10 @@ import {
 } from '../../../infra/nestjs/cls.middleware';
 import { RepositoryPort } from '@model/effect/repository.base';
 import { BaseException, OperationException } from '@model/exception';
+import {
+  DataWithPaginationMeta,
+  FindManyPaginatedParams,
+} from '@model/interfaces';
 
 /**
  * Base query parameters for TypeORM repositories
@@ -47,13 +51,14 @@ export interface TypeormRepositoryConfig<
   relations: string[];
 
   // Convert ORM entity to domain model
-  toDomain: (ormEntity: OrmEntity) => Effect.Effect<DM, BaseException, never>;
+  toDomain: (ormEntity: OrmEntity) => Effect.Effect<DM, BaseException, any>;
 
   // Convert domain model to ORM entity
   toOrm: (
     domain: DM,
-    existingEntity?: OrmEntity,
-  ) => Effect.Effect<OrmEntity, BaseException, never>;
+    existingEntity: Option.Option<OrmEntity>,
+    repository: Repository<OrmEntity>,
+  ) => Effect.Effect<OrmEntity, BaseException, any>;
 
   // Prepare query parameters for TypeORM
   prepareQuery: (params: QueryParams) => FindOptionsWhere<OrmEntity>;
@@ -115,7 +120,8 @@ export function createTypeormRepository<
         // Convert domain model to ORM entity
         const ormEntity = yield* toOrm(
           aggregateRoot,
-          existingEntity || undefined,
+          Option.fromNullable(existingEntity),
+          repo,
         );
 
         // Save the entity
@@ -144,7 +150,7 @@ export function createTypeormRepository<
        */
       return Effect.gen(function* () {
         // Convert domain model to ORM entity
-        const ormEntity = yield* toOrm(entity);
+        const ormEntity = yield* toOrm(entity, Option.none(), repo);
 
         // Get the domain events publisher
         const publisher = yield* DomainEventPublisherContext;

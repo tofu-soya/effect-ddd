@@ -1,7 +1,7 @@
 // src/model/effect/factories/repository.factory.ts
 
-import { Effect, Context, Layer, pipe } from 'effect';
-import { ObjectLiteral, FindOptionsWhere } from 'typeorm';
+import { Effect, Context, Layer, pipe, Option } from 'effect';
+import { ObjectLiteral, FindOptionsWhere, Repository } from 'typeorm';
 import { AggregateRoot, RepositoryPort } from '@model/interfaces';
 import {
   BaseTypeormQueryParams,
@@ -22,13 +22,14 @@ export interface RepositoryConfig<
   readonly mappers: {
     readonly toDomain: (
       ormEntity: OrmEntity,
-    ) => Effect.Effect<DM, BaseException, never>;
+    ) => Effect.Effect<DM, BaseException, any>;
     readonly toOrm: (
       domain: DM,
-      existing?: OrmEntity,
-    ) => Effect.Effect<OrmEntity, BaseException, never>;
-    readonly prepareQuery: (params: QueryParams) => FindOptionsWhere<OrmEntity>;
+      existing: Option.Option<OrmEntity>,
+      repo: Repository<OrmEntity>,
+    ) => Effect.Effect<OrmEntity, BaseException, any>;
   };
+  readonly prepareQuery: (params: QueryParams) => FindOptionsWhere<OrmEntity>;
 }
 
 export interface PartialRepositoryConfig<
@@ -41,15 +42,14 @@ export interface PartialRepositoryConfig<
   readonly mappers?: {
     readonly toDomain?: (
       ormEntity: OrmEntity,
-    ) => Effect.Effect<DM, BaseException, never>;
+    ) => Effect.Effect<DM, BaseException, any>;
     readonly toOrm?: (
       domain: DM,
-      existing?: OrmEntity,
-    ) => Effect.Effect<OrmEntity, BaseException, never>;
-    readonly prepareQuery?: (
-      params: QueryParams,
-    ) => FindOptionsWhere<OrmEntity>;
+      existing: Option.Option<OrmEntity>,
+      repo: Repository<OrmEntity>,
+    ) => Effect.Effect<OrmEntity, BaseException, any>;
   };
+  readonly prepareQuery?: (params: QueryParams) => FindOptionsWhere<OrmEntity>;
 }
 
 export interface ConventionConfig<
@@ -92,12 +92,10 @@ const createAutoToDomainMapper =
 const createAutoToOrmMapper =
   <DM extends AggregateRoot, OrmEntity extends ObjectLiteral>(): ((
     domain: DM,
-    existing?: OrmEntity,
+    existing: Option.Option<OrmEntity>,
+    repo: Repository<OrmEntity>,
   ) => Effect.Effect<OrmEntity, BaseException, never>) =>
-  (
-    domain: DM,
-    existing?: OrmEntity,
-  ): Effect.Effect<OrmEntity, BaseException, never> =>
+  (domain, existing, repo): Effect.Effect<OrmEntity, BaseException, never> =>
     Effect.try({
       try: (): OrmEntity =>
         convertDomainToOrmProps(domain, existing) as OrmEntity,
@@ -183,10 +181,9 @@ const completeRepositoryConfig = <
     toDomain:
       partial.mappers?.toDomain || createAutoToDomainMapper<DM, OrmEntity>(),
     toOrm: partial.mappers?.toOrm || createAutoToOrmMapper<DM, OrmEntity>(),
-    prepareQuery:
-      partial.mappers?.prepareQuery ||
-      createAutoPrepareQuery<OrmEntity, QueryParams>(),
   },
+  prepareQuery:
+    partial.prepareQuery || createAutoPrepareQuery<OrmEntity, QueryParams>(),
 });
 
 /**
@@ -205,9 +202,9 @@ const createConventionConfig = <
     toDomain: (ormEntity: OrmEntity): Effect.Effect<DM, BaseException, never> =>
       config.domainTrait.parse(ormEntity),
     toOrm: createAutoToOrmMapper<DM, OrmEntity>(),
-    prepareQuery: createAutoPrepareQuery<OrmEntity, QueryParams>(),
-    ...config.customMappings,
   },
+  prepareQuery: createAutoPrepareQuery<OrmEntity, QueryParams>(),
+  ...config.customMappings,
 });
 
 // ===== REPOSITORY FACTORIES =====
@@ -231,7 +228,7 @@ export const createRepository = <
       relations: [...config.relations],
       toDomain: config.mappers.toDomain,
       toOrm: config.mappers.toOrm,
-      prepareQuery: config.mappers.prepareQuery,
+      prepareQuery: config.prepareQuery,
     });
   });
 
