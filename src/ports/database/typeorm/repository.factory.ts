@@ -2,7 +2,11 @@
 
 import { Effect, Context, Layer, pipe, Option } from 'effect';
 import { ObjectLiteral, FindOptionsWhere, Repository } from 'typeorm';
-import { AggregateRoot, RepositoryPort } from '@model/interfaces';
+import {
+  AggregateRoot,
+  AggregateRootTrait,
+  RepositoryPort,
+} from '@model/interfaces';
 import {
   BaseTypeormQueryParams,
   createTypeormRepository,
@@ -22,12 +26,12 @@ export interface RepositoryConfig<
   readonly mappers: {
     readonly toDomain: (
       ormEntity: OrmEntity,
-    ) => Effect.Effect<DM, BaseException, any>;
+    ) => Effect.Effect<DM, BaseException, never>;
     readonly toOrm: (
       domain: DM,
       existing: Option.Option<OrmEntity>,
       repo: Repository<OrmEntity>,
-    ) => Effect.Effect<OrmEntity, BaseException, any>;
+    ) => Effect.Effect<OrmEntity, BaseException, never>;
   };
   readonly prepareQuery: (params: QueryParams) => FindOptionsWhere<OrmEntity>;
 }
@@ -42,12 +46,12 @@ export interface PartialRepositoryConfig<
   readonly mappers?: {
     readonly toDomain?: (
       ormEntity: OrmEntity,
-    ) => Effect.Effect<DM, BaseException, any>;
+    ) => Effect.Effect<DM, BaseException, never>;
     readonly toOrm?: (
       domain: DM,
       existing: Option.Option<OrmEntity>,
       repo: Repository<OrmEntity>,
-    ) => Effect.Effect<OrmEntity, BaseException, any>;
+    ) => Effect.Effect<OrmEntity, BaseException, never>;
   };
   readonly prepareQuery?: (params: QueryParams) => FindOptionsWhere<OrmEntity>;
 }
@@ -56,12 +60,12 @@ export interface ConventionConfig<
   DM extends AggregateRoot,
   OrmEntity extends ObjectLiteral,
   QueryParams = any,
+  Trait extends AggregateRootTrait<DM, any, any> = AggregateRootTrait<DM>,
 > {
   readonly entityClass: new () => OrmEntity;
-  readonly domainTrait: {
-    parse: (raw: any) => Effect.Effect<DM, BaseException, never>;
-  };
+  readonly domainTrait: Trait;
   readonly relations?: readonly string[];
+  readonly prepareQuery?: (params: QueryParams) => FindOptionsWhere<OrmEntity>;
   readonly customMappings?: Partial<
     RepositoryConfig<DM, OrmEntity, QueryParams>['mappers']
   >;
@@ -200,11 +204,18 @@ const createConventionConfig = <
   relations: config.relations || [],
   mappers: {
     toDomain: (ormEntity: OrmEntity): Effect.Effect<DM, BaseException, never> =>
-      config.domainTrait.parse(ormEntity),
+      pipe(
+        ormEntity,
+        config.domainTrait.parse,
+        Effect.mapError((error) =>
+          OperationException.new('TO_ORM_FAILED', error.toString()),
+        ),
+      ),
     toOrm: createAutoToOrmMapper<DM, OrmEntity>(),
+    ...config.customMappings,
   },
-  prepareQuery: createAutoPrepareQuery<OrmEntity, QueryParams>(),
-  ...config.customMappings,
+  prepareQuery:
+    config.prepareQuery ?? createAutoPrepareQuery<OrmEntity, QueryParams>(),
 });
 
 // ===== REPOSITORY FACTORIES =====
@@ -218,7 +229,7 @@ export const createRepository = <
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   config: RepositoryConfig<DM, OrmEntity, QueryParams>,
-): Effect.Effect<RepositoryPort<DM>, BaseException, DataSourceContext> =>
+) =>
   Effect.gen(function* () {
     const dataSource = yield* DataSourceContext;
 
@@ -241,8 +252,7 @@ export const createRepositoryWithDefaults = <
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
-): Effect.Effect<RepositoryPort<DM>, BaseException, DataSourceContext> =>
-  pipe(partialConfig, completeRepositoryConfig, createRepository);
+) => pipe(partialConfig, completeRepositoryConfig, createRepository);
 
 /**
  * Create repository with convention-based mapping
@@ -251,10 +261,14 @@ export const createRepositoryWithConventions = <
   DM extends AggregateRoot,
   OrmEntity extends ObjectLiteral,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
+  Trait extends AggregateRootTrait<DM, any, any> = AggregateRootTrait<
+    DM,
+    any,
+    any
+  >,
 >(
-  config: ConventionConfig<DM, OrmEntity, QueryParams>,
-): Effect.Effect<RepositoryPort<DM>, BaseException, DataSourceContext> =>
-  pipe(config, createConventionConfig, createRepository);
+  config: ConventionConfig<DM, OrmEntity, QueryParams, Trait>,
+) => pipe(config, createConventionConfig, createRepository);
 
 // ===== LAYER FACTORIES =====
 
@@ -268,11 +282,7 @@ export const createRepositoryLayer = <
 >(
   repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
   config: RepositoryConfig<DM, OrmEntity, QueryParams>,
-): Layer.Layer<
-  Context.Tag.Identifier<typeof repositoryTag>,
-  BaseException,
-  DataSourceContext
-> => Layer.effect(repositoryTag, createRepository(config));
+) => Layer.effect(repositoryTag, createRepository(config));
 
 /**
  * Create repository layer with partial configuration
@@ -284,11 +294,7 @@ export const createRepositoryLayerWithDefaults = <
 >(
   repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
   partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
-): Layer.Layer<
-  Context.Tag.Identifier<typeof repositoryTag>,
-  BaseException,
-  DataSourceContext
-> =>
+) =>
   pipe(partialConfig, completeRepositoryConfig, (config) =>
     createRepositoryLayer(repositoryTag, config),
   );
@@ -303,11 +309,7 @@ export const createRepositoryLayerWithConventions = <
 >(
   repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
   config: ConventionConfig<DM, OrmEntity, QueryParams>,
-): Layer.Layer<
-  Context.Tag.Identifier<typeof repositoryTag>,
-  BaseException,
-  DataSourceContext
-> =>
+) =>
   pipe(config, createConventionConfig, (completeConfig) =>
     createRepositoryLayer(repositoryTag, completeConfig),
   );
@@ -432,7 +434,7 @@ export const build = <
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   state: BuilderState<DM, OrmEntity, QueryParams>,
-): Effect.Effect<RepositoryPort<DM>, BaseException, DataSourceContext> =>
+) =>
   pipe(
     {
       entityClass: state.entityClass,
@@ -457,13 +459,7 @@ export const buildLayer =
   >(
     repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
   ) =>
-  (
-    state: BuilderState<DM, OrmEntity, QueryParams>,
-  ): Layer.Layer<
-    Context.Tag.Identifier<typeof repositoryTag>,
-    BaseException,
-    DataSourceContext
-  > =>
+  (state: BuilderState<DM, OrmEntity, QueryParams>) =>
     pipe(
       {
         entityClass: state.entityClass,
