@@ -2,18 +2,18 @@ import { Effect, Option, Record } from 'effect';
 import {
   CommandOnModel,
   Entity,
+  EntityTrait,
   IEntityGenericTrait,
 } from './entity.interface';
 import { IDomainEvent } from './domain-event.interface';
-import { ParseResult } from './validation.interface';
-import { CoreException, EntityTrait } from '@model/effect';
+import { CoreException, ParseResult } from './validation.interface';
 import { GetProps } from 'src/typeclasses';
 
-export type AggregateRoot<
+export interface AggregateRoot<
   Props extends Record<string, unknown> = Record<string, unknown>,
-> = Entity<Props> & {
+> extends Entity<Props> {
   readonly domainEvents: ReadonlyArray<IDomainEvent>;
-};
+}
 
 /**
  * Input type for aggregate root creation

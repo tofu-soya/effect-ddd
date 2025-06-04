@@ -18,11 +18,11 @@ import {
   ENTITY_MANAGER_KEY,
   getNamespaceInstance,
 } from '../../../infra/nestjs/cls.middleware';
-import { RepositoryPort } from '@model/effect/repository.base';
 import { BaseException, OperationException } from '@model/exception';
 import {
   DataWithPaginationMeta,
   FindManyPaginatedParams,
+  RepositoryPort,
 } from '@model/interfaces';
 
 /**
@@ -51,14 +51,14 @@ export interface TypeormRepositoryConfig<
   relations: string[];
 
   // Convert ORM entity to domain model
-  toDomain: (ormEntity: OrmEntity) => Effect.Effect<DM, BaseException, any>;
+  toDomain: (ormEntity: OrmEntity) => Effect.Effect<DM, BaseException, never>;
 
   // Convert domain model to ORM entity
   toOrm: (
     domain: DM,
     existingEntity: Option.Option<OrmEntity>,
     repository: Repository<OrmEntity>,
-  ) => Effect.Effect<OrmEntity, BaseException, any>;
+  ) => Effect.Effect<OrmEntity, BaseException, never>;
 
   // Prepare query parameters for TypeORM
   prepareQuery: (params: QueryParams) => FindOptionsWhere<OrmEntity>;
@@ -95,8 +95,10 @@ export function createTypeormRepository<
   const getRepository = (): Repository<OrmEntity> => {
     return getEntityManager().getRepository(entityClass);
   };
+
   return Effect.gen(function* () {
     // Get the repository
+    const publisher = yield* DomainEventPublisherContext;
     const repo = getRepository();
     const save = (aggregateRoot: DM) => {
       /**
@@ -135,7 +137,6 @@ export function createTypeormRepository<
         });
 
         // Get the domain events publisher
-        const publisher = yield* DomainEventPublisherContext;
 
         // Publish domain events
         const events = aggregateRoot.domainEvents;
@@ -151,9 +152,6 @@ export function createTypeormRepository<
       return Effect.gen(function* () {
         // Convert domain model to ORM entity
         const ormEntity = yield* toOrm(entity, Option.none(), repo);
-
-        // Get the domain events publisher
-        const publisher = yield* DomainEventPublisherContext;
 
         // Save the entity
         yield* Effect.tryPromise({

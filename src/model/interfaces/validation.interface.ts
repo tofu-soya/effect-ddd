@@ -4,7 +4,7 @@ import { BaseException, ValidationException } from '../exception';
 /**
  * Result type for parsing operations
  */
-export type ParseResult<R, C = unknown> = Effect.Effect<
+export type ParseResult<R, C = never> = Effect.Effect<
   R,
   EffectParseResult.ParseError | ValidationException,
   C
@@ -13,7 +13,7 @@ export type ParseResult<R, C = unknown> = Effect.Effect<
 /**
  * Parser function type for transforming input to domain objects
  */
-export type Parser<A, I = any, C = any> = (value: I) => ParseResult<A, C>;
+export type Parser<A, I = any, C = never> = (value: I) => ParseResult<A, C>;
 
 /**
  * Union type of all possible core exceptions

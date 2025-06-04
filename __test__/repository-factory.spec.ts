@@ -1,7 +1,12 @@
 // src/ports/database/typeorm/__tests__/repository-factory.spec.ts
 
 import { Effect, Context, Layer, Option, pipe, Schema } from 'effect';
-import { DataSource, Repository, EntityManager } from 'typeorm';
+import {
+  DataSource,
+  Repository,
+  EntityManager,
+  FindOptionsWhere,
+} from 'typeorm';
 import {
   createRepository,
   createRepositoryWithDefaults,
@@ -15,6 +20,7 @@ import {
   build,
   buildLayer,
   RepositoryConfig,
+  ConventionConfig,
 } from '../src/ports/database/typeorm/repository.factory';
 import {
   createAggregateRoot,
@@ -28,8 +34,14 @@ import {
   buildEntity,
   buildAggregateRoot,
   buildValueObject,
+  withInvariant,
 } from '../src/model/builders/domain-builder';
-import { AggregateRoot, Entity, ValueObject } from '../src/model/interfaces';
+import {
+  AggregateRoot,
+  Entity,
+  IDomainEventPublisher,
+  ValueObject,
+} from '../src/model/interfaces';
 import { RepositoryPort } from '../src/model/interfaces/repository.interface';
 import {
   BaseException,
@@ -42,6 +54,9 @@ import {
   DataSourceContext,
   TypeormRepositoryConfig,
 } from '@ports/database/typeorm/effect-repository.factory';
+import { DomainEventPublisherContext } from '@model/interfaces';
+import { MockDomainEventRepository } from '@model/implementations/domain-event-repository.mock';
+import { AggregateTypeORMEntityBase } from 'src/typeorm';
 
 // ===== Test Domain Models =====
 
@@ -63,7 +78,7 @@ const UserEmailSchema = Schema.Struct({
 });
 type UserEmail = ValueObject<UserEmailProps>;
 const UserEmailTrait = pipe(
-  createValueObject<UserEmail, string>('UserEmail'),
+  createValueObject<UserEmail, string, string>('UserEmail'),
   withSchema(UserEmailSchema),
   withNew((emailString: string, parser) =>
     parser(emailString.toLowerCase().trim()),
@@ -87,6 +102,8 @@ type UserInput = {
   readonly registeredAt: Date;
 };
 
+type User = AggregateRoot<UserProps>;
+
 const UserSchema = Schema.Struct({
   name: SchemaBuilderTrait.CommonSchemas.NonEmptyString,
   email: SchemaBuilderTrait.CommonSchemas.Email,
@@ -95,7 +112,7 @@ const UserSchema = Schema.Struct({
 });
 
 const UserTrait = pipe(
-  createAggregateRoot<AggregateRoot<UserProps>, UserInput>('User'),
+  createAggregateRoot<User, UserInput>('User'),
   withSchema(UserSchema),
   withNew((input: UserInput, parser) =>
     parser({
@@ -133,6 +150,83 @@ type OrderItemProps = Schema.Schema.Type<typeof OrderItemProps>;
 
 type OrderItem = ValueObject<OrderItemProps>;
 
+interface OrderItemInput {
+  productId: string;
+  quantity: number;
+  price: number;
+}
+
+// ===== ORDER ITEM TRAIT =====
+
+const OrderItemTrait = pipe(
+  createValueObject<OrderItem, OrderItemInput, OrderItemInput>('OrderItem'),
+  withSchema(OrderItemProps),
+
+  // Custom creation logic with validation and normalization
+  withNew((input, parser) => {
+    // Normalize input
+    const normalizedInput = {
+      productId: input.productId.trim(),
+      quantity: Math.floor(Math.abs(input.quantity)), // Ensure positive integer
+      price: Math.round(Math.abs(input.price) * 100) / 100, // Round to 2 decimal places, ensure positive
+    };
+
+    return parser(normalizedInput);
+  }),
+
+  // Business rule invariants
+  withInvariant(
+    (props) => props.quantity <= 10000,
+    'Quantity cannot exceed 10,000 items',
+    'QUANTITY_TOO_HIGH',
+  ),
+
+  withInvariant(
+    (props) => props.price <= 1000000,
+    'Price cannot exceed $1,000,000',
+    'PRICE_TOO_HIGH',
+  ),
+
+  withInvariant(
+    (props) => props.quantity > 0,
+    'Quantity must be positive',
+    'INVALID_QUANTITY',
+  ),
+
+  withInvariant(
+    (props) => props.price > 0,
+    'Price must be positive',
+    'INVALID_PRICE',
+  ),
+
+  // Query methods for business calculations
+  withQuery(
+    'getSubtotal',
+    (props) => Math.round(props.price * props.quantity * 100) / 100,
+  ),
+
+  withQuery('getFormattedPrice', (props) => `$${props.price.toFixed(2)}`),
+
+  withQuery('getFormattedSubtotal', (props) => {
+    const subtotal = Math.round(props.price * props.quantity * 100) / 100;
+    return `$${subtotal.toFixed(2)}`;
+  }),
+
+  withQuery('isHighValue', (props) => props.price * props.quantity > 1000),
+
+  withQuery('isLargeQuantity', (props) => props.quantity >= 100),
+
+  withQuery(
+    'getDisplayText',
+    (props) =>
+      `${props.quantity} x $${props.price.toFixed(2)} = $${(
+        props.price * props.quantity
+      ).toFixed(2)}`,
+  ),
+
+  buildValueObject,
+);
+
 type OrderProps = {
   readonly customerId: Identifier;
   readonly items: OrderItem[];
@@ -158,12 +252,10 @@ const OrderSchema = Schema.Struct({
   total: Schema.NonNegative,
 });
 
+type Order = AggregateRoot<OrderProps>;
+
 const OrderTrait = pipe(
-  createAggregateRoot<
-    AggregateRoot<OrderProps>,
-    OrderInput,
-    { customerId: Identifier }
-  >('Order'),
+  createAggregateRoot<Order, OrderInput, { customerId: Identifier }>('Order'),
   withSchema(OrderSchema),
   withNew((input, parser) =>
     parser({
@@ -186,7 +278,7 @@ const OrderTrait = pipe(
       aggregate: AggregateRoot<OrderProps>,
       correlationId: string,
     ) =>
-      Effect.gen(function*() {
+      Effect.gen(function* () {
         if (props.status !== 'draft') {
           return yield* Effect.fail(
             ValidationException.new(
@@ -226,24 +318,18 @@ const OrderTrait = pipe(
 
 // ===== TypeORM Entities =====
 
-class UserEntity {
-  id!: string;
+class UserEntity extends AggregateTypeORMEntityBase {
   name!: string;
   email!: string;
   isActive!: boolean;
   registeredAt!: Date;
-  createdAt!: Date;
-  updatedAt!: Date;
 }
 
-class OrderEntity {
-  id!: string;
+class OrderEntity extends AggregateTypeORMEntityBase {
   customerId!: string;
   items!: string; // JSON serialized
   status!: string;
   total!: number;
-  createdAt!: Date;
-  updatedAt!: Date;
 }
 
 // ===== Query Parameter Types =====
@@ -299,11 +385,23 @@ const createMockOrder = () =>
 describe('Repository Factory', () => {
   let mockDataSource: DataSource;
   let mockRepository: Repository<any>;
-
+  let mockDomainEventPublisher: IDomainEventPublisher;
   beforeEach(() => {
     mockDataSource = createMockDataSource();
     mockRepository = mockDataSource.manager.getRepository(UserEntity);
     jest.clearAllMocks();
+    const mockDomainEventRepository = new MockDomainEventRepository();
+    mockDomainEventPublisher = {
+      publish: (event) => mockDomainEventRepository.save(event),
+      publishAll: (events) =>
+        Effect.forEach(
+          events,
+          (event) => mockDomainEventRepository.save(event),
+          {
+            concurrency: 'unbounded',
+          },
+        ),
+    };
   });
 
   describe('createRepository', () => {
@@ -351,10 +449,19 @@ describe('Repository Factory', () => {
 
       const repositoryEffect = createRepository(config);
 
-      const program = Effect.gen(function*() {
+      const program = Effect.gen(function* () {
         const repository = yield* repositoryEffect;
         return repository;
-      }).pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)));
+      })
+        .pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)))
+        .pipe(
+          Effect.provide(
+            Layer.succeed(
+              DomainEventPublisherContext,
+              mockDomainEventPublisher,
+            ),
+          ),
+        );
 
       const repository = await Effect.runPromise(program);
 
@@ -377,18 +484,31 @@ describe('Repository Factory', () => {
 
       mockRepository.findOne = jest.fn().mockResolvedValue(userEntity);
 
-      const config = {
+      const config: RepositoryConfig<
+        AggregateRoot<UserProps>,
+        UserEntity,
+        UserQueryParams
+      > = {
         entityClass: UserEntity,
         relations: [] as const,
         mappers: {
           toDomain: (entity: UserEntity) =>
-            UserTrait.parse({
-              name: entity.name,
-              email: entity.email,
-              isActive: entity.isActive,
-              registeredAt: entity.registeredAt,
-            }),
-          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+            pipe(
+              UserTrait.parse({
+                name: entity.name,
+                email: entity.email,
+                isActive: entity.isActive,
+                registeredAt: entity.registeredAt,
+              }),
+              Effect.mapError((error) =>
+                OperationException.new('TO_ORM_FAILED', error.toString()),
+              ),
+            ),
+          toOrm: (
+            domain: AggregateRoot<UserProps>,
+            existing: Option.Option<UserEntity>,
+            repo: Repository<UserEntity>,
+          ) =>
             Effect.succeed(
               repo.create({
                 ...Option.getOrElse(existing, () => ({})),
@@ -399,17 +519,26 @@ describe('Repository Factory', () => {
                 registeredAt: domain.props.registeredAt,
                 createdAt: domain.createdAt,
                 updatedAt: Option.getOrUndefined(domain.updatedAt),
-              })
+              }),
             ),
-          prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
         },
+        prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
       };
 
-      const program = Effect.gen(function*() {
+      const program = Effect.gen(function* () {
         const repository = yield* createRepository(config);
         const result = yield* repository.findOne({ id: userEntity.id });
         return result;
-      }).pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)));
+      })
+        .pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)))
+        .pipe(
+          Effect.provide(
+            Layer.succeed(
+              DomainEventPublisherContext,
+              mockDomainEventPublisher,
+            ),
+          ),
+        );
 
       const result = await Effect.runPromise(program);
 
@@ -423,16 +552,30 @@ describe('Repository Factory', () => {
 
   describe('createRepositoryWithConventions', () => {
     it('should create repository using convention-based mapping', async () => {
-      const config = {
+      const config: ConventionConfig<
+        User,
+        UserEntity,
+        UserQueryParams,
+        typeof UserTrait
+      > = {
         entityClass: UserEntity,
         domainTrait: UserTrait,
         relations: ['profile'] as const,
       };
 
-      const program = Effect.gen(function*() {
+      const program = Effect.gen(function* () {
         const repository = yield* createRepositoryWithConventions(config);
         return repository;
-      }).pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)));
+      })
+        .pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)))
+        .pipe(
+          Effect.provide(
+            Layer.succeed(
+              DomainEventPublisherContext,
+              mockDomainEventPublisher,
+            ),
+          ),
+        );
 
       const repository = await Effect.runPromise(program);
 
@@ -442,22 +585,34 @@ describe('Repository Factory', () => {
     });
 
     it('should work with aggregate roots', async () => {
-      const config = {
+      const config: ConventionConfig<
+        Order,
+        OrderEntity,
+        OrderQueryParams,
+        typeof OrderTrait
+      > = {
         entityClass: OrderEntity,
         domainTrait: OrderTrait,
         relations: ['items'] as const,
-        customMappings: {
-          prepareQuery: (params: OrderQueryParams) => ({
-            customerId: params.customerId,
-            status: params.status,
-          }),
-        },
+        prepareQuery: (params: OrderQueryParams) => ({
+          customerId: params.customerId,
+          status: params.status,
+        }),
       };
 
-      const program = Effect.gen(function*() {
+      const program = Effect.gen(function* () {
         const repository = yield* createRepositoryWithConventions(config);
         return repository;
-      }).pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)));
+      })
+        .pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)))
+        .pipe(
+          Effect.provide(
+            Layer.succeed(
+              DomainEventPublisherContext,
+              mockDomainEventPublisher,
+            ),
+          ),
+        );
 
       const repository = await Effect.runPromise(program);
 
@@ -468,30 +623,45 @@ describe('Repository Factory', () => {
   describe('Functional Builder Pattern', () => {
     it('should work with pipe composition', async () => {
       const repositoryEffect = pipe(
-        repositoryBuilder<Entity<UserProps>, UserEntity, UserQueryParams>(
-          UserEntity,
-        ),
+        repositoryBuilder<User, UserEntity, UserQueryParams>(UserEntity),
         withRelations(['profile']),
-        withDomainMapper((entity: UserEntity) =>
-          UserTrait.parse({
-            name: entity.name,
-            email: entity.email,
-            isActive: entity.isActive,
-            registeredAt: entity.registeredAt,
-          }),
+        withDomainMapper((entity) =>
+          pipe(
+            UserTrait.parse({
+              name: entity.name,
+              email: entity.email,
+              isActive: entity.isActive,
+              registeredAt: entity.registeredAt,
+            }),
+            Effect.mapError((error) =>
+              OperationException.new('TO_ORM_FAILED', error.toString()),
+            ),
+          ),
         ),
-        withQueryMapper((params: UserQueryParams) => ({
-          id: params.id,
-          email: params.email,
-          isActive: params.isActive,
-        })),
+        withQueryMapper(
+          (params: UserQueryParams) =>
+            ({
+              id: params.id,
+              email: params.email,
+              isActive: params.isActive,
+            }) as FindOptionsWhere<UserEntity>,
+        ),
         build,
       );
 
-      const program = Effect.gen(function*() {
+      const program = Effect.gen(function* () {
         const repository = yield* repositoryEffect;
         return repository;
-      }).pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)));
+      })
+        .pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)))
+        .pipe(
+          Effect.provide(
+            Layer.succeed(
+              DomainEventPublisherContext,
+              mockDomainEventPublisher,
+            ),
+          ),
+        );
 
       const repository = await Effect.runPromise(program);
 
@@ -501,19 +671,26 @@ describe('Repository Factory', () => {
     });
 
     it('should create layers with functional builder', () => {
-      const UserRepositoryTag =
-        Context.Tag<RepositoryPort<Entity<UserProps>>>();
+      class UserRepositoryTag extends Context.Tag('UserRepository')<
+        UserRepositoryTag,
+        RepositoryPort<User>
+      >() {}
 
       const repositoryLayer = pipe(
-        repositoryBuilder<Entity<UserProps>, UserEntity>(UserEntity),
+        repositoryBuilder<User, UserEntity>(UserEntity),
         withRelations(['profile']),
         withDomainMapper((entity: UserEntity) =>
-          UserTrait.parse({
-            name: entity.name,
-            email: entity.email,
-            isActive: entity.isActive,
-            registeredAt: entity.registeredAt,
-          }),
+          pipe(
+            UserTrait.parse({
+              name: entity.name,
+              email: entity.email,
+              isActive: entity.isActive,
+              registeredAt: entity.registeredAt,
+            }),
+            Effect.mapError((error) =>
+              OperationException.new('TO_ORM_FAILED', error.toString()),
+            ),
+          ),
         ),
         buildLayer(UserRepositoryTag),
       );
@@ -524,42 +701,65 @@ describe('Repository Factory', () => {
 
   describe('Repository Operations', () => {
     it('should save an entity correctly', async () => {
-      const config = {
+      const config: RepositoryConfig<User, UserEntity, UserQueryParams> = {
         entityClass: UserEntity,
         relations: [] as const,
         mappers: {
           toDomain: (entity: UserEntity) =>
-            UserTrait.parse({
-              name: entity.name,
-              email: entity.email,
-              isActive: entity.isActive,
-              registeredAt: entity.registeredAt,
-            }),
-          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+            pipe(
+              UserTrait.parse({
+                name: entity.name,
+                email: entity.email,
+                isActive: entity.isActive,
+                registeredAt: entity.registeredAt,
+              }),
+              Effect.mapError((error) =>
+                OperationException.new('TO_ORM_FAILED', error.toString()),
+              ),
+            ),
+          toOrm: (
+            domain: AggregateRoot<UserProps>,
+            existing: Option.Option<UserEntity>,
+            repo: Repository<UserEntity>,
+          ) =>
             Effect.succeed(
               repo.create({
-                ...Option.getOrElse(existing, () => ({}) as UserEntity,
-                id: domain.id,
-                name: domain.props.name,
-                email: domain.props.email,
-                isActive: domain.props.isActive,
-                registeredAt: domain.props.registeredAt,
-                createdAt: domain.createdAt,
-                updatedAt: Option.getOrUndefined(domain.updatedAt),
-              })
+                ...Option.getOrElse(
+                  existing,
+                  () =>
+                    ({
+                      id: domain.id,
+                      name: domain.props.name,
+                      email: domain.props.email,
+                      isActive: domain.props.isActive,
+                      registeredAt: domain.props.registeredAt,
+                      createdAt: domain.createdAt,
+                      updatedAt: Option.getOrUndefined(domain.updatedAt),
+                    }) as UserEntity,
+                ),
+              }),
             ),
-          prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
         },
+        prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
       };
 
       mockRepository.save = jest.fn().mockResolvedValue({});
 
-      const program = Effect.gen(function*() {
+      const program = Effect.gen(function* () {
         const repository = yield* createRepository(config);
         const user = yield* createMockUser();
         yield* repository.save(user);
         return user;
-      }).pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)));
+      })
+        .pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)))
+        .pipe(
+          Effect.provide(
+            Layer.succeed(
+              DomainEventPublisherContext,
+              mockDomainEventPublisher,
+            ),
+          ),
+        );
 
       await Effect.runPromise(program);
 
@@ -587,42 +787,65 @@ describe('Repository Factory', () => {
       mockRepository.find = jest.fn().mockResolvedValue(mockEntities);
       mockRepository.count = jest.fn().mockResolvedValue(2);
 
-      const config = {
+      const config: RepositoryConfig<User, UserEntity, UserQueryParams> = {
         entityClass: UserEntity,
         relations: [] as const,
         mappers: {
           toDomain: (entity: UserEntity) =>
-            UserTrait.parse({
-              name: entity.name,
-              email: entity.email,
-              isActive: entity.isActive,
-              registeredAt: entity.registeredAt,
-            }),
-          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+            pipe(
+              UserTrait.parse({
+                name: entity.name,
+                email: entity.email,
+                isActive: entity.isActive,
+                registeredAt: entity.registeredAt,
+              }),
+              Effect.mapError((error) =>
+                OperationException.new('TO_ORM_FAILED', error.toString()),
+              ),
+            ),
+          toOrm: (
+            domain: AggregateRoot<UserProps>,
+            existing: Option.Option<UserEntity>,
+            repo: Repository<UserEntity>,
+          ) =>
             Effect.succeed(
               repo.create({
-                ...Option.getOrElse(existing, () => ({}) as UserEntity,
-                id: domain.id,
-                name: domain.props.name,
-                email: domain.props.email,
-                isActive: domain.props.isActive,
-                registeredAt: domain.props.registeredAt,
-                createdAt: domain.createdAt,
-                updatedAt: Option.getOrUndefined(domain.updatedAt),
-              })
+                ...Option.getOrElse(
+                  existing,
+                  () =>
+                    ({
+                      id: domain.id,
+                      name: domain.props.name,
+                      email: domain.props.email,
+                      isActive: domain.props.isActive,
+                      registeredAt: domain.props.registeredAt,
+                      createdAt: domain.createdAt,
+                      updatedAt: Option.getOrUndefined(domain.updatedAt),
+                    }) as UserEntity,
+                ),
+              }),
             ),
-          prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
         },
+        prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
       };
 
-      const program = Effect.gen(function*() {
+      const program = Effect.gen(function* () {
         const repository = yield* createRepository(config);
         const result = yield* repository.findManyPaginated({
           params: { isActive: true },
           pagination: { skip: 0, limit: 10 },
         });
         return result;
-      }).pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)));
+      })
+        .pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)))
+        .pipe(
+          Effect.provide(
+            Layer.succeed(
+              DomainEventPublisherContext,
+              mockDomainEventPublisher,
+            ),
+          ),
+        );
 
       const result = await Effect.runPromise(program);
 
@@ -635,7 +858,7 @@ describe('Repository Factory', () => {
 
   describe('Error Handling', () => {
     it('should handle mapping errors properly', async () => {
-      const config = {
+      const config: RepositoryConfig<User, UserEntity, UserQueryParams> = {
         entityClass: UserEntity,
         relations: [] as const,
         mappers: {
@@ -643,21 +866,30 @@ describe('Repository Factory', () => {
             Effect.fail(
               OperationException.new('MAPPING_ERROR', 'Failed to map entity'),
             ),
-          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+          toOrm: (
+            domain: AggregateRoot<UserProps>,
+            existing: Option.Option<UserEntity>,
+            repo: Repository<UserEntity>,
+          ) =>
             Effect.succeed(
               repo.create({
-                ...Option.getOrElse(existing, () => ({}) as UserEntity,
-                id: domain.id,
-                name: domain.props.name,
-                email: domain.props.email,
-                isActive: domain.props.isActive,
-                registeredAt: domain.props.registeredAt,
-                createdAt: domain.createdAt,
-                updatedAt: Option.getOrUndefined(domain.updatedAt),
-              })
+                ...Option.getOrElse(
+                  existing,
+                  () =>
+                    ({
+                      id: domain.id,
+                      name: domain.props.name,
+                      email: domain.props.email,
+                      isActive: domain.props.isActive,
+                      registeredAt: domain.props.registeredAt,
+                      createdAt: domain.createdAt,
+                      updatedAt: Option.getOrUndefined(domain.updatedAt),
+                    }) as UserEntity,
+                ),
+              }),
             ),
-          prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
         },
+        prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
       };
 
       mockRepository.findOne = jest.fn().mockResolvedValue({
@@ -666,51 +898,83 @@ describe('Repository Factory', () => {
         email: 'john@example.com',
       });
 
-      const program = Effect.gen(function*() {
+      const program = Effect.gen(function* () {
         const repository = yield* createRepository(config);
         yield* repository.findOne({ id: 'test-id' });
-      }).pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)));
+      })
+        .pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)))
+        .pipe(
+          Effect.provide(
+            Layer.succeed(
+              DomainEventPublisherContext,
+              mockDomainEventPublisher,
+            ),
+          ),
+        );
 
       await expect(Effect.runPromise(program)).rejects.toThrow();
     });
 
     it('should handle database errors properly', async () => {
-      const config = {
+      const config: RepositoryConfig<User, UserEntity, UserQueryParams> = {
         entityClass: UserEntity,
         relations: [] as const,
         mappers: {
           toDomain: (entity: UserEntity) =>
-            UserTrait.parse({
-              name: entity.name,
-              email: entity.email,
-              isActive: entity.isActive,
-              registeredAt: entity.registeredAt,
-            }),
-          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+            pipe(
+              UserTrait.parse({
+                name: entity.name,
+                email: entity.email,
+                isActive: entity.isActive,
+                registeredAt: entity.registeredAt,
+              }),
+              Effect.mapError((error) =>
+                OperationException.new('TO_ORM_FAILED', error.toString()),
+              ),
+            ),
+          toOrm: (
+            domain: AggregateRoot<UserProps>,
+            existing: Option.Option<UserEntity>,
+            repo: Repository<UserEntity>,
+          ) =>
             Effect.succeed(
               repo.create({
-                ...Option.getOrElse(existing, () => ({}) as UserEntity,
-                id: domain.id,
-                name: domain.props.name,
-                email: domain.props.email,
-                isActive: domain.props.isActive,
-                registeredAt: domain.props.registeredAt,
-                createdAt: domain.createdAt,
-                updatedAt: Option.getOrUndefined(domain.updatedAt),
-              })
+                ...Option.getOrElse(
+                  existing,
+                  () =>
+                    ({
+                      id: domain.id,
+                      name: domain.props.name,
+                      email: domain.props.email,
+                      isActive: domain.props.isActive,
+                      registeredAt: domain.props.registeredAt,
+                      createdAt: domain.createdAt,
+                      updatedAt: Option.getOrUndefined(domain.updatedAt),
+                    }) as UserEntity,
+                ),
+              }),
             ),
-          prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
         },
+        prepareQuery: (params: UserQueryParams) => ({ id: params.id }),
       };
 
       mockRepository.findOne = jest
         .fn()
         .mockRejectedValue(new Error('Database error'));
 
-      const program = Effect.gen(function*() {
+      const program = Effect.gen(function* () {
         const repository = yield* createRepository(config);
         yield* repository.findOne({ id: 'test-id' });
-      }).pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)));
+      })
+        .pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)))
+        .pipe(
+          Effect.provide(
+            Layer.succeed(
+              DomainEventPublisherContext,
+              mockDomainEventPublisher,
+            ),
+          ),
+        );
 
       await expect(Effect.runPromise(program)).rejects.toThrow();
     });
@@ -718,50 +982,73 @@ describe('Repository Factory', () => {
 
   describe('Domain Events', () => {
     it('should handle domain events in aggregate roots', async () => {
-      const config = {
+      const config: RepositoryConfig<Order, OrderEntity, OrderQueryParams> = {
         entityClass: OrderEntity,
         relations: [] as const,
         mappers: {
           toDomain: (entity: OrderEntity) =>
-            OrderTrait.parse({
-              customerId: entity.customerId,
-              items: JSON.parse(entity.items || '[]'),
-              status: entity.status as any,
-              total: entity.total,
-            }),
-          toOrm: (domain: AggregateRoot<OrderProps>, existing: Option.Option<OrderEntity>, repo: Repository<OrderEntity>) =>
+            pipe(
+              OrderTrait.parse({
+                customerId: entity.customerId,
+                items: JSON.parse(entity.items || '[]'),
+                status: entity.status as any,
+                total: entity.total,
+              }),
+              Effect.mapError((error) =>
+                OperationException.new('TO_ORM_FAILED', error.toString()),
+              ),
+            ),
+          toOrm: (
+            domain: AggregateRoot<OrderProps>,
+            existing: Option.Option<OrderEntity>,
+            repo: Repository<OrderEntity>,
+          ) =>
             Effect.succeed(
               repo.create({
-                ...Option.getOrElse(existing, () => ({}) as OrderEntity,
-                id: domain.id,
-                customerId: domain.props.customerId,
-                items: JSON.stringify(domain.props.items),
-                status: domain.props.status,
-                total: domain.props.total,
-                createdAt: domain.createdAt,
-                updatedAt: Option.getOrUndefined(domain.updatedAt),
-              })
+                ...Option.getOrElse(
+                  existing,
+                  () =>
+                    ({
+                      id: domain.id,
+                      customerId: domain.props.customerId,
+                      items: JSON.stringify(domain.props.items),
+                      status: domain.props.status,
+                      total: domain.props.total,
+                      createdAt: domain.createdAt,
+                      updatedAt: Option.getOrUndefined(domain.updatedAt),
+                    }) as OrderEntity,
+                ),
+              }),
             ),
-          prepareQuery: (params: OrderQueryParams) => ({ id: params.id }),
         },
+        prepareQuery: (params: OrderQueryParams) => ({ id: params.id }),
       };
 
       mockRepository.save = jest.fn().mockResolvedValue({});
 
-      const program = Effect.gen(function*() {
+      const program = Effect.gen(function* () {
         const repository = yield* createRepository(config);
         const order = yield* createMockOrder();
-
-        // Add item to trigger domain event
-        const orderWithItem = yield* OrderTrait.addItem({
-          productId: IdentifierTrait.uuid(),
+        const orderItem = yield* OrderItemTrait.new({
+          productId: IdentifierTrait.uuid().toString(),
           quantity: 2,
           price: 10.0,
-        })(order);
+        });
+        // Add item to trigger domain event
+        const orderWithItem = yield* OrderTrait.addItem(orderItem)(order);
 
         yield* repository.save(orderWithItem);
         return orderWithItem;
-      }).pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)));
+      })
+        .pipe(Effect.provide(Layer.succeed(DataSourceContext, mockDataSource)))
+        .pipe(
+          Effect.provide(
+            Layer.succeed(
+              DomainEventPublisherContext,
+              mockDomainEventPublisher,
+            ),
+          ),
+        );
 
       const result = await Effect.runPromise(program);
 
@@ -773,39 +1060,53 @@ describe('Repository Factory', () => {
 
   describe('Type Safety', () => {
     it('should enforce correct types for query parameters', () => {
-      const config = {
+      const config: RepositoryConfig<User, UserEntity, UserQueryParams> = {
         entityClass: UserEntity,
         relations: [] as const,
         mappers: {
           toDomain: (entity: UserEntity) =>
-            UserTrait.parse({
-              name: entity.name,
-              email: entity.email,
-              isActive: entity.isActive,
-              registeredAt: entity.registeredAt,
-            }),
-          toOrm: (domain: AggregateRoot<UserProps>, existing: Option.Option<UserEntity>, repo: Repository<UserEntity>) =>
+            pipe(
+              UserTrait.parse({
+                name: entity.name,
+                email: entity.email,
+                isActive: entity.isActive,
+                registeredAt: entity.registeredAt,
+              }),
+              Effect.mapError((error) =>
+                OperationException.new('TO_ORM_FAILED', error.toString()),
+              ),
+            ),
+          toOrm: (
+            domain: AggregateRoot<UserProps>,
+            existing: Option.Option<UserEntity>,
+            repo: Repository<UserEntity>,
+          ) =>
             Effect.succeed(
               repo.create({
-                ...Option.getOrElse(existing, () => ({}) as UserEntity,
-                id: domain.id,
-                name: domain.props.name,
-                email: domain.props.email,
-                isActive: domain.props.isActive,
-                registeredAt: domain.props.registeredAt,
-                createdAt: domain.createdAt,
-                updatedAt: Option.getOrUndefined(domain.updatedAt),
-              })
+                ...Option.getOrElse(
+                  existing,
+                  () =>
+                    ({
+                      id: domain.id,
+                      name: domain.props.name,
+                      email: domain.props.email,
+                      isActive: domain.props.isActive,
+                      registeredAt: domain.props.registeredAt,
+                      createdAt: domain.createdAt,
+                      updatedAt: Option.getOrUndefined(domain.updatedAt),
+                    }) as UserEntity,
+                ),
+              }),
             ),
-          prepareQuery: (params: UserQueryParams) => {
-            // This should compile with correct types
-            const validParams = {
-              id: params.id,
-              email: params.email,
-              isActive: params.isActive,
-            };
-            return validParams;
-          },
+        },
+        prepareQuery: (params: UserQueryParams) => {
+          // This should compile with correct types
+          const validParams = {
+            id: params.id,
+            email: params.email,
+            isActive: params.isActive,
+          };
+          return validParams;
         },
       };
 
@@ -816,7 +1117,7 @@ describe('Repository Factory', () => {
     });
 
     it('should enforce correct domain model types', async () => {
-      const program = Effect.gen(function*() {
+      const program = Effect.gen(function* () {
         const user = yield* createMockUser();
 
         // These should be type-safe

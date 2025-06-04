@@ -5,16 +5,16 @@ import { GetProps } from 'src/typeclasses';
 import { Effect } from 'effect';
 import { BaseException } from '../exception';
 
-export type DomainModel<
+export interface DomainModel<
   Props extends ReadonlyRecord<string, unknown> = ReadonlyRecord<
     string,
     unknown
   >,
-> = {
+> {
   readonly _tag: string;
   readonly props: Props;
   readonly createdAt: Date;
-};
+}
 
 export type PropsParser<T extends DomainModel = DomainModel, I = unknown> = (
   raw: I,

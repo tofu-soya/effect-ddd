@@ -3,7 +3,7 @@ import * as Option from 'effect/Option';
 import { ParseResult, Parser } from './validation';
 import { GetProps } from 'src/typeclasses';
 import { Effect } from 'effect';
-import { BaseException } from './exception';
+import { BaseException } from '@model/exception';
 
 export type DomainModel<
   Props extends ReadonlyRecord<string, unknown> = ReadonlyRecord<

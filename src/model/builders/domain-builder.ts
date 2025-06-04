@@ -437,7 +437,16 @@ const withAggregateCommand =
   (
     config: TConfig,
   ): TConfig & {
-    commands: TConfig['commands'] & Record<K, CommandFunction<any, I>>;
+    commands: TConfig['commands'] &
+      Record<
+        K,
+        CommandFunction<
+          TConfig extends AggregateConfig<infer A, any, any, any, any, any>
+            ? A
+            : never,
+          I
+        >
+      >;
   } => {
     // Ensure we only accept AggregateConfig
     if (!('eventHandlers' in config)) {

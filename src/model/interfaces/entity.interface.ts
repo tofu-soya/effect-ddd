@@ -65,7 +65,7 @@ export type EntityInvariantParser<
 export type CommandResult<DM extends Entity> = Effect.Effect<
   DM,
   CoreException,
-  any
+  never
 >;
 
 export type CommandOnModel<DM extends Entity> = (

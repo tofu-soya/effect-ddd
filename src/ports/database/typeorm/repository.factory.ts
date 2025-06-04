@@ -1,7 +1,7 @@
 // src/model/effect/factories/repository.factory.ts
 
 import { Effect, Context, Layer, pipe, Option } from 'effect';
-import { ObjectLiteral, FindOptionsWhere, Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import {
   AggregateRoot,
   AggregateRootTrait,
@@ -13,12 +13,13 @@ import {
   DataSourceContext,
 } from '../../../ports/database/typeorm/effect-repository.factory';
 import { BaseException, OperationException } from '@model/exception';
+import { AggregateTypeORMEntityBase } from './base-entity';
 
 // ===== TYPES =====
 
 export interface RepositoryConfig<
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams = any,
 > {
   readonly entityClass: new () => OrmEntity;
@@ -38,7 +39,7 @@ export interface RepositoryConfig<
 
 export interface PartialRepositoryConfig<
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams = any,
 > {
   readonly entityClass: new () => OrmEntity;
@@ -58,7 +59,7 @@ export interface PartialRepositoryConfig<
 
 export interface ConventionConfig<
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams = any,
   Trait extends AggregateRootTrait<DM, any, any> = AggregateRootTrait<DM>,
 > {
@@ -77,7 +78,7 @@ export interface ConventionConfig<
  * Auto-generate toDomain mapper using property mapping
  */
 const createAutoToDomainMapper =
-  <DM extends AggregateRoot, OrmEntity extends ObjectLiteral>(): ((
+  <DM extends AggregateRoot, OrmEntity extends AggregateTypeORMEntityBase>(): ((
     ormEntity: OrmEntity,
   ) => Effect.Effect<DM, BaseException, never>) =>
   (ormEntity: OrmEntity): Effect.Effect<DM, BaseException, never> =>
@@ -94,7 +95,7 @@ const createAutoToDomainMapper =
  * Auto-generate toOrm mapper using property mapping
  */
 const createAutoToOrmMapper =
-  <DM extends AggregateRoot, OrmEntity extends ObjectLiteral>(): ((
+  <DM extends AggregateRoot, OrmEntity extends AggregateTypeORMEntityBase>(): ((
     domain: DM,
     existing: Option.Option<OrmEntity>,
     repo: Repository<OrmEntity>,
@@ -114,7 +115,7 @@ const createAutoToOrmMapper =
  * Auto-generate prepareQuery function
  */
 const createAutoPrepareQuery =
-  <OrmEntity extends ObjectLiteral, QueryParams>(): ((
+  <OrmEntity extends AggregateTypeORMEntityBase, QueryParams>(): ((
     params: QueryParams,
   ) => FindOptionsWhere<OrmEntity>) =>
   (params: QueryParams): FindOptionsWhere<OrmEntity> =>
@@ -174,7 +175,7 @@ const convertDomainToOrmProps = (domain: any, existing?: any): any => {
  */
 const completeRepositoryConfig = <
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams = any,
 >(
   partial: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
@@ -195,7 +196,7 @@ const completeRepositoryConfig = <
  */
 const createConventionConfig = <
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams = any,
 >(
   config: ConventionConfig<DM, OrmEntity, QueryParams>,
@@ -205,7 +206,11 @@ const createConventionConfig = <
   mappers: {
     toDomain: (ormEntity: OrmEntity): Effect.Effect<DM, BaseException, never> =>
       pipe(
-        ormEntity,
+        {
+          id: ormEntity.id,
+          createdAt: Option.fromNullable(ormEntity.createdAt),
+          updatedAt: Option.fromNullable(ormEntity.updatedAt),
+        },
         config.domainTrait.parse,
         Effect.mapError((error) =>
           OperationException.new('TO_ORM_FAILED', error.toString()),
@@ -225,7 +230,7 @@ const createConventionConfig = <
  */
 export const createRepository = <
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   config: RepositoryConfig<DM, OrmEntity, QueryParams>,
@@ -248,7 +253,7 @@ export const createRepository = <
  */
 export const createRepositoryWithDefaults = <
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
@@ -259,7 +264,7 @@ export const createRepositoryWithDefaults = <
  */
 export const createRepositoryWithConventions = <
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
   Trait extends AggregateRootTrait<DM, any, any> = AggregateRootTrait<
     DM,
@@ -277,7 +282,7 @@ export const createRepositoryWithConventions = <
  */
 export const createRepositoryLayer = <
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
@@ -289,7 +294,7 @@ export const createRepositoryLayer = <
  */
 export const createRepositoryLayerWithDefaults = <
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
@@ -304,7 +309,7 @@ export const createRepositoryLayerWithDefaults = <
  */
 export const createRepositoryLayerWithConventions = <
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
@@ -321,7 +326,7 @@ export const createRepositoryLayerWithConventions = <
  */
 export interface BuilderState<
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams = any,
 > {
   readonly entityClass: new () => OrmEntity;
@@ -341,7 +346,7 @@ export interface BuilderState<
  */
 export const initBuilder = <
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams = any,
 >(
   entityClass: new () => OrmEntity,
@@ -356,7 +361,7 @@ export const initBuilder = <
 export const withRelations =
   <
     DM extends AggregateRoot,
-    OrmEntity extends ObjectLiteral,
+    OrmEntity extends AggregateTypeORMEntityBase,
     QueryParams = any,
   >(
     relations: readonly string[],
@@ -374,7 +379,7 @@ export const withRelations =
 export const withDomainMapper =
   <
     DM extends AggregateRoot,
-    OrmEntity extends ObjectLiteral,
+    OrmEntity extends AggregateTypeORMEntityBase,
     QueryParams = any,
   >(
     mapper: (ormEntity: OrmEntity) => Effect.Effect<DM, BaseException, never>,
@@ -392,7 +397,7 @@ export const withDomainMapper =
 export const withOrmMapper =
   <
     DM extends AggregateRoot,
-    OrmEntity extends ObjectLiteral,
+    OrmEntity extends AggregateTypeORMEntityBase,
     QueryParams = any,
   >(
     mapper: (
@@ -413,7 +418,7 @@ export const withOrmMapper =
 export const withQueryMapper =
   <
     DM extends AggregateRoot,
-    OrmEntity extends ObjectLiteral,
+    OrmEntity extends AggregateTypeORMEntityBase,
     QueryParams = any,
   >(
     mapper: (params: QueryParams) => FindOptionsWhere<OrmEntity>,
@@ -430,7 +435,7 @@ export const withQueryMapper =
  */
 export const build = <
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   state: BuilderState<DM, OrmEntity, QueryParams>,
@@ -454,7 +459,7 @@ export const build = <
 export const buildLayer =
   <
     DM extends AggregateRoot,
-    OrmEntity extends ObjectLiteral,
+    OrmEntity extends AggregateTypeORMEntityBase,
     QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
   >(
     repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
@@ -480,7 +485,7 @@ export const buildLayer =
  */
 export const repositoryBuilder = <
   DM extends AggregateRoot,
-  OrmEntity extends ObjectLiteral,
+  OrmEntity extends AggregateTypeORMEntityBase,
   QueryParams = any,
 >(
   entityClass: new () => OrmEntity,

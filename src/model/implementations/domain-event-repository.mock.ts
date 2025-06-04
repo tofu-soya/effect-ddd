@@ -1,7 +1,7 @@
 import { Effect, Layer } from 'effect';
-import { IDomainEvent, IDomainEventRepository } from './domain-event.interface';
-import { DomainEventRepositoryContext } from './domain-event-publisher.interface';
-import { BaseException, OperationException } from './exception';
+import { IDomainEvent, IDomainEventRepository } from '../interfaces';
+import { DomainEventRepositoryContext } from '../interfaces';
+import { BaseException, OperationException } from '../exception';
 
 /**
  * Mock implementation of the DomainEventRepository

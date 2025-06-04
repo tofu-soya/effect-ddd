@@ -40,51 +40,51 @@ export interface RepositoryPort<A extends AggregateRoot, QueryParams = any> {
   /**
    * Save an existing aggregate root
    */
-  save(aggregateRoot: A): Effect.Effect<void, BaseException, any>;
+  save(aggregateRoot: A): Effect.Effect<void, BaseException, never>;
 
   /**
    * Add a new aggregate root
    */
-  add(entity: A): Effect.Effect<void, BaseException, any>;
+  add(entity: A): Effect.Effect<void, BaseException, never>;
 
   /**
    * Save multiple aggregate roots
    */
-  saveMultiple(entities: A[]): Effect.Effect<void, BaseException, any>;
+  saveMultiple(entities: A[]): Effect.Effect<void, BaseException, never>;
 
   /**
    * Find one aggregate root by query parameters
    */
   findOne(
     params: QueryParams,
-  ): Effect.Effect<Option.Option<A>, BaseException, any>;
+  ): Effect.Effect<Option.Option<A>, BaseException, never>;
 
   /**
    * Find one aggregate root by query parameters
    */
-  findOneOrThrow(params: QueryParams): Effect.Effect<A, BaseException, any>;
+  findOneOrThrow(params: QueryParams): Effect.Effect<A, BaseException, never>;
 
   /**
    * Find one aggregate root by ID
    */
-  findOneByIdOrThrow(id: Identifier): Effect.Effect<A, BaseException, any>;
+  findOneByIdOrThrow(id: Identifier): Effect.Effect<A, BaseException, never>;
 
   /**
    * Find many aggregate roots by query parameters
    */
-  findMany(params: QueryParams): Effect.Effect<A[], BaseException, any>;
+  findMany(params: QueryParams): Effect.Effect<A[], BaseException, never>;
 
   /**
    * Find many aggregate roots with pagination
    */
   findManyPaginated(
     options: FindManyPaginatedParams<QueryParams>,
-  ): Effect.Effect<DataWithPaginationMeta<A[]>, BaseException, any>;
+  ): Effect.Effect<DataWithPaginationMeta<A[]>, BaseException, never>;
 
   /**
    * Delete an aggregate root
    */
-  delete(entity: A): Effect.Effect<void, BaseException, any>;
+  delete(entity: A): Effect.Effect<void, BaseException, never>;
 
   /**
    * Set correlation ID for tracking
