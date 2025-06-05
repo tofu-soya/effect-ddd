@@ -10,7 +10,6 @@ import {
 import { GetProps, Identifier, IdentifierTrait } from 'src/typeclasses';
 import { CoreException, ParseResult } from './validation';
 import { v4 as uuidv4 } from 'uuid';
-import { BaseException } from './exception';
 /**
  * Implementation of the generic entity trait
  */

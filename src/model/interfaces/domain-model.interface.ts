@@ -19,6 +19,7 @@ export interface DomainModel<
 export type PropsParser<T extends DomainModel = DomainModel, I = unknown> = (
   raw: I,
 ) => ParseResult<T['props']>;
+
 export interface IGenericDomainModelTrait {
   getTag: (dV: DomainModel) => string;
   unpack: <T extends DomainModel>(dV: T) => GetProps<T>;

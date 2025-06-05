@@ -7,6 +7,8 @@ import {
   AggregateRoot,
   ParseResult,
   IDomainEvent,
+  EntityTrait,
+  ValueObjectTrait,
 } from '../interfaces';
 import {
   AggGenericTrait,
@@ -21,6 +23,7 @@ import {
   Parser,
   WithEntityMetaInput,
 } from '../interfaces';
+import { parse } from 'path';
 
 // ===== Enhanced Type Definitions =====
 
@@ -144,10 +147,7 @@ interface EnhancedValueObjectTrait<
     string,
     QueryFunction<VO['props']> | QueryEffectFunction<VO['props']>
   > = Record<string, never>,
-> {
-  parse: (input: ParseParam) => ParseResult<VO>;
-  new: (params: NewParam) => ParseResult<VO>;
-}
+> extends ValueObjectTrait<VO, NewParam, ParseParam> {}
 
 interface EnhancedEntityTrait<
   E extends Entity,
@@ -158,7 +158,7 @@ interface EnhancedEntityTrait<
     QueryFunction<E['props']> | QueryEffectFunction<E['props']>
   > = Record<string, never>,
   C extends Record<string, CommandFunction<E>> = Record<string, never>,
-> extends EnhancedValueObjectTrait<E, NewParam, ParseParam, Q> {}
+> extends EntityTrait<E, NewParam, ParseParam> {}
 
 interface EnhancedAggregateRootTrait<
   A extends AggregateRoot,
@@ -699,6 +699,7 @@ function buildAggregateRoot<
 
   return {
     ...baseTrait,
+    parse: baseTrait.parse,
     new: newMethod,
     ...queryMethods,
     ...config.commands,
