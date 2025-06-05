@@ -66,7 +66,7 @@ export interface TypeormRepositoryConfig<
 export class DataSourceContext extends Context.Tag('DataSource')<
   DataSourceContext,
   DataSource
->() {}
+>() { }
 /**
  * Create a TypeORM repository implementation using Effect
  */
@@ -96,7 +96,7 @@ export function createTypeormRepository<
     return getEntityManager().getRepository(entityClass);
   };
 
-  return Effect.gen(function* () {
+  return Effect.gen(function*() {
     // Get the repository
     const publisher = yield* DomainEventPublisherContext;
     const repo = getRepository();
@@ -104,7 +104,7 @@ export function createTypeormRepository<
       /**
        * Save an existing aggregate root and publish its domain events
        */
-      return Effect.gen(function* () {
+      return Effect.gen(function*() {
         // Find existing entity if it exists
         const existingEntity = yield* Effect.tryPromise({
           try: () =>
@@ -112,11 +112,10 @@ export function createTypeormRepository<
               where: { id: aggregateRoot.id } as any,
               relations,
             }),
-          catch: () =>
-            OperationException.new(
-              'ENTITY_DO_NOT_EXIST',
-              'entity does not existed',
-            ),
+          catch: (error) => {
+            // throw error;
+            return OperationException.new('ENTITY_DO_NOT_EXIST', `${error}`),
+          },
         });
 
         // Convert domain model to ORM entity
@@ -149,7 +148,7 @@ export function createTypeormRepository<
       /**
        * Add a new aggregate root and publish its domain events
        */
-      return Effect.gen(function* () {
+      return Effect.gen(function*() {
         // Convert domain model to ORM entity
         const ormEntity = yield* toOrm(entity, Option.none(), repo);
 
@@ -229,7 +228,7 @@ export function createTypeormRepository<
     const findMany = (
       params: QueryParams,
     ): Effect.Effect<DM[], BaseException, never> => {
-      return Effect.gen(function* () {
+      return Effect.gen(function*() {
         // Get the repository
         const repo = getRepository();
 
@@ -257,7 +256,7 @@ export function createTypeormRepository<
     const findManyPaginated = (
       options: FindManyPaginatedParams<QueryParams>,
     ): Effect.Effect<DataWithPaginationMeta<DM[]>, BaseException, never> => {
-      return Effect.gen(function* () {
+      return Effect.gen(function*() {
         // Get the repository
         const repo = getRepository();
 
