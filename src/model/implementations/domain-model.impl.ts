@@ -22,7 +22,7 @@ export const GenericDomainModelTrait: IGenericDomainModelTrait = {
   // Default props parser - can be overridden by specific traits
   parsingProps: <I = unknown, T extends DomainModel = DomainModel>(
     raw: I,
-  ): ParseResult<T['props'], I> => {
+  ): ParseResult<T['props']> => {
     return Effect.succeed(raw as unknown as T['props']);
   },
 

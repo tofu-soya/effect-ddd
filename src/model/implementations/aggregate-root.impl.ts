@@ -42,7 +42,7 @@ export interface IAggGenericTrait
     ) => Effect.Effect<
       { props: GetProps<A>; domainEvents: IDomainEvent[] },
       CoreException,
-      any
+      never
     >,
   ) => (input: I) => CommandOnModel<A>;
 }
@@ -63,23 +63,37 @@ export const AggGenericTrait: IAggGenericTrait = {
 
   addDomainEvent: (event) => (aggregate) => ({
     ...aggregate,
-    domainEvents: [...aggregate.domainEvents, event],
+    domainEvents: [...(aggregate.domainEvents || []), event],
   }),
 
   addDomainEvents: (events) => (aggregate) => ({
     ...aggregate,
-    domainEvents: [...aggregate.domainEvents, ...events],
+    domainEvents: [...(aggregate.domainEvents || []), ...events],
   }),
   createAggregateRootTrait: <A extends AggregateRoot, N = unknown, P = unknown>(
     propsParser: AggregatePropsParser<A, P>,
     tag: string,
     options?: { autoGenId: boolean },
   ) => {
-    return EntityGenericTrait.createEntityTrait<A, N, P>(
+    const entityTrait = EntityGenericTrait.createEntityTrait<A, N, P>(
       propsParser,
       tag,
       options,
     );
+    return {
+      parse: (i) =>
+        pipe(
+          i,
+          entityTrait.parse,
+          Effect.map(AggGenericTrait.addDomainEvents([])),
+        ),
+      new: (i) =>
+        pipe(
+          i,
+          entityTrait.new,
+          Effect.map(AggGenericTrait.addDomainEvents([])),
+        ),
+    } as AggregateRootTrait<A, N, P>;
   },
   asCommand: <A extends AggregateRoot, I>(
     reducerLogic: (
@@ -90,7 +104,7 @@ export const AggGenericTrait: IAggGenericTrait = {
     ) => Effect.Effect<
       { props: GetProps<A>; domainEvents: IDomainEvent[] },
       CoreException,
-      any
+      never
     >,
   ) => {
     return (input: I): CommandOnModel<A> => {
