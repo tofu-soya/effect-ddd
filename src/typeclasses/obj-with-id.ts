@@ -1,4 +1,3 @@
-import * as Optic from '@fp-ts/optic';
 import { v4 as uuidv4 } from 'uuid';
 import { Schema } from 'effect';
 
@@ -24,5 +23,3 @@ export const IdentifierTrait: IidentifierTrait = {
 export type ObjectWithId = {
   readonly id: Identifier;
 };
-
-export const idLens = Optic.id<ObjectWithId>().at('id');
