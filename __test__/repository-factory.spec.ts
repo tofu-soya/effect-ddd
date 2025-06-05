@@ -57,6 +57,8 @@ import {
 import { DomainEventPublisherContext } from '@model/interfaces';
 import { MockDomainEventRepository } from '@model/implementations/domain-event-repository.mock';
 import { AggregateTypeORMEntityBase } from 'src/typeorm';
+import { DateSchema } from '@model/value-object/date';
+import { identity } from 'ramda';
 
 // ===== Test Domain Models =====
 
@@ -108,7 +110,7 @@ const UserSchema = Schema.Struct({
   name: SchemaBuilderTrait.CommonSchemas.NonEmptyString,
   email: SchemaBuilderTrait.CommonSchemas.Email,
   isActive: Schema.Boolean,
-  registeredAt: Schema.Date,
+  registeredAt: DateSchema,
 });
 
 const UserTrait = pipe(
@@ -416,7 +418,11 @@ describe('Repository Factory', () => {
         mappers: {
           toDomain: (entity: UserEntity) =>
             pipe(
-              UserTrait.parse(entity),
+              UserTrait.parse({
+                ...entity,
+                createdAt: Option.fromNullable(entity.createdAt),
+                updatedAt: Option.fromNullable(entity.updatedAt),
+              }),
               Effect.mapError((error) =>
                 OperationException.new('TO_ORM_FAILED', error.toString()),
               ),
@@ -492,18 +498,22 @@ describe('Repository Factory', () => {
         entityClass: UserEntity,
         relations: [] as const,
         mappers: {
-          toDomain: (entity: UserEntity) =>
-            pipe(
+          toDomain: (entity: UserEntity) => {
+            console.log('entity ', entity);
+            return pipe(
               UserTrait.parse({
                 name: entity.name,
                 email: entity.email,
                 isActive: entity.isActive,
                 registeredAt: entity.registeredAt,
+                createdAt: Option.fromNullable(entity.createdAt),
+                updatedAt: Option.fromNullable(entity.updatedAt),
               }),
               Effect.mapError((error) =>
                 OperationException.new('TO_ORM_FAILED', error.toString()),
               ),
-            ),
+            );
+          },
           toOrm: (
             domain: AggregateRoot<UserProps>,
             existing: Option.Option<UserEntity>,
@@ -632,6 +642,8 @@ describe('Repository Factory', () => {
               email: entity.email,
               isActive: entity.isActive,
               registeredAt: entity.registeredAt,
+              createdAt: Option.fromNullable(entity.createdAt),
+              updatedAt: Option.fromNullable(entity.updatedAt),
             }),
             Effect.mapError((error) =>
               OperationException.new('TO_ORM_FAILED', error.toString()),
@@ -686,6 +698,8 @@ describe('Repository Factory', () => {
               email: entity.email,
               isActive: entity.isActive,
               registeredAt: entity.registeredAt,
+              createdAt: Option.fromNullable(entity.createdAt),
+              updatedAt: Option.fromNullable(entity.updatedAt),
             }),
             Effect.mapError((error) =>
               OperationException.new('TO_ORM_FAILED', error.toString()),
@@ -712,6 +726,8 @@ describe('Repository Factory', () => {
                 email: entity.email,
                 isActive: entity.isActive,
                 registeredAt: entity.registeredAt,
+                createdAt: Option.fromNullable(entity.createdAt),
+                updatedAt: Option.fromNullable(entity.updatedAt),
               }),
               Effect.mapError((error) =>
                 OperationException.new('TO_ORM_FAILED', error.toString()),
@@ -744,6 +760,10 @@ describe('Repository Factory', () => {
       };
 
       mockRepository.save = jest.fn().mockResolvedValue({});
+      mockRepository.findOne = jest.fn().mockResolvedValue({});
+      mockRepository.create = jest
+        .fn()
+        .mockImplementation((v) => Promise.resolve(v));
 
       const program = Effect.gen(function* () {
         const repository = yield* createRepository(config);
@@ -798,6 +818,8 @@ describe('Repository Factory', () => {
                 email: entity.email,
                 isActive: entity.isActive,
                 registeredAt: entity.registeredAt,
+                createdAt: Option.fromNullable(entity.createdAt),
+                updatedAt: Option.fromNullable(entity.updatedAt),
               }),
               Effect.mapError((error) =>
                 OperationException.new('TO_ORM_FAILED', error.toString()),
@@ -927,6 +949,9 @@ describe('Repository Factory', () => {
                 email: entity.email,
                 isActive: entity.isActive,
                 registeredAt: entity.registeredAt,
+
+                createdAt: Option.fromNullable(entity.createdAt),
+                updatedAt: Option.fromNullable(entity.updatedAt),
               }),
               Effect.mapError((error) =>
                 OperationException.new('TO_ORM_FAILED', error.toString()),
@@ -993,6 +1018,8 @@ describe('Repository Factory', () => {
                 items: JSON.parse(entity.items || '[]'),
                 status: entity.status as any,
                 total: entity.total,
+                createdAt: Option.fromNullable(entity.createdAt),
+                updatedAt: Option.fromNullable(entity.updatedAt),
               }),
               Effect.mapError((error) =>
                 OperationException.new('TO_ORM_FAILED', error.toString()),
@@ -1025,6 +1052,10 @@ describe('Repository Factory', () => {
       };
 
       mockRepository.save = jest.fn().mockResolvedValue({});
+      mockRepository.findOne = jest.fn().mockResolvedValue({});
+      mockRepository.create = jest
+        .fn()
+        .mockImplementation((v) => Promise.resolve(v));
 
       const program = Effect.gen(function* () {
         const repository = yield* createRepository(config);
@@ -1071,6 +1102,8 @@ describe('Repository Factory', () => {
                 email: entity.email,
                 isActive: entity.isActive,
                 registeredAt: entity.registeredAt,
+                createdAt: Option.fromNullable(entity.createdAt),
+                updatedAt: Option.fromNullable(entity.updatedAt),
               }),
               Effect.mapError((error) =>
                 OperationException.new('TO_ORM_FAILED', error.toString()),

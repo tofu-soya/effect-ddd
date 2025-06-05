@@ -1,4 +1,3 @@
-import * as Optics from '@fp-ts/optic';
 import * as Eq from 'fp-ts/Eq';
 import * as S from 'fp-ts/string';
 import * as Record from 'fp-ts/Record';
@@ -20,19 +19,7 @@ import * as io from 'io-ts';
 import * as IoTypes from 'io-ts-types';
 export * as rd from 'ramda';
 import { pipe, flow, identity } from 'fp-ts/lib/function';
-import { ValidationErr } from '@model/invariant-validation';
 import { TE } from './fp';
-
-type SumException = ValidationErr;
-export type BaseTE<
-  T,
-  EX extends SumException = SumException,
-> = TaskEither.TaskEither<EX, T>;
-
-export type BaseEither<
-  T,
-  EX extends SumException = SumException,
-> = Either.Either<EX, T>;
 
 export const absordTE = <T extends TaskEither.TaskEither<any, any>>(te: T) =>
   pipe(
@@ -74,7 +61,6 @@ export const unsafeUnwrapTE = <E, R>(te: TE.TaskEither<E, R>) => {
 };
 
 export {
-  Optics,
   Eq,
   pipe,
   flow,
