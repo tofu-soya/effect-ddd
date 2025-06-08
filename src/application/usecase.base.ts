@@ -1,14 +1,15 @@
 import { Query } from './query.base';
 import { Command } from './command.base';
-import { BaseTE } from '@logic/fp';
+import { Effect } from 'effect';
+import { BaseException } from '@model/exception';
 
 export type CommandHandler<Cmd extends Command<unknown>, Res> = (
   command: Cmd,
-) => BaseTE<Res>;
+) => Effect.Effect<Res, BaseException>;
 
 export type QueryHandler<Q extends Query<unknown>, Res> = (
   query: Q,
-) => BaseTE<Res>;
+) => Effect.Effect<Res, BaseException>;
 
 export type UsecaseHandler =
   | CommandHandler<Command<unknown>, unknown>

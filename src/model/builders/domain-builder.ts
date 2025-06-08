@@ -9,6 +9,7 @@ import {
   IDomainEvent,
   EntityTrait,
   ValueObjectTrait,
+  PropsParser,
 } from '../interfaces';
 import {
   AggGenericTrait,
@@ -52,13 +53,6 @@ export type CommandFunction<E extends Entity, Input = any> = (
 export type EventHandlerFunction = (event: IDomainEvent) => void;
 
 /**
- * Props parser function type
- */
-export type PropsParser<Props = any, Input = any> = (
-  input: Input,
-) => ParseResult<Props>;
-
-/**
  * Extract query method types from a queries record
  */
 type QueryMethods<
@@ -95,7 +89,7 @@ interface DomainConfig<
 > {
   readonly tag: string;
   readonly schema?: Schema.Schema<unknown>;
-  readonly propsParser?: PropsParser<DM['props'], ParseParam>;
+  readonly propsParser?: PropsParser<DM, ParseParam>;
   readonly validators: ReadonlyArray<
     (props: DM['props']) => ParseResult<DM['props']>
   >;

@@ -1,5 +1,5 @@
-import { IDomainEvent } from '@model/effect';
 import { IEventBus } from '@model/event/event-bus';
+import { IDomainEvent } from '@model/interfaces';
 import { EventBus as NestEventBus, IEvent } from '@nestjs/cqrs';
 
 export class NestJsEventBusAdapter implements IEventBus {

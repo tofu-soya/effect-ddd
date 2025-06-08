@@ -71,7 +71,7 @@ export interface IAggGenericTrait
     ) => Effect.Effect<
       { props: GetProps<A>; domainEvents: IDomainEvent[] },
       CoreException,
-      any
+      never
     >,
   ) => (input: I) => CommandOnModel<A>;
 }

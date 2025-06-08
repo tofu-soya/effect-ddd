@@ -1,4 +1,4 @@
-import { Optics, Option, RRecord, pipe } from '@logic/fp';
+import { Option, RRecord, pipe } from '@logic/fp';
 import { v4 as uuidv4 } from 'uuid';
 
 export type LifeCycleContext = Record<string, never>;
@@ -10,8 +10,6 @@ export type LifeCycleMeta = {
   correlationId: string;
   context: RRecord.ReadonlyRecord<string, never>;
 };
-
-export const correlationIdLens = Optics.id<LifeCycleMeta>().at('correlationId');
 
 export const LifeCycleMetaMod = {
   factory: (

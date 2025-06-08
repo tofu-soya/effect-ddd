@@ -66,16 +66,14 @@ export interface IDomainEventPublisher {
   /**
    * Publish a domain event
    */
-  publish(
-    event: IDomainEvent,
-  ): Effect.Effect<void, BaseException, IDomainEventRepository>;
+  publish(event: IDomainEvent): Effect.Effect<void, BaseException, never>;
 
   /**
    * Publish multiple domain events
    */
   publishAll(
     events: ReadonlyArray<IDomainEvent>,
-  ): Effect.Effect<void, BaseException, IDomainEventRepository>;
+  ): Effect.Effect<void, BaseException, never>;
 }
 
 /**

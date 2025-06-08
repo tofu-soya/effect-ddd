@@ -4,7 +4,7 @@ import {
   AggGenericTrait,
   EntityGenericTrait,
   ValueObjectGenericTrait,
-} from '@model/effect';
+} from '@model/implementations';
 import { ValidationException } from '@model/exception';
 import { Effect, Schema } from 'effect';
 import 'reflect-metadata';

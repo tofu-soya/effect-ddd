@@ -7,20 +7,20 @@ import {
   EntityManager,
   ObjectLiteral,
 } from 'typeorm';
-import { AggregateRoot } from '../../../model/effect/aggregate-root.base';
 import { Identifier } from '../../../typeclasses/obj-with-id';
 // import {
 //   DataWithPaginationMeta,
 //   FindManyPaginatedParams,
 // } from '../repository.base';
-import { DomainEventPublisherContext } from '../../../model/effect/domain-event-publisher.interface';
 import {
   ENTITY_MANAGER_KEY,
   getNamespaceInstance,
 } from '../../../infra/nestjs/cls.middleware';
 import { BaseException, OperationException } from '@model/exception';
 import {
+  AggregateRoot,
   DataWithPaginationMeta,
+  DomainEventPublisherContext,
   FindManyPaginatedParams,
   RepositoryPort,
 } from '@model/interfaces';
@@ -66,7 +66,7 @@ export interface TypeormRepositoryConfig<
 export class DataSourceContext extends Context.Tag('DataSource')<
   DataSourceContext,
   DataSource
->() { }
+>() {}
 /**
  * Create a TypeORM repository implementation using Effect
  */
@@ -96,7 +96,7 @@ export function createTypeormRepository<
     return getEntityManager().getRepository(entityClass);
   };
 
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     // Get the repository
     const publisher = yield* DomainEventPublisherContext;
     const repo = getRepository();
@@ -104,7 +104,7 @@ export function createTypeormRepository<
       /**
        * Save an existing aggregate root and publish its domain events
        */
-      return Effect.gen(function*() {
+      return Effect.gen(function* () {
         // Find existing entity if it exists
         const existingEntity = yield* Effect.tryPromise({
           try: () =>
@@ -114,7 +114,7 @@ export function createTypeormRepository<
             }),
           catch: (error) => {
             // throw error;
-            return OperationException.new('ENTITY_DO_NOT_EXIST', `${error}`),
+            return OperationException.new('ENTITY_DO_NOT_EXIST', `${error}`);
           },
         });
 
@@ -148,7 +148,7 @@ export function createTypeormRepository<
       /**
        * Add a new aggregate root and publish its domain events
        */
-      return Effect.gen(function*() {
+      return Effect.gen(function* () {
         // Convert domain model to ORM entity
         const ormEntity = yield* toOrm(entity, Option.none(), repo);
 
@@ -228,7 +228,7 @@ export function createTypeormRepository<
     const findMany = (
       params: QueryParams,
     ): Effect.Effect<DM[], BaseException, never> => {
-      return Effect.gen(function*() {
+      return Effect.gen(function* () {
         // Get the repository
         const repo = getRepository();
 
@@ -256,7 +256,7 @@ export function createTypeormRepository<
     const findManyPaginated = (
       options: FindManyPaginatedParams<QueryParams>,
     ): Effect.Effect<DataWithPaginationMeta<DM[]>, BaseException, never> => {
-      return Effect.gen(function*() {
+      return Effect.gen(function* () {
         // Get the repository
         const repo = getRepository();
 

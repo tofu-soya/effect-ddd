@@ -3,49 +3,13 @@ import {
   AggregatePropsParser,
   AggregateRoot,
   AggregateRootTrait,
+  IAggGenericTrait,
 } from '../interfaces/aggregate-root.interface';
-import {
-  CommandOnModel,
-  IEntityGenericTrait,
-} from '../interfaces/entity.interface';
+import { CommandOnModel } from '../interfaces/entity.interface';
 import { GetProps, IdentifierTrait } from 'src/typeclasses';
 import { Effect, Option, pipe } from 'effect';
 import { CoreException } from '../interfaces/validation.interface';
 import { EntityGenericTrait } from './entity.impl';
-
-/**
- * Generic aggregate root trait interface
- */
-export interface IAggGenericTrait
-  extends Omit<IEntityGenericTrait, 'asCommand'> {
-  getDomainEvents: <A extends AggregateRoot>(
-    aggregate: A,
-  ) => ReadonlyArray<IDomainEvent>;
-  clearEvents: <A extends AggregateRoot>(aggregate: A) => A;
-  addDomainEvent: <A extends AggregateRoot>(
-    event: IDomainEvent,
-  ) => (aggregate: A) => A;
-  addDomainEvents: <A extends AggregateRoot>(
-    events: ReadonlyArray<IDomainEvent>,
-  ) => (aggregate: A) => A;
-  createAggregateRootTrait: <A extends AggregateRoot, N = unknown, P = unknown>(
-    propsParser: AggregatePropsParser<A, P>,
-    tag: string,
-    options?: { autoGenId: boolean },
-  ) => AggregateRootTrait<A, N, P>;
-  asCommand: <A extends AggregateRoot, I>(
-    reducerLogic: (
-      input: I,
-      props: GetProps<A>,
-      aggregate: A,
-      correlationId: string,
-    ) => Effect.Effect<
-      { props: GetProps<A>; domainEvents: IDomainEvent[] },
-      CoreException,
-      never
-    >,
-  ) => (input: I) => CommandOnModel<A>;
-}
 
 /**
  * Implementation of the generic aggregate root trait
