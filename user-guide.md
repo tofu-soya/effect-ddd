@@ -1735,6 +1735,8 @@ const IdentifierTrait: IidentifierTrait;
 **Example:**
 
 ```typescript
+import { IdentifierTrait } from 'effect-ddd';
+
 const id = IdentifierTrait.uuid(); // Generate new UUID
 const parsedId = yield * IdentifierTrait.parse('existing-uuid');
 ```
