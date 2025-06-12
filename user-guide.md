@@ -44,7 +44,7 @@ function createValueObject<
 **Example:**
 
 ```typescript
-import { createValueObject } from 'yl-ddd-ts/model/builders';
+import { createValueObject } from 'effect-ddd';
 
 // Simple value object where new() takes same input as props
 const SimpleConfig = createValueObject<{ value: string }>('Simple');
@@ -170,6 +170,7 @@ function withSchema<
 
 ```typescript
 import { Schema } from 'effect';
+import { createValueObject } from 'effect-ddd';
 
 const UserSchema = Schema.Struct({
   name: Schema.String,
@@ -372,8 +373,10 @@ function withNew<TConfig extends AnyDomainConfig>(
 **Example:**
 
 ```typescript
+import { createEntity } from 'effect-ddd';
+
 const UserTrait = pipe(
-  createEntity<UserProps, UserInput>('User'),
+  createEntity<UserProps, UserInput>('User'), 
   withSchema(UserSchema),
   withNew((input: UserInput, parse) =>
     Effect.gen(function* () {
@@ -711,6 +714,8 @@ function buildValueObject<T extends ValueObject, NewParams>(
 **Example:**
 
 ```typescript
+import { createValueObject } from 'effect-ddd';
+
 const EmailTrait = pipe(
   createValueObject<EmailProps, string>('Email'),
   withSchema(EmailSchema),
@@ -784,6 +789,8 @@ function buildAggregateRoot<T extends AggregateRoot, NewParams>(
 **Example:**
 
 ```typescript
+import { createAggregateRoot } from 'effect-ddd';
+
 const OrderTrait = pipe(
   createAggregateRoot<OrderProps, OrderInput>('Order'),
   withSchema(OrderSchema),
@@ -1571,6 +1578,8 @@ function create<P, A extends AggregateRoot>(params: {
 **Example:**
 
 ```typescript
+import { DomainEventTrait } from 'effect-ddd';
+
 const orderPlacedEvent = DomainEventTrait.create({
   name: 'ORDER_PLACED',
   payload: {
@@ -1660,6 +1669,8 @@ static withViolations(
 
 ```typescript
 // Simple validation error
+import { ValidationException } from 'effect-ddd';
+
 const validationError = ValidationException.new(
   'INVALID_EMAIL',
   'Email format is invalid',
