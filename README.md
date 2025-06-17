@@ -1,3 +1,4 @@
+```markdown
 # effect-ddd - Effect Domain Modeling Library
 
 A functional approach to Domain-Driven Design (DDD) in TypeScript using the Effect ecosystem with clean architecture principles.
@@ -5,25 +6,26 @@ A functional approach to Domain-Driven Design (DDD) in TypeScript using the Effe
 ## 🏗️ Architecture & Organization
 
 This library implements Domain-Driven Design patterns using functional programming principles with clear separation of concerns:
+```
 
-```
 src/
-├── model/                     # Core domain modeling
-│   ├── interfaces/           # Domain interfaces & contracts
-│   ├── implementations/      # Domain implementations
-│   ├── builders/            # Functional builders (domain, schema)
-│   ├── exception/           # Domain exceptions
-│   ├── value-object/        # Pre-built value objects
-│   └── event/              # Domain event system
-├── ports/                    # Ports & adapters
-│   ├── database/            # Database adapters
-│   │   └── typeorm/        # TypeORM repository factory
-│   ├── pubsub/             # Event messaging
-│   └── logger/             # Logging infrastructure
-├── application/             # Application layer (CQRS)
-├── logic/                   # Shared utilities & FP helpers
-└── typeclasses/            # Type utilities & constraints
-```
+├── model/ \# Core domain modeling
+│ ├── interfaces/ \# Domain interfaces & contracts
+│ ├── implementations/ \# Domain implementations
+│ ├── builders/ \# Functional builders (domain, schema)
+│ ├── exception/ \# Domain exceptions
+│ ├── value-object/ \# Pre-built value objects
+│ └── event/ \# Domain event system
+├── ports/ \# Ports & adapters
+│ ├── database/ \# Database adapters
+│ │ └── typeorm/ \# TypeORM repository factory
+│ ├── pubsub/ \# Event messaging
+│ └── logger/ \# Logging infrastructure
+├── application/ \# Application layer (CQRS)
+├── logic/ \# Shared utilities & FP helpers
+└── typeclasses/ \# Type utilities & constraints
+
+````
 
 ## 🚀 Key Features
 
@@ -39,58 +41,125 @@ src/
 
 ```bash
 yarn add yl-ddd-ts
-```
+````
 
 ## 🎯 Quick Start
 
 ### Value Objects with Schema Builder
+
+Define immutable data structures where equality is based on their values.
 
 ```typescript
 import { Effect, Schema, pipe } from 'effect';
 import {
   stringSchema,
   withNonEmpty,
-  withEmail,
   buildStringSchema,
   createValueObject,
   withSchema,
+  withQuery,
   buildValueObject,
+  ValueObject,
+  ValueObjectTrait,
 } from 'yl-ddd-ts';
 
-// Create email schema using schema builder
-const EmailSchema = pipe(
-  stringSchema(),
-  withEmail('Invalid email format'),
-  buildStringSchema,
-);
+// 1. Schema definition for Location properties
+const LocationSchema = Schema.Struct({
+  name: pipe(
+    stringSchema(),
+    withNonEmpty('Location name is required'),
+    buildStringSchema,
+  ),
+});
 
-// Create value object trait using domain builder
-const EmailTrait = pipe(
-  createValueObject<{ value: string }, string>('Email'),
-  withSchema(Schema.Struct({ value: EmailSchema })),
-  withQuery('getDomain', (props) => props.value.split('@')[1]),
+// 2. Types for Location Value Object
+type LocationProps = Schema.Schema.Type<typeof LocationSchema>;
+export type Location = ValueObject<LocationProps>;
+export type LocationParam = { name: string };
+
+// 3. Trait Interface for Location
+export interface ILocationTrait
+  extends ValueObjectTrait<Location, LocationParam, LocationParam> {
+  isInternational: () => boolean;
+  getCountry: () => string;
+}
+
+// 4. Create and build LocationTrait with queries
+export const LocationTrait: ILocationTrait = pipe(
+  createValueObject<Location, LocationParam>('Location'),
+  withSchema(LocationSchema),
+  withQuery('isInternational', (props) =>
+    ['US', 'USA', 'United States'].every(
+      (country) => !props.name.toUpperCase().includes(country.toUpperCase()),
+    ),
+  ),
+  withQuery('getCountry', (props) => {
+    const parts = props.name.split(',').map((p) => p.trim());
+    return parts[parts.length - 1] || props.name;
+  }),
   buildValueObject,
 );
 
 // Usage
-const email = yield * EmailTrait.new('user@example.com');
-console.log(email.getDomain()); // "example.com"
+async function usageExample() {
+  const location = await Effect.runPromise(
+    LocationTrait.new({ name: 'Hanoi, Vietnam' }),
+  );
+  console.log(location.getCountry()); // "Vietnam"
+  console.log(location.isInternational()); // true
+}
+usageExample();
 ```
 
 ### Entities with Commands
 
+Define domain objects with a distinct identity and managed mutable state via commands.
+
 ```typescript
+import { Effect, pipe, Schema } from 'effect';
 import {
   createEntity,
   withSchema,
-  withCommand,
   withQuery,
+  withCommand,
   buildEntity,
   CommonSchemas,
+  Entity,
+  EntityTrait,
+  ValidationException,
 } from 'yl-ddd-ts';
 
-// User entity with functional builder
-const UserTrait = pipe(
+// 1. Types for User properties and input
+type UserProps = {
+  name: string;
+  email: string;
+  isActive: boolean;
+};
+
+type UserInput = {
+  name: string;
+  email: string;
+};
+
+// 2. Schema definition for User
+const UserSchema = Schema.Struct({
+  name: CommonSchemas.NonEmptyString,
+  email: CommonSchemas.Email,
+  isActive: Schema.Boolean.pipe(Schema.optional).withDefault(() => false),
+});
+
+// 3. User Entity type
+export type User = Entity<UserProps>;
+
+// 4. Trait Interface for User
+export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
+  isActive: () => boolean;
+  getDisplayName: () => string;
+  activate: () => (user: User) => Effect.Effect<User, ValidationException>;
+}
+
+// 5. User entity with functional builder
+export const UserTrait: IUserTrait = pipe(
   createEntity<UserProps, UserInput>('User'),
   withSchema(UserSchema),
   withQuery('isActive', (props) => props.isActive),
@@ -98,33 +167,96 @@ const UserTrait = pipe(
   withCommand('activate', (_, props) =>
     Effect.succeed({ props: { ...props, isActive: true } }),
   ),
-  withCommand('updateEmail', (newEmail: string, props) =>
-    pipe(
-      CommonSchemas.Email.decode(newEmail),
-      Effect.map((email) => ({ props: { ...props, email } })),
-    ),
-  ),
   buildEntity,
 );
 
 // Usage
-const user = yield * UserTrait.new({ name: 'John', email: 'john@example.com' });
-const activeUser = yield * UserTrait.activate()(user);
+async function usageExample() {
+  const user = await Effect.runPromise(
+    UserTrait.new({ name: 'John', email: 'john@example.com' }),
+  );
+  console.log('Initial user active status:', user.isActive()); // false
+
+  const activeUser = await Effect.runPromise(UserTrait.activate()(user));
+  console.log('Activated user active status:', activeUser.isActive()); // true
+}
+usageExample();
 ```
 
 ### Aggregate Roots with Domain Events
 
+Define Entities that serve as consistency boundaries, managing internal state and emitting domain events.
+
 ```typescript
+import { Effect, pipe, Schema } from 'effect';
 import {
   createAggregateRoot,
+  withSchema,
   withAggregateCommand,
   withEventHandler,
   buildAggregateRoot,
   DomainEventTrait,
+  AggregateRoot,
+  AggregateRootTrait,
+  ValidationException,
+  IDomainEvent,
+  IdentifierTrait,
 } from 'yl-ddd-ts';
 
-const OrderTrait = pipe(
-  createAggregateRoot<OrderProps>('Order'),
+// Helper types and functions (simplified for README)
+type OrderItem = {
+  productId: string;
+  quantity: number;
+  price: number;
+  productName: string;
+};
+const calculateTotal = (items: OrderItem[]): number =>
+  items.reduce((sum, item) => sum + item.quantity * item.price, 0);
+
+// 1. Types for Order properties and input
+type OrderProps = {
+  customerId: string;
+  items: OrderItem[];
+  status: 'draft' | 'confirmed' | 'shipped';
+  total: number;
+};
+
+type OrderInput = {
+  customerId: string;
+};
+
+// 2. Schema for Order
+const OrderItemSchema = Schema.Struct({
+  productId: Schema.String,
+  quantity: Schema.Number,
+  price: Schema.Number,
+  productName: Schema.String,
+});
+
+const OrderSchema = Schema.Struct({
+  customerId: Schema.String,
+  items: Schema.Array(OrderItemSchema),
+  status: Schema.Literal('draft', 'confirmed', 'shipped'),
+  total: Schema.Number,
+});
+
+// 3. Aggregate type
+export type Order = AggregateRoot<OrderProps>;
+
+// 4. Trait Interface for Order
+export interface IOrderTrait
+  extends AggregateRootTrait<Order, OrderInput, OrderInput> {
+  addItem: (
+    item: OrderItem,
+  ) => (
+    order: Order,
+    correlationId: string,
+  ) => Effect.Effect<Order, ValidationException>;
+}
+
+// 5. OrderTrait definition
+export const OrderTrait: IOrderTrait = pipe(
+  createAggregateRoot<OrderProps, OrderInput>('Order'),
   withSchema(OrderSchema),
   withAggregateCommand(
     'addItem',
@@ -160,6 +292,28 @@ const OrderTrait = pipe(
   }),
   buildAggregateRoot,
 );
+
+// Usage
+async function usageExample() {
+  const order = await Effect.runPromise(
+    OrderTrait.new({ customerId: 'customer-123' }),
+  );
+  const newItem: OrderItem = {
+    productId: 'P001',
+    productName: 'Gizmo',
+    quantity: 1,
+    price: 100,
+  };
+  const updatedOrder = await Effect.runPromise(
+    OrderTrait.addItem(newItem)(order, IdentifierTrait.uuid()),
+  );
+  console.log('Order items count:', updatedOrder.unpack().items.length); // 1
+  console.log(
+    'Order has pending events:',
+    updatedOrder.getDomainEvents().length > 0,
+  ); // true
+}
+usageExample();
 ```
 
 ### Repository Factory
@@ -201,27 +355,37 @@ const ProductRepositoryLayer = pipe(
 
 ### Dual Parsing Strategy
 
-Choose between Effect Schema validation or custom parsing logic:
+Effect-DDD offers two powerful strategies for defining model structure and validation:
 
 ```typescript
-// Option 1: Schema-based (declarative)
+import { pipe } from 'effect';
+import {
+  createEntity,
+  withSchema,
+  buildEntity,
+  createAggregateRoot,
+  withPropsParser,
+  buildAggregateRoot,
+} from 'yl-ddd-ts';
+
+// Option 1: Schema-based (declarative and type-safe with Effect Schema)
 const UserTrait = pipe(
   createEntity('User'),
-  withSchema(UserSchema),
+  withSchema(UserSchema), // UserSchema defined using Schema Builder
   buildEntity,
 );
 
-// Option 2: Custom parser (flexible)
+// Option 2: Custom parser (flexible for complex, imperative logic)
 const OrderTrait = pipe(
   createAggregateRoot('Order'),
-  withPropsParser(complexOrderParser),
+  withPropsParser(complexOrderParser), // complexOrderParser is a custom Effect-based function
   buildAggregateRoot,
 );
 ```
 
 ### Schema Builder
 
-Create composable validation schemas:
+Create composable validation schemas using a functional builder pattern.
 
 ```typescript
 import {
@@ -229,10 +393,13 @@ import {
   numberSchema,
   objectSchema,
   withMinLength,
-  withPositive,
+  withPattern,
   withCrossFieldValidation,
   buildObjectSchema,
+  buildStringSchema,
+  CommonSchemas,
 } from 'yl-ddd-ts';
+import { pipe } from 'effect';
 
 const PasswordSchema = pipe(
   stringSchema(),
@@ -273,11 +440,20 @@ import {
   PositiveNumber,
   UUID,
 } from 'yl-ddd-ts';
+import { Schema } from 'effect';
 
 // Ready-to-use branded types with validation
-const email = yield * Schema.decode(Email)('user@example.com');
-const username = yield * Schema.decode(Username)('john_doe');
-const positiveNum = yield * Schema.decode(PositiveNumber)(42);
+async function usageExample() {
+  const email = await Effect.runPromise(
+    Schema.decode(Email)('user@example.com'),
+  );
+  const username = await Effect.runPromise(Schema.decode(Username)('john_doe'));
+  const positiveNum = await Effect.runPromise(
+    Schema.decode(PositiveNumber)(42),
+  );
+  console.log(email, username, positiveNum);
+}
+usageExample();
 ```
 
 ### Common Schemas
@@ -286,11 +462,11 @@ const positiveNum = yield * Schema.decode(PositiveNumber)(42);
 import { CommonSchemas } from 'yl-ddd-ts';
 
 // Pre-built common validations
-CommonSchemas.Email; // Email validation
-CommonSchemas.NonEmptyString; // Non-empty string
-CommonSchemas.PositiveNumber; // Number > 0
-CommonSchemas.Age; // Integer 0-150
-CommonSchemas.TimestampFields; // createdAt, updatedAt
+CommonSchemas.Email; // Schema for email validation
+CommonSchemas.NonEmptyString; // Schema for non-empty string
+CommonSchemas.PositiveNumber; // Schema for number > 0
+CommonSchemas.Age; // Schema for integer 0-150
+CommonSchemas.TimestampFields; // Schema for createdAt, updatedAt fields
 ```
 
 ## 🔄 CQRS & Application Layer
@@ -304,33 +480,49 @@ import {
   CommandTrait,
   QueryTrait,
 } from 'yl-ddd-ts';
+import { Effect, Option, Context } from 'effect';
+// Assuming User, CreateUserCommand, UserRepositoryTag are defined elsewhere
+declare type User = any;
+declare type CreateUserCommand = Command<{ name: string; email: string }>;
+declare const UserRepositoryTag: Context.Tag<any, any>; // Placeholder for RepositoryPort<User>
 
-// Command
+// Command Example
 const createUserCommand = CommandTrait.factory({
   props: { name: 'John', email: 'john@example.com' },
   lifecycle: Option.none,
 });
 
-// Query
+// Query Example
 const getUserQuery = QueryTrait.factory({
   props: { userId: '123' },
 });
 
-// Handlers
+// Command Handler Example
 const createUserHandler: CommandHandler<CreateUserCommand, User> = (command) =>
   Effect.gen(function* () {
-    const userRepo = yield* UserRepositoryTag;
-    const user = yield* UserTrait.new(CommandTrait.getProps(command));
-    yield* userRepo.add(user);
+    const userRepo = yield* UserRepositoryTag; // Access repository via context
+    const user = yield* UserTrait.new(CommandTrait.getProps(command)); // Create user domain model
+    yield* userRepo.add(user); // Save user via repository
     return user;
   });
+
+// Query Handler Example
+// const getUserHandler: QueryHandler<GetUserQuery, User> = (query) =>
+//   Effect.gen(function* () {
+//     const userRepo = yield* UserRepositoryTag;
+//     const userId = QueryTrait.queryProps('userId')(query);
+//     return yield* userRepo.findOneByIdOrThrow(userId);
+//   });
 ```
 
 ## 🧪 Testing
 
 ```typescript
-import { Effect } from 'effect';
+import { Effect, pipe } from 'effect';
 import { MockDomainEventRepositoryLayer } from 'yl-ddd-ts';
+// Assuming UserTrait and User are defined elsewhere
+declare const UserTrait: any;
+declare type User = any;
 
 // Test with mocked dependencies
 const testCreateUser = Effect.gen(function* () {
@@ -343,16 +535,17 @@ const testCreateUser = Effect.gen(function* () {
   expect(user.isActive()).toBe(true);
 }).pipe(Effect.provide(MockDomainEventRepositoryLayer));
 
-await Effect.runPromise(testCreateUser);
+// To run the test (in a test runner context)
+// await Effect.runPromise(testCreateUser);
 ```
 
 ## 📚 Documentation
 
-- **📖 [Complete User Guide](./user-guide.md)** - Comprehensive API documentation
-- **🏗️ [Domain Builder Guide](./src/model/builders/domain-builder.md)** - Functional domain modeling
-- **🔧 [Schema Builder Guide](./src/model/builders/schema-builder.md)** - Composable validation
-- **🗃️ [Repository Factory Guide](./src/ports/database/typeorm/repository.factory.md)** - Database integration
-- **📋 [Architecture Overview](./docs/architecture/overview.md)** - System design principles
+- **📖 [Complete User Guide](https://www.google.com/search?q=./user-guide.md)** - Comprehensive API documentation
+- **🏗️ [Domain Builder Guide](https://www.google.com/search?q=./src/model/builders/domain-builder.md)** - Functional domain modeling
+- **🔧 [Schema Builder Guide](https://www.google.com/search?q=./src/model/builders/schema-builder.md)** - Composable validation
+- **🗃️ [Repository Factory Guide](https://www.google.com/search?q=./src/ports/database/typeorm/repository.factory.md)** - Database integration
+- **📋 [Architecture Overview](https://www.google.com/search?q=./docs/architecture/overview.md)** - System design principles
 
 ## 🎯 When to Use
 
@@ -384,12 +577,12 @@ This library combines Domain-Driven Design with functional programming principle
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see:
+We welcome contributions\! Please see:
 
-- **🐛 [Issue Tracker](../../issues)** - Report bugs or request features
-- **💬 [Discussions](../../discussions)** - Ask questions or share ideas
-- **📖 [Contributing Guide](./CONTRIBUTING.md)** - Development guidelines
-- **📋 [Code of Conduct](./CODE_OF_CONDUCT.md)** - Community standards
+- **🐛 [suspicious link removed]** - Report bugs or request features
+- **💬 [suspicious link removed]** - Ask questions or share ideas
+- **📖 [Contributing Guide](https://www.google.com/search?q=./CONTRIBUTING.md)** - Development guidelines
+- **📋 [Code of Conduct](https://www.google.com/search?q=./CODE_OF_CODE.md)** - Community standards
 
 ## 📄 License
 
@@ -398,3 +591,7 @@ MIT © [Your Name]
 ---
 
 **Built with ❤️ using [Effect](https://effect.website) and TypeScript**
+
+```
+
+```
