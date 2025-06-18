@@ -1230,8 +1230,8 @@ import { createFutureDateSchema, createPastDateSchema, createTimestampFields, cr
 export const CommonSchemas = {
   // Identity schemas
   UUID: Schema.UUID,
-  Email: pipe(stringSchema(), withEmail(), buildStringSchema),
-  PhoneNumber: pipe(stringSchema(), withPhoneNumber(), buildStringSchema),
+  Email: Schema.String.pipe(Schema.pattern(/^[^@]+@[^@]+\.[^@]+$/)),
+  PhoneNumber: Schema.String.pipe(Schema.pattern(/^\+?[\d\s-]+$/)),
   URL: pipe(stringSchema(), withUrl(), buildStringSchema),
 
   // String schemas
