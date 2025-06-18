@@ -1,30 +1,29 @@
-# effect-ddd - Effect Domain Modeling Library
+# effect-ddd - Functional Domain-Driven Design with Effect
 
-A functional approach to Domain-Driven Design (DDD) in TypeScript using the Effect ecosystem with clean architecture principles.
+A TypeScript library for building domain models using functional programming principles and the Effect ecosystem.
 
-## 🏗️ Architecture & Organization
+## 🏗️ Architecture Overview
 
-This library implements Domain-Driven Design patterns using functional programming principles with clear separation of concerns:
+The library follows Clean Architecture principles with clear separation between domain, application, and infrastructure layers:
 
 ```
-
 src/
-├── model/ \# Core domain modeling
-│ ├── interfaces/ \# Domain interfaces & contracts
-│ ├── implementations/ \# Domain implementations
-│ ├── builders/ \# Functional builders (domain, schema)
-│ ├── exception/ \# Domain exceptions
-│ ├── value-object/ \# Pre-built value objects
-│ └── event/ \# Domain event system
-├── ports/ \# Ports & adapters
-│ ├── database/ \# Database adapters
-│ │ └── typeorm/ \# TypeORM repository factory
-│ ├── pubsub/ \# Event messaging
-│ └── logger/ \# Logging infrastructure
-├── application/ \# Application layer (CQRS)
-├── logic/ \# Shared utilities & FP helpers
-└── typeclasses/ \# Type utilities & constraints
-
+├── model/               # Core domain models
+│   ├── interfaces/      # Domain contracts
+│   ├── implementations/ # Domain implementations  
+│   ├── builders/        # Functional builders
+│   ├── exception/       # Domain exceptions
+│   ├── value-object/    # Value objects
+│   └── event/           # Domain events
+│
+├── ports/               # Ports & adapters
+│   ├── database/        # Database integrations
+│   ├── pubsub/         # Event messaging
+│   └── logger/         # Logging
+│
+├── application/         # Application layer (CQRS)
+├── logic/              # Shared utilities
+└── typeclasses/        # Type utilities
 ```
 
 ## 🚀 Key Features
@@ -40,64 +39,66 @@ src/
 ## 📦 Installation
 
 ```bash
-yarn add yl-ddd-ts
+# Using npm
+npm install effect-ddd
+
+# Using yarn
+yarn add effect-ddd
+
+# Using pnpm  
+pnpm add effect-ddd
 ```
 
-## 🎯 Quick Start
+## 🚀 Quick Start
 
-### Value Objects with Schema Builder
+### 1. Define a Value Object
 
-Define immutable data structures where equality is based on their values.
+Value objects represent immutable domain concepts where equality is based on values.
 
 ```typescript
-import { Effect, Schema, pipe } from 'effect';
+import { Effect, pipe } from 'effect';
+import { Schema } from '@effect/schema';
 import {
-  stringSchema,
-  withNonEmpty,
-  buildStringSchema,
   createValueObject,
   withSchema,
   withQuery,
   buildValueObject,
-  ValueObject,
-  ValueObjectTrait,
-} from 'yl-ddd-ts';
+  type ValueObject,
+  type ValueObjectTrait,
+} from 'effect-ddd';
 
-// 1. Schema definition for Location properties
+// 1. Define the schema
 const LocationSchema = Schema.Struct({
-  name: pipe(
-    stringSchema(),
-    withNonEmpty('Location name is required'),
-    buildStringSchema,
-  ),
+  name: Schema.String.pipe(
+    Schema.minLength(1, "Location name cannot be empty"),
+    Schema.maxLength(100)
 });
 
-// 2. Types for Location Value Object
+// 2. Define types
 type LocationProps = Schema.Schema.Type<typeof LocationSchema>;
 export type Location = ValueObject<LocationProps>;
-export type LocationParam = { name: string };
+export type LocationInput = { name: string };
 
-// 3. Trait Interface for Location
-export interface ILocationTrait
-  extends ValueObjectTrait<Location, LocationParam, LocationParam> {
+// 3. Define trait interface
+export interface LocationTrait
+  extends ValueObjectTrait<Location, LocationInput, LocationInput> {
   isInternational: () => boolean;
   getCountry: () => string;
 }
 
-// 4. Create and build LocationTrait with queries
-export const LocationTrait: ILocationTrait = pipe(
-  createValueObject<Location, LocationParam>('Location'),
+// 4. Build the trait
+export const LocationTrait: LocationTrait = pipe(
+  createValueObject<Location, LocationInput>('Location'),
   withSchema(LocationSchema),
-  withQuery('isInternational', (props) =>
-    ['US', 'USA', 'United States'].every(
-      (country) => !props.name.toUpperCase().includes(country.toUpperCase()),
-    ),
+  withQuery('isInternational', (props) => 
+    !['US', 'USA', 'United States'].some(c => 
+      props.name.toUpperCase().includes(c.toUpperCase())
+    )
   ),
-  withQuery('getCountry', (props) => {
-    const parts = props.name.split(',').map((p) => p.trim());
-    return parts[parts.length - 1] || props.name;
-  }),
-  buildValueObject,
+  withQuery('getCountry', (props) => 
+    props.name.split(',').pop()?.trim() || props.name
+  ),
+  buildValueObject
 );
 
 // Usage
@@ -111,23 +112,23 @@ async function usageExample() {
 usageExample();
 ```
 
-### Entities with Commands
+### 2. Define an Entity
 
-Define domain objects with a distinct identity and managed mutable state via commands.
+Entities have a unique identity and mutable state managed through commands.
 
 ```typescript
-import { Effect, pipe, Schema } from 'effect';
+import { Effect, pipe } from 'effect';
+import { Schema } from '@effect/schema';
 import {
   createEntity,
   withSchema,
-  withQuery,
   withCommand,
+  withQuery,
   buildEntity,
-  CommonSchemas,
-  Entity,
-  EntityTrait,
-  ValidationException,
-} from 'yl-ddd-ts';
+  type Entity,
+  type EntityTrait,
+  ValidationException
+} from 'effect-ddd';
 
 // 1. Types for User properties and input
 type UserProps = {
@@ -586,11 +587,15 @@ We welcome contributions\! Please see:
 
 ## 📄 License
 
-MIT © [Your Name]
+MIT © Effect DDD Contributors
 
 ---
 
-**Built with ❤️ using [Effect](https://effect.website) and TypeScript**
+**Built with:**
+
+- [Effect](https://effect.website) - Type-safe functional programming
+- [TypeScript](https://www.typescriptlang.org/) - Type-safe JavaScript
+- [Schema](https://github.com/effect-ts/schema) - Data validation and transformation
 
 ```
 
