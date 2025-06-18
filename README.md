@@ -263,7 +263,7 @@ export interface IOrderTrait
   extends AggregateRootTrait<Order, OrderInput, OrderInput> {
   getItemCount: OrderQuery<number>;
   getTotal: OrderQuery<number>;
-  addItem: (i: OrderItem) => CommandOnModel<Order, Order>;
+  addItem: (i: OrderItem) => CommandOnModel<Order>;
 }
 
 // 5. OrderTrait definition

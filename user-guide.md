@@ -452,12 +452,12 @@ export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
   getEmailDomain: UserQuery<string>;
   getPreferences: UserQuery<Effect.Effect<any, any, any>>;
   getSubscriptionStatus: UserQuery<Effect.Effect<any, any, any>>;
-  activate: (i: void) => CommandOnModel<User, User>;
-  updateEmail: (i: string) => CommandOnModel<User, User>;
+  activate: (i: void) => CommandOnModel<User>;
+  updateEmail: (i: string) => CommandOnModel<User>;
   updateProfile: (i: {
     name?: string;
     email?: string;
-  }) => CommandOnModel<User, User>;
+  }) => CommandOnModel<User>;
 }
 
 // Assume fetchUserPreferences and subscriptionService are defined elsewhere
@@ -1047,10 +1047,10 @@ These functions apply transformations and add behaviors to aggregate root config
     // Define Trait Interface
     export interface IOrderTrait
       extends AggregateRootTrait<Order, OrderInput, OrderInput> {
-      addItem: (i: OrderItem) => CommandOnModel<Order, Order>;
+      addItem: (i: OrderItem) => CommandOnModel<Order>;
       getItemCount: OrderQuery<number>;
       getTotal: OrderQuery<number>;
-      confirm: (i: void) => CommandOnModel<Order, Order>;
+      confirm: (i: void) => CommandOnModel<Order>;
     }
 
     // Schema definition
