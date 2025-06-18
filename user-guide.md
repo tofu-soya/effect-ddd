@@ -561,16 +561,20 @@ export const UserTrait: IUserTrait = pipe(
 
   - **Type Signature:**
 
-    TypeScript
-
-    ```
+    ```typescript
     function createEntity<
       E extends Entity,
       NewParams = E['props'],
       ParseParams = NewParams,
     >(
       tag: string,
-    ): EntityConfig<E, ParseParams, NewParams, Record<string, never>, Record<string, never>>;
+    ): EntityConfig<
+      E,
+      ParseParams,
+      NewParams,
+      Record<string, never>,
+      Record<string, never>
+    >;
     ```
 
   - **Parameters:**
@@ -582,11 +586,9 @@ export const UserTrait: IUserTrait = pipe(
   - **Returns:** `EntityConfig` - Configuration object that extends `DomainConfig` with command support
   - **Example:**
 
-    TypeScript
-
-    ```
-    type UserProps = { name: string; email: string; isActive: boolean; };
-    type UserInput = { name: string; email: string; };
+    ```typescript
+    type UserProps = { name: string; email: string; isActive: boolean };
+    type UserInput = { name: string; email: string };
     const UserConfig = createEntity<UserProps, UserInput>('User');
     ```
 
@@ -598,11 +600,11 @@ These functions apply transformations and add behaviors to entity configurations
 
   - **Type Signature:**
 
-    TypeScript
-
-    ```
+    ```typescript
     function withValidation<TConfig extends AnyDomainConfig>(
-      validator: TConfig extends DomainConfig<infer DM, any, any, any>    ? (props: DM['props']) => ParseResult<DM['props']>    : never,
+      validator: TConfig extends DomainConfig<infer DM, any, any, any>
+        ? (props: DM['props']) => ParseResult<DM['props']>
+        : never,
     ): (config: TConfig) => TConfig;
     ```
 
@@ -619,10 +621,19 @@ These functions apply transformations and add behaviors to entity configurations
 
     TypeScript
 
-    ```
+    ```typescript
     function withNew<TConfig extends AnyDomainConfig>(
-      newMethod: TConfig extends DomainConfig<    infer DM,    infer ParseParam,    infer NewParam,    any
-      >    ? (        params: NewParam,        parse: (input: ParseParam) => ParseResult<DM>,      ) => ParseResult<DM>    : never,
+      newMethod: TConfig extends DomainConfig<
+        infer DM,
+        infer ParseParam,
+        infer NewParam,
+        any
+      >
+        ? (
+            params: NewParam,
+            parse: (input: ParseParam) => ParseResult<DM>,
+          ) => ParseResult<DM>
+        : never,
     ): (config: TConfig) => TConfig & { newMethod: typeof newMethod };
     ```
 
@@ -638,9 +649,16 @@ These functions apply transformations and add behaviors to entity configurations
 
     TypeScript
 
-    ```
+    ```typescript
     function withCommand<TConfig extends EntityConfig, I>(
-      name: string,  handler: TConfig extends EntityConfig<infer E, any, any, any, any>    ? (        input: I,        props: E['props'],        entity: E,      ) => Effect.Effect<{ props: E['props'] }, any, never>    : never,
+      name: string,
+      handler: TConfig extends EntityConfig<infer E, any, any, any, any>
+        ? (
+            input: I,
+            props: E['props'],
+            entity: E,
+          ) => Effect.Effect<{ props: E['props'] }, any, never>
+        : never,
     ): (config: TConfig) => TConfig & {
       commands: TConfig['commands'] & Record<string, CommandFunction<any, I>>;
     };
@@ -662,7 +680,7 @@ These functions apply transformations and add behaviors to entity configurations
 
     TypeScript
 
-    ```
+    ```typescript
     function buildEntity<T extends Entity, NewParams>(
       config: EntityConfig<T, NewParams>,
     ): EntityTrait<T, NewParams, unknown> & Commands & Queries;
