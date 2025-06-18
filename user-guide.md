@@ -52,10 +52,9 @@ import {
   ValueObjectTrait,
   withPropsParser,
   NonEmptyString,
-  withQuery,
-  QueryOnModel,
+  withQuery, // Added for potential getDomain example
 } from 'effect-ddd';
-import validator from 'validator';
+import validator from 'validator'; // Assuming you use a validator library like 'validator.js'
 
 // 1. Define Props type for Email Value Object
 type EmailProps = { value: string };
@@ -63,9 +62,10 @@ type EmailProps = { value: string };
 // 2. Define the Email Value Object type
 export type Email = ValueObject<EmailProps>;
 
+type QueryOnModel<R> = QueryFunction<Email, R>;
 // 3. Define the Trait Interface for Email
 export interface IEmailTrait extends ValueObjectTrait<Email, string, string> {
-  getDomain: QueryOnModel<Email, string>; // Example custom query
+  getDomain(): QueryOnModel<string>; // Example custom query
 }
 
 // 4-7. Define and Build the Email Trait using withPropsParser
@@ -246,7 +246,7 @@ These functions apply transformations and add behaviors to value object configur
       currency: Schema.String,
     });
 
-    type QueryOnModel<DM extends DomainModel, R> = QueryFunction<DM['props'], R>;
+    type QueryOnModel<R> = QueryFunction<Money, R>;
 
     export interface IMoneyTrait
       extends ValueObjectTrait<Money, MoneyProps, MoneyProps> {}
@@ -352,16 +352,11 @@ These functions finalize the configuration into a runnable trait.
     import { Schema } from 'effect';
 
     type EmailProps = { value: string };
-    const EmailSchema = Schema.Struct({ 
-      value: Schema.String.pipe(
-        Schema.pattern(/^[^@]+@[^@]+\.[^@]+$/),
-        Schema.brand('Email')
-      )
-    });
+    const EmailSchema = Schema.Struct({ value: Schema.String }); // Assuming this is defined
 
     export type Email = ValueObject<EmailProps>;
 
-    type EmailQuery<R> = QueryFunction<EmailProps, R>;
+    type QueryOnModel<R> = QueryFunction<Email, R>;
     // 3. Define the Trait Interface for Email
     export interface IEmailTrait
       extends ValueObjectTrait<Email, string, string> {
@@ -369,7 +364,7 @@ These functions finalize the configuration into a runnable trait.
     }
 
     const EmailTrait = pipe(
-      createValueObject<Email, string, string>('Email'),
+      createValueObject<Email, string>('Email'),
       withSchema(EmailSchema),
       withQuery('getDomain', (props) => props.value.split('@')[1]),
       buildValueObject, // Final trait creation
@@ -455,17 +450,19 @@ export type User = Entity<UserProps>;
 
 // 3. Define Trait Interface
 export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
-  isActive: QueryOnModel<User, boolean>;
-  getDisplayName: QueryOnModel<User, string>;
-  getEmailDomain: QueryOnModel<User, string>;
-  getPreferences: QueryOnModel<User, Effect.Effect<any, any, any>>;
-  getSubscriptionStatus: QueryOnModel<User, Effect.Effect<any, any, any>>;
-  activate: () => CommandOnModel<User, User>;
-  updateEmail: (newEmail: string) => CommandOnModel<User, User>;
+  isActive: () => boolean;
+  getDisplayName: () => string;
+  getEmailDomain: () => string; // From original example
+  getPreferences: () => Effect.Effect<any, any, any>; // From original example
+  getSubscriptionStatus: () => Effect.Effect<any, any, any>; // From original example
+  activate: () => (user: User) => Effect.Effect<User, ValidationException>;
+  updateEmail: (
+    newEmail: string,
+  ) => (user: User) => Effect.Effect<User, ValidationException>;
   updateProfile: (input: {
     name?: string;
     email?: string;
-  }) => CommandOnModel<User, User>;
+  }) => (user: User) => Effect.Effect<User, ValidationException>;
 }
 
 // Assume fetchUserPreferences and subscriptionService are defined elsewhere
@@ -693,7 +690,7 @@ These functions apply transformations and add behaviors to entity configurations
     const activateCommand = (_, props: UserProps) => Effect.succeed({ props: { ...props, isActive: true } });
 
     const UserTrait = pipe(
-      createEntity<User, UserInput, UserInput>('User'),
+      createEntity<UserProps, UserInput>('User'),
       withSchema(UserSchema),
       withCommand('activate', activateCommand),
       withQuery('isActive', (props) => props.isActive),
@@ -786,8 +783,8 @@ export type Order = AggregateRoot<OrderProps>;
 
 // 3. Define Trait Interface
 export interface IOrderTrait extends AggregateRootTrait<Order, OrderInput, OrderInput> {
-  addItem: (item: OrderItem) => CommandOnModel<Order, Order>;
-  getItemCount: QueryOnModel<Order, number>;
+  addItem: (item: OrderItem) => (order: Order, correlationId: string) => Effect.Effect<Order, ValidationException>;
+  getItemCount: () => number;
   // Define other commands/queries/event handlers as needed
 }
 
@@ -964,7 +961,7 @@ These functions apply transformations and add behaviors to aggregate root config
     const orderConfirmedHandler = () => {}; // Placeholder
 
     const OrderTrait = pipe(
-      createAggregateRoot<Order, OrderInput, OrderInput>('Order'),
+      createAggregateRoot<OrderProps, OrderInput>('Order'),
       withSchema(OrderSchema),
       withAggregateCommand('addItem', addItemCommand),
       withEventHandler('OrderConfirmed', orderConfirmedHandler),
@@ -1230,8 +1227,8 @@ import { createFutureDateSchema, createPastDateSchema, createTimestampFields, cr
 export const CommonSchemas = {
   // Identity schemas
   UUID: Schema.UUID,
-  Email: Schema.String.pipe(Schema.pattern(/^[^@]+@[^@]+\.[^@]+$/)),
-  PhoneNumber: Schema.String.pipe(Schema.pattern(/^\+?[\d\s-]+$/)),
+  Email: pipe(stringSchema(), withEmail(), buildStringSchema),
+  PhoneNumber: pipe(stringSchema(), withPhoneNumber(), buildStringSchema),
   URL: pipe(stringSchema(), withUrl(), buildStringSchema),
 
   // String schemas
