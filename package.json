@@ -91,6 +91,7 @@
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.1",
+    "ts-documentation": "^1.2.0",
     "@types/cls-hooked": "^4.3.9",
     "@types/express": "^4",
     "@types/got": "^9.6.12",

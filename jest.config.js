@@ -28,6 +28,13 @@ module.exports = {
   roots: ['.'],
   modulePaths: [compilerOptions.baseUrl], // <-- This will be set to 'baseUrl' value
   moduleNameMapper: pathsToModuleNameMapper(compilerOptions.paths /*, { prefix: '<rootDir>/' } */),
-  setupFilesAfterEnv: ['./__test__/jest.setup.redis-mock.js']
+  setupFilesAfterEnv: [
+    './__test__/jest.setup.redis-mock.js',
+    './__test__/jest.setup.docs.js'
+  ],
+  testMatch: [
+    "**/__tests__/**/*.+(ts|tsx|js)",
+    "**/?(*.)+(spec|test|docs).+(ts|tsx|js)"
+  ]
 
 }
