@@ -62,10 +62,9 @@ type EmailProps = { value: string };
 // 2. Define the Email Value Object type
 export type Email = ValueObject<EmailProps>;
 
-type QueryOnModel<R> = QueryFunction<Email, R>;
 // 3. Define the Trait Interface for Email
 export interface IEmailTrait extends ValueObjectTrait<Email, string, string> {
-  getDomain(): QueryOnModel<string>; // Example custom query
+  getDomain(): QueryOnModel<Email, string>; // Example custom query
 }
 
 // 4-7. Define and Build the Email Trait using withPropsParser
@@ -132,13 +131,14 @@ These functions initiate the configuration pipeline for different domain model t
 
     ```typescript
     function createValueObject<
-      Props extends Record<string, any>,
-      NewParams = Props,
+      VO extends ValueObject,
+      NewParams = VO['props'],
+      ParseParams = NewParams,
     >(
       tag: string,
     ): DomainConfig<
-      ValueObject<Props>,
-      unknown,
+      VO,
+      ParseParams,
       NewParams,
       Record<string, never>
     >;
@@ -246,13 +246,11 @@ These functions apply transformations and add behaviors to value object configur
       currency: Schema.String,
     });
 
-    type QueryOnModel<R> = QueryFunction<Money, R>;
-
     export interface IMoneyTrait
-      extends ValueObjectTrait<Money, MoneyProps, MoneyProps> {}
+      extends ValueObjectTrait<Money, MoneyInput, MoneyInput> {}
 
     const MoneyTrait: IMoneyTrait = pipe(
-      createValueObject<Money>('Money'),
+      createValueObject<Money, MoneyInput, MoneyInput>('Money'),
       withSchema(MoneySchema),
       withInvariant(
         (props) => props.amount > 0,
@@ -452,17 +450,12 @@ export type User = Entity<UserProps>;
 export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
   isActive: () => boolean;
   getDisplayName: () => string;
-  getEmailDomain: () => string; // From original example
-  getPreferences: () => Effect.Effect<any, any, any>; // From original example
-  getSubscriptionStatus: () => Effect.Effect<any, any, any>; // From original example
-  activate: () => (user: User) => Effect.Effect<User, ValidationException>;
-  updateEmail: (
-    newEmail: string,
-  ) => (user: User) => Effect.Effect<User, ValidationException>;
-  updateProfile: (input: {
-    name?: string;
-    email?: string;
-  }) => (user: User) => Effect.Effect<User, ValidationException>;
+  getEmailDomain: () => string;
+  getPreferences: () => Effect.Effect<any, any, any>;
+  getSubscriptionStatus: () => Effect.Effect<any, any, any>;
+  activate: (i: void) => CommandOnModel<User, User>;
+  updateEmail: (i: string) => CommandOnModel<User, User>;
+  updateProfile: (i: { name?: string; email?: string }) => CommandOnModel<User, User>;
 }
 
 // Assume fetchUserPreferences and subscriptionService are defined elsewhere
@@ -569,9 +562,13 @@ export const UserTrait: IUserTrait = pipe(
     TypeScript
 
     ```
-    function createEntity<Props extends Record<string, any>, NewParams = Props>(
+    function createEntity<
+      E extends Entity,
+      NewParams = E['props'],
+      ParseParams = NewParams,
+    >(
       tag: string,
-    ): EntityConfig<  Entity<Props>,  unknown,  NewParams,  Record<string, never>,  Record<string, never>>;
+    ): EntityConfig<E, ParseParams, NewParams, Record<string, never>, Record<string, never>>;
     ```
 
   - **Parameters:**
@@ -783,7 +780,7 @@ export type Order = AggregateRoot<OrderProps>;
 
 // 3. Define Trait Interface
 export interface IOrderTrait extends AggregateRootTrait<Order, OrderInput, OrderInput> {
-  addItem: (item: OrderItem) => (order: Order, correlationId: string) => Effect.Effect<Order, ValidationException>;
+  addItem: (i: OrderItem) => CommandOnModel<Order, Order>;
   getItemCount: () => number;
   // Define other commands/queries/event handlers as needed
 }
@@ -847,9 +844,13 @@ export const OrderTrait: IOrderTrait = pipe(
     TypeScript
 
     ```
-    function createAggregateRoot<  Props extends Record<string, any>,  NewParams = Props,>(
+    function createAggregateRoot<
+      A extends AggregateRoot,
+      NewParams = A['props'],
+      ParseParams = NewParams,
+    >(
       tag: string,
-    ): AggregateConfig<  AggregateRoot<Props>,  unknown,  NewParams,  Record<string, never>,  Record<string, never>,  Record<string, never>>;
+    ): AggregateConfig<A, ParseParams, NewParams, Record<string, never>, Record<string, never>, Record<string, never>>;
     ```
 
   - **Parameters:**
