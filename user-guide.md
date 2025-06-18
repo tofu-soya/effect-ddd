@@ -694,28 +694,43 @@ These functions apply transformations and add behaviors to entity configurations
   - **Example:**
 
     ```typescript
-    import { pipe } from 'effect';
+    import { pipe, Effect } from 'effect';
     import {
       createEntity,
       withSchema,
       withCommand,
       withQuery,
       buildEntity,
+      Entity,
+      EntityTrait,
+      CommandOnModel,
     } from 'effect-ddd';
     import { Schema } from 'effect';
 
-    // Assuming UserProps, UserInput, UserSchema, activateCommand are defined
     type UserProps = { name: string; email: string; isActive: boolean };
     type UserInput = { name: string; email: string };
+    
+    // Define Entity type
+    export type User = Entity<UserProps>;
+
+    // Define Trait Interface
+    type UserQuery<R> = QueryFunction<User, R>;
+
+    export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
+      isActive: UserQuery<boolean>;
+      activate: (i: void) => CommandOnModel<User, User>;
+    }
+
     const UserSchema = Schema.Struct({
       name: Schema.String,
       email: Schema.String,
       isActive: Schema.Boolean,
     });
+
     const activateCommand = (_, props: UserProps) =>
       Effect.succeed({ props: { ...props, isActive: true } });
 
-    const UserTrait = pipe(
+    const UserTrait: IUserTrait = pipe(
       createEntity<UserProps, UserInput>('User'),
       withSchema(UserSchema),
       withCommand('activate', activateCommand),
