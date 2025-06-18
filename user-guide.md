@@ -1614,51 +1614,89 @@ state: BuilderState<DM, OrmEntity, QueryParams>,
 
 **Complete Functional Builder Example:**
 
-TypeScript
-
-```
-
+```typescript
 import { pipe, Effect, Option } from 'effect';
-import { repositoryBuilder, withRelations, withDomainMapper, withOrmMapper, withQueryMapper, build } from 'effect-ddd/typeorm';
-// Assuming Product, ProductEntity, ProductQuery, ProductTrait, MoneyTrait are defined elsewhere
-declare type Product = any;
-declare type ProductQuery = { categoryId?: string; status?: string; minPrice?: number };
-declare class ProductEntity { id: string; name: string; price: number; currency: string; categoryId: string; createdAt: Date; updatedAt?: Date | null; };
-declare const ProductTrait: any;
-declare const MoneyTrait: any;
-declare const MoreThan: any;
+import { 
+  repositoryBuilder, 
+  withRelations, 
+  withDomainMapper, 
+  withOrmMapper, 
+  withQueryMapper, 
+  build 
+} from 'effect-ddd/typeorm';
+
+// Domain model types
+type Product = {
+  id: string;
+  props: {
+    name: string;
+    price: Money;
+    category: { id: string };
+    createdAt: Date;
+    updatedAt?: Option.Option<Date>;
+  };
+};
+
+type ProductQuery = { 
+  categoryId?: string; 
+  status?: string; 
+  minPrice?: number 
+};
+
+// ORM entity class
+class ProductEntity { 
+  id!: string; 
+  name!: string; 
+  price!: number; 
+  currency!: string; 
+  categoryId!: string; 
+  createdAt!: Date; 
+  updatedAt?: Date | null; 
+};
+
+// Mock implementations
+const ProductTrait = {
+  parse: (input: any) => Effect.succeed(input as Product)
+};
+
+const MoneyTrait = {
+  parse: (amount: number) => Effect.succeed({ amount, currency: 'USD' } as Money)
+};
+
+const MoreThan = (value: number) => ({ $gt: value });
 
 const productRepository = pipe(
-repositoryBuilder<Product, ProductEntity, ProductQuery>(ProductEntity),
-withRelations(['category', 'reviews', 'variants']),
-withDomainMapper((entity) =>
-Effect.gen(function* () {
-const product = yield* ProductTrait.parse({
-...entity,
-price: yield\* MoneyTrait.parse(entity.price),
-});
-return product;
-}),
-),
-withOrmMapper((domain, existing) =>
-Effect.succeed({
-...existing,
-id: domain.id,
-name: domain.props.name,
-price: domain.props.price.amount,
-currency: domain.props.price.currency,
-categoryId: domain.props.category.id,
-createdAt: domain.createdAt,
-updatedAt: Option.getOrNull(domain.updatedAt),
-}),
-),
-withQueryMapper((params: ProductQuery) => ({
-category: params.categoryId ? { id: params.categoryId } : undefined,
-status: params.status,
-price: params.minPrice ? MoreThan(params.minPrice) : undefined,
-})),
-build,
+  repositoryBuilder<Product, ProductEntity, ProductQuery>(ProductEntity),
+  withRelations(['category', 'reviews', 'variants']),
+  withDomainMapper((entity) =>
+    Effect.gen(function* () {
+      const product = yield* ProductTrait.parse({
+        ...entity,
+        price: yield* MoneyTrait.parse(entity.price),
+      });
+      return product;
+    })
+  ),
+  withOrmMapper((domain, existing) =>
+    Effect.succeed({
+      ...existing,
+      id: domain.id,
+      name: domain.props.name,
+      price: domain.props.price.amount,
+      currency: domain.props.price.currency,
+      categoryId: domain.props.category.id,
+      createdAt: domain.createdAt,
+      updatedAt: Option.getOrNull(domain.updatedAt),
+    })
+  ),
+  withQueryMapper((params: ProductQuery) => ({
+    category: params.categoryId ? { id: params.categoryId } : undefined,
+    status: params.status,
+    price: params.minPrice ? MoreThan(params.minPrice) : undefined,
+  })),
+  build
 );
+```
 
 ```
 
