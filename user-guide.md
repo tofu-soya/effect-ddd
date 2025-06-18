@@ -1,4 +1,4 @@
-# Effect DDD - Comprehensive API Reference
+# Effect DDD - Comprehensive API ReferencF
 
 Complete API documentation for the functional domain modeling library with detailed function signatures, examples, and advanced patterns.
 
@@ -51,6 +51,7 @@ import {
   ValueObject,
   ValueObjectTrait,
   withPropsParser,
+  NonEmptyString,
   withQuery, // Added for potential getDomain example
 } from 'effect-ddd';
 import validator from 'validator'; // Assuming you use a validator library like 'validator.js'
@@ -61,14 +62,15 @@ type EmailProps = { value: string };
 // 2. Define the Email Value Object type
 export type Email = ValueObject<EmailProps>;
 
+type QueryOnModel<R> = QueryFunction<Email, R>;
 // 3. Define the Trait Interface for Email
 export interface IEmailTrait extends ValueObjectTrait<Email, string, string> {
-  getDomain(): string; // Example custom query
+  getDomain(): QueryOnModel<string>; // Example custom query
 }
 
 // 4-7. Define and Build the Email Trait using withPropsParser
 export const EmailTrait: IEmailTrait = pipe(
-  createValueObject<EmailProps, string>('Email'),
+  createValueObject<Email, string, string>('Email'),
   withPropsParser((emailString: string) =>
     Effect.gen(function* () {
       const normalized = emailString.toLowerCase().trim();
@@ -128,10 +130,18 @@ These functions initiate the configuration pipeline for different domain model t
 
     TypeScript
 
-    ```
-    function createValueObject<  Props extends Record<string, any>,  NewParams = Props,>(
+    ```typescript
+    function createValueObject<
+      Props extends Record<string, any>,
+      NewParams = Props,
+    >(
       tag: string,
-    ): DomainConfig<ValueObject<Props>, unknown, NewParams, Record<string, never>>;
+    ): DomainConfig<
+      ValueObject<Props>,
+      unknown,
+      NewParams,
+      Record<string, never>
+    >;
     ```
 
   - **Parameters:**
@@ -143,9 +153,7 @@ These functions initiate the configuration pipeline for different domain model t
   - **Returns:** `DomainConfig` - Configuration object for further composition
   - **Example:**
 
-    TypeScript
-
-    ```
+    ```typescript
     import { createValueObject } from 'effect-ddd';
 
     // Simple value object where new() takes same input as props
@@ -163,10 +171,12 @@ These functions apply transformations and add behaviors to value object configur
 
   - **Type Signature:**
 
-    TypeScript
-
-    ```
-    function withSchema<  T extends Record<string, any>,  S extends Record<string, any>,  NewParams,>(
+    ```typescript
+    function withSchema<
+      T extends Record<string, any>,
+      S extends Record<string, any>,
+      NewParams,
+    >(
       schema: Schema.Schema<S>,
     ): (config: DomainConfig<T, NewParams>) => DomainConfig<S, NewParams>;
     ```
@@ -182,10 +192,11 @@ These functions apply transformations and add behaviors to value object configur
 
   - **Type Signature:**
 
-    TypeScript
-
-    ```
-    function withPropsParser<  TConfig extends AnyDomainConfig,  NewPropsParser extends PropsParser<any, any>,>(propsParser: NewPropsParser): (config: TConfig) => TConfig;
+    ```typescript
+    function withPropsParser<
+      TConfig extends AnyDomainConfig,
+      NewPropsParser extends PropsParser<any, any>,
+    >(propsParser: NewPropsParser): (config: TConfig) => TConfig;
     ```
 
   - **Parameters:**
@@ -199,12 +210,13 @@ These functions apply transformations and add behaviors to value object configur
 
   - **Type Signature:**
 
-    TypeScript
-
-    ```
+    ```typescript
     function withInvariant<TConfig extends AnyDomainConfig>(
-      predicate: TConfig extends DomainConfig<infer DM, any, any, any>    ? (props: DM['props']) => boolean
-        : never,  errorMessage: string,  errorCode: string = 'INVARIANT_VIOLATION',
+      predicate: TConfig extends DomainConfig<infer DM, any, any, any>
+        ? (props: DM['props']) => boolean
+        : never,
+      errorMessage: string,
+      errorCode: string = 'INVARIANT_VIOLATION',
     ): (config: TConfig) => TConfig;
     ```
 
@@ -217,18 +229,30 @@ These functions apply transformations and add behaviors to value object configur
   - **Returns:** Function that adds the invariant check to the validation chain
   - **Example:**
 
-    TypeScript
-
-    ```
+    ```typescript
     import { pipe } from 'effect';
-    import { createValueObject, withInvariant, buildValueObject } from 'effect-ddd';
+    import {
+      createValueObject,
+      withInvariant,
+      buildValueObject,
+    } from 'effect-ddd';
     import { Schema } from 'effect';
 
     type MoneyProps = { amount: number; currency: string };
-    const MoneySchema = Schema.Struct({ amount: Schema.Number, currency: Schema.String });
+    type MoneyInput = MoneyProps;
+    export type Money = ValueObject<MoneyProps>;
+    const MoneySchema = Schema.Struct({
+      amount: Schema.Number,
+      currency: Schema.String,
+    });
 
-    const MoneyTrait = pipe(
-      createValueObject<MoneyProps>('Money'),
+    type QueryOnModel<R> = QueryFunction<Money, R>;
+
+    export interface IMoneyTrait
+      extends ValueObjectTrait<Money, MoneyProps, MoneyProps> {}
+
+    const MoneyTrait: IMoneyTrait = pipe(
+      createValueObject<Money>('Money'),
       withSchema(MoneySchema),
       withInvariant(
         (props) => props.amount > 0,
@@ -248,14 +272,18 @@ These functions apply transformations and add behaviors to value object configur
 
   - **Type Signature:**
 
-    TypeScript
-
-    ```
-    function withQuery<TConfig extends AnyDomainConfig, K extends string, R>(
-      name: K,  query: TConfig extends DomainConfig<infer DM, any, any, any>    ? (props: DM['props']) => R    : never,
-    ): (
-      config: TConfig,
-    ) => TConfig & { queries: TConfig['queries'] & Record<K, typeof query> };
+    ```typescript
+    <TConfig extends AnyDomainConfig, K extends string, R>(
+        name: K,
+        query: TConfig extends DomainConfig<infer DM, any, any, any>
+          ? QueryFunction<DM['props'], R>
+          : never,
+      ) =>
+      (
+        config: TConfig,
+      ): TConfig & {
+        queries: TConfig['queries'] & Record<K, typeof query>;
+      }
     ```
 
   - **Parameters:**
@@ -269,11 +297,16 @@ These functions apply transformations and add behaviors to value object configur
 
   - **Type Signature:**
 
-    TypeScript
-
-    ```
-    function withQueryEffect<TConfig extends AnyDomainConfig, K extends string, R>(
-      name: K,  query: TConfig extends DomainConfig<infer DM, any, any, any>    ? (props: DM['props']) => Effect.Effect<R, any, any>    : never,
+    ```typescript
+    function withQueryEffect<
+      TConfig extends AnyDomainConfig,
+      K extends string,
+      R,
+    >(
+      name: K,
+      query: TConfig extends DomainConfig<infer DM, any, any, any>
+        ? (props: DM['props']) => Effect.Effect<R, any, any>
+        : never,
     ): (
       config: TConfig,
     ) => TConfig & { queries: TConfig['queries'] & Record<K, typeof query> };
@@ -294,12 +327,11 @@ These functions finalize the configuration into a runnable trait.
 
   - **Type Signature:**
 
-    TypeScript
-
-    ```
+    ```typescript
     function buildValueObject<T extends ValueObject, NewParams>(
       config: DomainConfig<T, NewParams>,
-    ): ValueObjectTrait<T, NewParams, unknown> & QueryMethods<T['props'], Queries>;
+    ): ValueObjectTrait<T, NewParams, unknown> &
+      QueryMethods<T['props'], Queries>;
     ```
 
   - **Parameters:**
@@ -309,18 +341,30 @@ These functions finalize the configuration into a runnable trait.
   - **Returns:** Value object trait with `parse`, `new`, and all configured query methods
   - **Example:**
 
-    TypeScript
-
-    ```
+    ```typescript
     import { pipe } from 'effect';
-    import { createValueObject, withSchema, withQuery, buildValueObject } from 'effect-ddd';
+    import {
+      createValueObject,
+      withSchema,
+      withQuery,
+      buildValueObject,
+    } from 'effect-ddd';
     import { Schema } from 'effect';
 
     type EmailProps = { value: string };
     const EmailSchema = Schema.Struct({ value: Schema.String }); // Assuming this is defined
 
+    export type Email = ValueObject<EmailProps>;
+
+    type QueryOnModel<R> = QueryFunction<Email, R>;
+    // 3. Define the Trait Interface for Email
+    export interface IEmailTrait
+      extends ValueObjectTrait<Email, string, string> {
+      getDomain(): QueryOnModel<string>; // Example custom query
+    }
+
     const EmailTrait = pipe(
-      createValueObject<EmailProps, string>('Email'),
+      createValueObject<Email, string>('Email'),
       withSchema(EmailSchema),
       withQuery('getDomain', (props) => props.value.split('@')[1]),
       buildValueObject, // Final trait creation
@@ -358,9 +402,7 @@ Entities represent domain objects with a distinct identity and mutable state. Th
 
 **Complete Example (User Entity):**
 
-TypeScript
-
-```
+```typescript
 import { Effect, pipe, Schema } from 'effect';
 import {
   createEntity,
@@ -372,7 +414,7 @@ import {
   Entity,
   EntityTrait,
   ValidationException,
-  CommonSchemas
+  CommonSchemas,
 } from 'effect-ddd';
 
 // 1. Define Props type
@@ -400,7 +442,7 @@ const UserSchema = Schema.Struct({
   age: CommonSchemas.Age,
   isActive: Schema.Boolean.pipe(Schema.optional),
   parentalConsent: Schema.Boolean.pipe(Schema.optional),
-  lastUpdated: Schema.Date.pipe(Schema.optional)
+  lastUpdated: Schema.Date.pipe(Schema.optional),
 });
 
 // 2. Define Entity type
@@ -414,14 +456,20 @@ export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
   getPreferences: () => Effect.Effect<any, any, any>; // From original example
   getSubscriptionStatus: () => Effect.Effect<any, any, any>; // From original example
   activate: () => (user: User) => Effect.Effect<User, ValidationException>;
-  updateEmail: (newEmail: string) => (user: User) => Effect.Effect<User, ValidationException>;
-  updateProfile: (input: { name?: string; email?: string }) => (user: User) => Effect.Effect<User, ValidationException>;
+  updateEmail: (
+    newEmail: string,
+  ) => (user: User) => Effect.Effect<User, ValidationException>;
+  updateProfile: (input: {
+    name?: string;
+    email?: string;
+  }) => (user: User) => Effect.Effect<User, ValidationException>;
 }
 
 // Assume fetchUserPreferences and subscriptionService are defined elsewhere
-declare const fetchUserPreferences: (id: string) => Effect.Effect<any, any, any>;
+declare const fetchUserPreferences: (
+  id: string,
+) => Effect.Effect<any, any, any>;
 declare const subscriptionService: { getStatus: (id: string) => Promise<any> };
-
 
 // 4-11. Define and Build the User Trait
 export const UserTrait: IUserTrait = pipe(
@@ -448,7 +496,7 @@ export const UserTrait: IUserTrait = pipe(
         ...input,
         email: input.email.toLowerCase().trim(),
         name: input.name.trim(),
-        isActive: input.isActive ?? false // Default isActive to false
+        isActive: input.isActive ?? false, // Default isActive to false
       };
       return yield* parse(normalizedInput); // Use the provided parse function for validation
     }),
@@ -479,14 +527,17 @@ export const UserTrait: IUserTrait = pipe(
     pipe(
       CommonSchemas.Email.decode(newEmail), // Re-use common schema for validation
       Effect.map((email) => ({ props: { ...props, email } })),
-      Effect.mapError(() => ValidationException.new('INVALID_EMAIL', 'Invalid email format')),
+      Effect.mapError(() =>
+        ValidationException.new('INVALID_EMAIL', 'Invalid email format'),
+      ),
     ),
   ),
   withCommand(
     'updateProfile',
     (input: { name?: string; email?: string }, props: UserProps) =>
       Effect.gen(function* () {
-        if (input.email && !CommonSchemas.Email.is(input.email)) { // Use Schema for validation
+        if (input.email && !CommonSchemas.Email.is(input.email)) {
+          // Use Schema for validation
           return yield* Effect.fail(
             ValidationException.new('INVALID_EMAIL', 'Invalid email format'),
           );
