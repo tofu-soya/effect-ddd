@@ -1282,12 +1282,11 @@ The Repository Factory provides functional composition for creating TypeORM-base
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 function createRepository<  DM extends AggregateRoot,  OrmEntity extends AggregateTypeORMEntityBase,  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,>(
   config: RepositoryConfig<DM, OrmEntity, QueryParams>,
 ): Effect.Effect<RepositoryPort<DM>, BaseException, DataSource>;
+```
 ```
 
 **Parameters:**
