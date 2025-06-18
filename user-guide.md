@@ -693,18 +693,27 @@ These functions apply transformations and add behaviors to entity configurations
   - **Returns:** Entity trait with `parse`, `new`, commands, and query methods
   - **Example:**
 
-    TypeScript
-
-    ```
+    ```typescript
     import { pipe } from 'effect';
-    import { createEntity, withSchema, withCommand, withQuery, buildEntity } from 'effect-ddd';
+    import {
+      createEntity,
+      withSchema,
+      withCommand,
+      withQuery,
+      buildEntity,
+    } from 'effect-ddd';
     import { Schema } from 'effect';
 
     // Assuming UserProps, UserInput, UserSchema, activateCommand are defined
-    type UserProps = { name: string; email: string; isActive: boolean; };
-    type UserInput = { name: string; email: string; };
-    const UserSchema = Schema.Struct({ name: Schema.String, email: Schema.String, isActive: Schema.Boolean });
-    const activateCommand = (_, props: UserProps) => Effect.succeed({ props: { ...props, isActive: true } });
+    type UserProps = { name: string; email: string; isActive: boolean };
+    type UserInput = { name: string; email: string };
+    const UserSchema = Schema.Struct({
+      name: Schema.String,
+      email: Schema.String,
+      isActive: Schema.Boolean,
+    });
+    const activateCommand = (_, props: UserProps) =>
+      Effect.succeed({ props: { ...props, isActive: true } });
 
     const UserTrait = pipe(
       createEntity<UserProps, UserInput>('User'),
