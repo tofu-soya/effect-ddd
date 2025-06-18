@@ -1,5 +1,5 @@
 {
-  "name": "yl-ddd-ts",
+  "name": "effect-ddd",
   "version": "2.0.64",
   "description": "Node typescript seedwork",
   "main": "dist/src/index.js",

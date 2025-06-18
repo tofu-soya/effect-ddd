@@ -56,13 +56,16 @@ export type EventHandlerFunction = (event: IDomainEvent) => void;
  * Extract query method types from a queries record
  */
 type QueryMethods<
-  Props,
-  Q extends Record<string, QueryFunction<Props> | QueryEffectFunction<Props>>,
+  DM extends DomainModel,
+  Q extends Record<
+    string,
+    QueryFunction<DM['props']> | QueryEffectFunction<DM['props']>
+  >,
 > = {
-  [K in keyof Q]: Q[K] extends QueryFunction<Props, infer R>
-    ? () => R
-    : Q[K] extends QueryEffectFunction<Props, infer R>
-      ? () => Effect.Effect<R, any, any>
+  [K in keyof Q]: Q[K] extends QueryFunction<DM['props'], infer R>
+    ? QueryFunction<DM, R>
+    : Q[K] extends QueryEffectFunction<DM['props'], infer R>
+      ? QueryEffectFunction<DM, R>
       : never;
 };
 
@@ -133,7 +136,7 @@ interface AggregateConfig<
 
 // ===== Enhanced Trait Types =====
 
-interface EnhancedValueObjectTrait<
+export interface EnhancedValueObjectTrait<
   VO extends ValueObject,
   NewParam = unknown,
   ParseParam = unknown,
@@ -387,7 +390,15 @@ const withCommand =
   (
     config: TConfig,
   ): TConfig & {
-    commands: TConfig['commands'] & Record<K, CommandFunction<any, I>>;
+    commands: TConfig['commands'] & TConfig extends EntityConfig<
+      infer E,
+      any,
+      any,
+      any,
+      any
+    >
+      ? Record<K, CommandFunction<E, I>>
+      : never;
   } => {
     // Ensure we only accept EntityConfig or AggregateConfig
     if (!('commands' in config)) {
@@ -396,7 +407,10 @@ const withCommand =
       );
     }
 
-    const commandFunction = EntityGenericTrait.asCommand(handler as any);
+    const commandFunction = EntityGenericTrait.asCommand<
+      TConfig extends EntityConfig<infer E, any, any, any, any> ? E : any,
+      I
+    >(handler);
 
     return {
       ...config,
@@ -559,8 +573,7 @@ function buildValueObject<
   >,
 >(
   config: DomainConfig<VO, ParseParam, NewParam, Q>,
-): EnhancedValueObjectTrait<VO, NewParam, ParseParam, Q> &
-  QueryMethods<VO['props'], Q> {
+): EnhancedValueObjectTrait<VO, NewParam, ParseParam, Q> & QueryMethods<VO, Q> {
   const propsParser = createPropsParser(config);
 
   // Use the existing ValueObjectGenericTrait
@@ -578,16 +591,14 @@ function buildValueObject<
     : baseTrait.new;
 
   // Create query methods that bind to the domain object's props
-  const queryMethods = {} as QueryMethods<VO['props'], Q>;
+  const queryMethods = {} as QueryMethods<VO, Q>;
 
   // This will be added to instances, not the trait itself
   Object.keys(config.queries).forEach((key) => {
     const queryFn = config.queries[key];
     // Note: This creates the method signature, actual implementation happens at instance level
-    (queryMethods as any)[key] = () => {
-      throw new Error(
-        `Query method ${key} should be called on an instance, not the trait`,
-      );
+    (queryMethods as any)[key] = (vo: VO) => {
+      return queryFn(vo.props);
     };
   });
 
@@ -610,7 +621,7 @@ function buildEntity<
 >(
   config: EntityConfig<E, ParseParam, NewParam, Q, C>,
 ): EnhancedEntityTrait<E, NewParam, ParseParam, Q, C> &
-  QueryMethods<E['props'], Q> &
+  QueryMethods<E, Q> &
   CommandMethods<E, C> {
   const propsParser = createPropsParser(
     config as DomainConfig<E, ParseParam, NewParam, Q>,
@@ -631,7 +642,7 @@ function buildEntity<
     : baseTrait.new;
 
   // Create query methods
-  const queryMethods = {} as QueryMethods<E['props'], Q>;
+  const queryMethods = {} as QueryMethods<E, Q>;
   Object.keys(config.queries).forEach((key) => {
     (queryMethods as any)[key] = () => {
       throw new Error(
@@ -661,7 +672,7 @@ function buildAggregateRoot<
 >(
   config: AggregateConfig<A, ParseParam, NewParam, Q, C, H>,
 ): EnhancedAggregateRootTrait<A, NewParam, ParseParam, Q, C, H> &
-  QueryMethods<A['props'], Q> &
+  QueryMethods<A, Q> &
   CommandMethods<A, C> {
   const propsParser = createPropsParser(
     config as DomainConfig<A, ParseParam, NewParam, Q>,
@@ -682,7 +693,7 @@ function buildAggregateRoot<
     : baseTrait.new;
 
   // Create query methods
-  const queryMethods = {} as QueryMethods<A['props'], Q>;
+  const queryMethods = {} as QueryMethods<A, Q>;
   Object.keys(config.queries).forEach((key) => {
     (queryMethods as any)[key] = () => {
       throw new Error(
@@ -757,8 +768,8 @@ export const createInstance = <
 >(
   domainObject: DM,
   queries: Q,
-): DM & QueryMethods<DM['props'], Q> => {
-  const instance = { ...domainObject } as DM & QueryMethods<DM['props'], Q>;
+): DM & QueryMethods<DM, Q> => {
+  const instance = { ...domainObject } as DM & QueryMethods<DM, Q>;
 
   // Bind query methods to the instance
   Object.entries(queries).forEach(([key, queryFn]) => {

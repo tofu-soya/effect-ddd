@@ -1,4 +1,3 @@
-```markdown
 # effect-ddd - Effect Domain Modeling Library
 
 A functional approach to Domain-Driven Design (DDD) in TypeScript using the Effect ecosystem with clean architecture principles.
@@ -6,6 +5,7 @@ A functional approach to Domain-Driven Design (DDD) in TypeScript using the Effe
 ## 🏗️ Architecture & Organization
 
 This library implements Domain-Driven Design patterns using functional programming principles with clear separation of concerns:
+
 ```
 
 src/
@@ -25,7 +25,7 @@ src/
 ├── logic/ \# Shared utilities & FP helpers
 └── typeclasses/ \# Type utilities & constraints
 
-````
+```
 
 ## 🚀 Key Features
 
@@ -41,7 +41,7 @@ src/
 
 ```bash
 yarn add yl-ddd-ts
-````
+```
 
 ## 🎯 Quick Start
 

@@ -1033,9 +1033,9 @@ These functions apply transformations and add behaviors to aggregate root config
       total: number;
     };
 
-    type OrderInput = { 
-      customerId: string; 
-      shippingAddress?: string 
+    type OrderInput = {
+      customerId: string;
+      shippingAddress?: string;
     };
 
     // Define Order aggregate root type
@@ -1045,7 +1045,8 @@ These functions apply transformations and add behaviors to aggregate root config
     type OrderQuery<R> = QueryFunction<Order, R>;
 
     // Define Trait Interface
-    export interface IOrderTrait extends AggregateRootTrait<Order, OrderInput, OrderInput> {
+    export interface IOrderTrait
+      extends AggregateRootTrait<Order, OrderInput, OrderInput> {
       addItem: (i: OrderItem) => CommandOnModel<Order, Order>;
       getItemCount: OrderQuery<number>;
       getTotal: OrderQuery<number>;
@@ -1066,31 +1067,32 @@ These functions apply transformations and add behaviors to aggregate root config
       props: OrderProps,
       aggregate: Order,
       correlationId: string,
-    ) => Effect.gen(function* () {
-      if (props.status !== 'draft') {
-        return yield* Effect.fail(
-          ValidationException.new(
-            'ORDER_LOCKED',
-            'Cannot modify confirmed order',
-          ),
-        );
-      }
+    ) =>
+      Effect.gen(function* () {
+        if (props.status !== 'draft') {
+          return yield* Effect.fail(
+            ValidationException.new(
+              'ORDER_LOCKED',
+              'Cannot modify confirmed order',
+            ),
+          );
+        }
 
-      const newItems = [...props.items, item];
-      const newTotal = calculateTotal(newItems);
+        const newItems = [...props.items, item];
+        const newTotal = calculateTotal(newItems);
 
-      const event = DomainEventTrait.create({
-        name: 'OrderItemAdded',
-        payload: { item, newTotal },
-        correlationId,
-        aggregate,
+        const event = DomainEventTrait.create({
+          name: 'OrderItemAdded',
+          payload: { item, newTotal },
+          correlationId,
+          aggregate,
+        });
+
+        return {
+          props: { ...props, items: newItems, total: newTotal },
+          domainEvents: [event],
+        };
       });
-
-      return {
-        props: { ...props, items: newItems, total: newTotal },
-        domainEvents: [event],
-      };
-    });
 
     const orderConfirmedHandler = (event: IDomainEvent) => {
       console.log(`Order confirmed: ${event.aggregateId}`);
@@ -1104,11 +1106,13 @@ These functions apply transformations and add behaviors to aggregate root config
       withAggregateCommand('addItem', addItemCommand),
       withQuery('getItemCount', (props) => props.items.length),
       withQuery('getTotal', (props) => props.total),
-      withCommand('confirm', (_, props) => 
-        Effect.succeed({ 
+      withCommand('confirm', (_, props) =>
+        Effect.succeed({
           props: { ...props, status: 'confirmed' },
-          domainEvents: [/* confirmation event */]
-        })
+          domainEvents: [
+            /* confirmation event */
+          ],
+        }),
       ),
       withEventHandler('OrderConfirmed', orderConfirmedHandler),
       buildAggregateRoot,
@@ -1156,11 +1160,10 @@ function stringSchema(): StringSchemaState;
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 function withMinLength(
-  min: number,  message?: string,
+  min: number,
+  message?: string,
 ): (state: StringSchemaState) => StringSchemaState;
 ```
 
@@ -1173,11 +1176,10 @@ function withMinLength(
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 function withMaxLength(
-  max: number,  message?: string,
+  max: number,
+  message?: string,
 ): (state: StringSchemaState) => StringSchemaState;
 ```
 
@@ -1185,11 +1187,10 @@ function withMaxLength(
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 function withPattern(
-  regex: RegExp,  message?: string,
+  regex: RegExp,
+  message?: string,
 ): (state: StringSchemaState) => StringSchemaState;
 ```
 
@@ -1199,7 +1200,7 @@ function withPattern(
 
 TypeScript
 
-```
+```typescript
 function withEmail(
   message?: string,
 ): (state: StringSchemaState) => StringSchemaState;
@@ -1209,9 +1210,7 @@ function withEmail(
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 function withStringBrand<B extends string>(
   brand: B,
 ): (state: StringSchemaState) => Schema.BrandSchema<string, B>;
@@ -1231,9 +1230,17 @@ function buildStringSchema(state: StringSchemaState): Schema.Schema<string>;
 
 TypeScript
 
-```
+```typescript
 import { pipe } from 'effect';
-import { stringSchema, withNonEmpty, withMinLength, withMaxLength, withPattern, withStringBrand, buildStringSchema } from 'effect-ddd';
+import {
+  stringSchema,
+  withNonEmpty,
+  withMinLength,
+  withMaxLength,
+  withPattern,
+  withStringBrand,
+  buildStringSchema,
+} from 'effect-ddd';
 
 const UsernameSchema = pipe(
   stringSchema(),
@@ -1264,11 +1271,10 @@ function numberSchema(): NumberSchemaState;
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 function withMin(
-  min: number,  message?: string,
+  min: number,
+  message?: string,
 ): (state: NumberSchemaState) => NumberSchemaState;
 ```
 
@@ -1276,9 +1282,7 @@ function withMin(
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 function withPositive(
   message?: string,
 ): (state: NumberSchemaState) => NumberSchemaState;
@@ -1288,9 +1292,7 @@ function withPositive(
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 function withInteger(
   message?: string,
 ): (state: NumberSchemaState) => NumberSchemaState;
@@ -1300,9 +1302,15 @@ function withInteger(
 
 TypeScript
 
-```
+```typescript
 import { pipe } from 'effect';
-import { numberSchema, withMin, withMax, withInteger, withNumberBrand } from 'effect-ddd';
+import {
+  numberSchema,
+  withMin,
+  withMax,
+  withInteger,
+  withNumberBrand,
+} from 'effect-ddd';
 
 const ScoreSchema = pipe(
   numberSchema(),
@@ -1319,9 +1327,7 @@ const ScoreSchema = pipe(
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 function objectSchema<T extends Record<string, Schema.Schema<any>>>(
   fields: T,
 ): ObjectSchemaState<T>;
@@ -1331,21 +1337,23 @@ function objectSchema<T extends Record<string, Schema.Schema<any>>>(
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 function withCrossFieldValidation<T>(
-  predicate: (obj: Schema.Schema.Type<Schema.Struct<T>>) => boolean,  message: string,  code?: string,
+  predicate: (obj: Schema.Schema.Type<Schema.Struct<T>>) => boolean,
+  message: string,
+  code?: string,
 ): (state: ObjectSchemaState<T>) => ObjectSchemaState<T>;
 ```
 
 **Example:**
 
-TypeScript
-
-```
+```typescript
 import { pipe, Schema } from 'effect';
-import { objectSchema, withCrossFieldValidation, buildObjectSchema } from 'effect-ddd';
+import {
+  objectSchema,
+  withCrossFieldValidation,
+  buildObjectSchema,
+} from 'effect-ddd';
 
 const DateRangeSchema = pipe(
   objectSchema({
@@ -1363,12 +1371,29 @@ const DateRangeSchema = pipe(
 
 ### Common Schemas
 
-TypeScript
-
-```
+```typescript
 import { pipe, Schema } from 'effect';
-import { stringSchema, numberSchema, withEmail, buildStringSchema, withPhoneNumber, withUrl, withNonEmpty, withMaxLength, withPositive, withNonNegative, withInteger, withMin, withMax } from 'effect-ddd';
-import { createFutureDateSchema, createPastDateSchema, createTimestampFields, createAuditFields } from 'effect-ddd/model/value-object/date'; // Assuming these are utility functions
+import {
+  stringSchema,
+  numberSchema,
+  withEmail,
+  buildStringSchema,
+  withPhoneNumber,
+  withUrl,
+  withNonEmpty,
+  withMaxLength,
+  withPositive,
+  withNonNegative,
+  withInteger,
+  withMin,
+  withMax,
+} from 'effect-ddd';
+import {
+  createFutureDateSchema,
+  createPastDateSchema,
+  createTimestampFields,
+  createAuditFields,
+} from 'effect-ddd/model/value-object/date'; // Assuming these are utility functions
 
 export const CommonSchemas = {
   // Identity schemas
@@ -1431,8 +1456,6 @@ function createRepository<
 ): Effect.Effect<RepositoryPort<DM>, BaseException, DataSource>;
 ```
 
-```
-
 **Parameters:**
 
 - `config`: Complete repository configuration with all mappers defined
@@ -1441,26 +1464,22 @@ function createRepository<
 
 **Example:**
 
-TypeScript
-
-```
-
+```typescript
 import { createRepository } from 'effect-ddd/typeorm';
 // Assuming UserEntity and UserTrait are defined elsewhere
-declare class UserEntity {};
+declare class UserEntity {}
 declare const UserTrait: any;
 
 const userRepository = createRepository({
-entityClass: UserEntity,
-relations: ['profile', 'orders'],
-mappers: {
-toDomain: (entity) => UserTrait.parse(entity),
-toOrm: (domain, existing, repo) =>
-Effect.succeed({ ...existing, ...domain.props, id: domain.id }),
-prepareQuery: (params) => ({ id: params.id }),
-},
+  entityClass: UserEntity,
+  relations: ['profile', 'orders'],
+  mappers: {
+    toDomain: (entity) => UserTrait.parse(entity),
+    toOrm: (domain, existing, repo) =>
+      Effect.succeed({ ...existing, ...domain.props, id: domain.id }),
+    prepareQuery: (params) => ({ id: params.id }),
+  },
 });
-
 ```
 
 ---
@@ -1469,14 +1488,14 @@ prepareQuery: (params) => ({ id: params.id }),
 
 **Type Signature:**
 
-TypeScript
-
-```
-
-function createRepositoryWithDefaults< DM extends AggregateRoot, OrmEntity extends AggregateTypeORMEntityBase, QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,>(
-partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
+```typescript
+function createRepositoryWithDefaults<
+  DM extends AggregateRoot,
+  OrmEntity extends AggregateTypeORMEntityBase,
+  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
+>(
+  partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
 ): Effect.Effect<RepositoryPort<DM>, BaseException, DataSource>;
-
 ```
 
 **Parameters:**
@@ -1487,24 +1506,20 @@ partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
 
 **Example:**
 
-TypeScript
-
-```
-
+```typescript
 import { createRepositoryWithDefaults } from 'effect-ddd/typeorm';
 // Assuming ProductEntity and ProductTrait are defined elsewhere
-declare class ProductEntity {};
+declare class ProductEntity {}
 declare const ProductTrait: any;
 
 const productRepository = createRepositoryWithDefaults({
-entityClass: ProductEntity,
-relations: ['category'],
-mappers: {
-toDomain: (entity) => ProductTrait.parse(entity),
-// toOrm and prepareQuery auto-generated
-},
+  entityClass: ProductEntity,
+  relations: ['category'],
+  mappers: {
+    toDomain: (entity) => ProductTrait.parse(entity),
+    // toOrm and prepareQuery auto-generated
+  },
 });
-
 ```
 
 ---
@@ -1513,16 +1528,19 @@ toDomain: (entity) => ProductTrait.parse(entity),
 
 **Type Signature:**
 
-TypeScript
-
-```
-
-function createRepositoryWithConventions< DM extends AggregateRoot, OrmEntity extends AggregateTypeORMEntityBase, QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams, Trait extends AggregateRootTrait<DM, any, any> = AggregateRootTrait< DM, any, any
-
-> ,>(
-> config: ConventionConfig<DM, OrmEntity, QueryParams, Trait>,
-> ): Effect.Effect<RepositoryPort<DM>, BaseException, DataSource>;
-
+```typescript
+function createRepositoryWithConventions<
+  DM extends AggregateRoot,
+  OrmEntity extends AggregateTypeORMEntityBase,
+  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
+  Trait extends AggregateRootTrait<DM, any, any> = AggregateRootTrait<
+    DM,
+    any,
+    any
+  >,
+>(
+  config: ConventionConfig<DM, OrmEntity, QueryParams, Trait>,
+): Effect.Effect<RepositoryPort<DM>, BaseException, DataSource>;
 ```
 
 **Parameters:**
@@ -1533,27 +1551,23 @@ function createRepositoryWithConventions< DM extends AggregateRoot, OrmEntity ex
 
 **Example:**
 
-TypeScript
-
-```
-
+```typescript
 import { createRepositoryWithConventions } from 'effect-ddd/typeorm';
 // Assuming OrderEntity and OrderTrait are defined elsewhere
-declare class OrderEntity {};
+declare class OrderEntity {}
 declare const OrderTrait: any;
 
 const orderRepository = createRepositoryWithConventions({
-entityClass: OrderEntity,
-domainTrait: OrderTrait,
-relations: ['items', 'customer'],
-customMappings: {
-prepareQuery: (params) => ({
-customer: { id: params.customerId },
-status: params.status,
-}),
-},
+  entityClass: OrderEntity,
+  domainTrait: OrderTrait,
+  relations: ['items', 'customer'],
+  customMappings: {
+    prepareQuery: (params) => ({
+      customer: { id: params.customerId },
+      status: params.status,
+    }),
+  },
 });
-
 ```
 
 ### Layer Factory Functions
@@ -1562,14 +1576,15 @@ status: params.status,
 
 **Type Signature:**
 
-TypeScript
-
-```
-
-function createRepositoryLayer< DM extends AggregateRoot, OrmEntity extends AggregateTypeORMEntityBase, QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,>(
-repositoryTag: Context.Tag<any, RepositoryPort<DM>>, config: RepositoryConfig<DM, OrmEntity, QueryParams>,
+```typescript
+function createRepositoryLayer<
+  DM extends AggregateRoot,
+  OrmEntity extends AggregateTypeORMEntityBase,
+  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
+>(
+  repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
+  config: RepositoryConfig<DM, OrmEntity, QueryParams>,
 ): Layer.Layer<RepositoryPort<DM>, BaseException, DataSource>;
-
 ```
 
 **Parameters:**
@@ -1581,31 +1596,27 @@ repositoryTag: Context.Tag<any, RepositoryPort<DM>>, config: RepositoryConfig<DM
 
 **Example:**
 
-TypeScript
-
-```
-
+```typescript
 import { Context } from 'effect';
 import { createRepositoryLayer } from 'effect-ddd/typeorm';
 // Assuming RepositoryPort<User>, UserEntity, UserTrait are defined elsewhere
 declare interface RepositoryPort<T> {}
-declare class UserEntity {};
+declare class UserEntity {}
 declare const UserTrait: any;
 declare type User = any;
 
 const UserRepositoryTag = Context.Tag<RepositoryPort<User>>();
 
 const UserRepositoryLayer = createRepositoryLayer(UserRepositoryTag, {
-entityClass: UserEntity,
-relations: ['profile'],
-mappers: {
-toDomain: (entity) => UserTrait.parse(entity),
-toOrm: (domain, existing, repo) =>
-Effect.succeed({ ...existing, ...domain.props }),
-prepareQuery: (params) => ({ email: params.email }),
-},
+  entityClass: UserEntity,
+  relations: ['profile'],
+  mappers: {
+    toDomain: (entity) => UserTrait.parse(entity),
+    toOrm: (domain, existing, repo) =>
+      Effect.succeed({ ...existing, ...domain.props }),
+    prepareQuery: (params) => ({ email: params.email }),
+  },
 });
-
 ```
 
 ### Functional Builder Functions
@@ -1614,12 +1625,12 @@ prepareQuery: (params) => ({ email: params.email }),
 
 **Type Signature:**
 
-TypeScript
-
-```
-
-function repositoryBuilder< DM extends AggregateRoot, OrmEntity extends AggregateTypeORMEntityBase, QueryParams = any,>(entityClass: new () => OrmEntity): BuilderState<DM, OrmEntity, QueryParams>;
-
+```typescript
+function repositoryBuilder<
+  DM extends AggregateRoot,
+  OrmEntity extends AggregateTypeORMEntityBase,
+  QueryParams = any,
+>(entityClass: new () => OrmEntity): BuilderState<DM, OrmEntity, QueryParams>;
 ```
 
 **Parameters:**
@@ -1634,14 +1645,12 @@ function repositoryBuilder< DM extends AggregateRoot, OrmEntity extends Aggregat
 
 TypeScript
 
-```
-
+```typescript
 function withRelations<DM, OrmEntity, QueryParams>(
-relations: readonly string[],
+  relations: readonly string[],
 ): (
-state: BuilderState<DM, OrmEntity, QueryParams>,
+  state: BuilderState<DM, OrmEntity, QueryParams>,
 ) => BuilderState<DM, OrmEntity, QueryParams>;
-
 ```
 
 **Parameters:**
@@ -1652,79 +1661,62 @@ state: BuilderState<DM, OrmEntity, QueryParams>,
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function withDomainMapper<DM, OrmEntity, QueryParams>(
-mapper: (ormEntity: OrmEntity) => Effect.Effect<DM, BaseException, never>,
+  mapper: (ormEntity: OrmEntity) => Effect.Effect<DM, BaseException, never>,
 ): (
-state: BuilderState<DM, OrmEntity, QueryParams>,
+  state: BuilderState<DM, OrmEntity, QueryParams>,
 ) => BuilderState<DM, OrmEntity, QueryParams>;
-
 ```
 
 #### `withOrmMapper(mapper: (domain: DM, existing?: OrmEntity) => Effect<OrmEntity, BaseException>)`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function withOrmMapper<DM, OrmEntity, QueryParams>(
-mapper: ( domain: DM, existing?: OrmEntity, ) => Effect.Effect<OrmEntity, BaseException, never>,
+  mapper: (
+    domain: DM,
+    existing?: OrmEntity,
+  ) => Effect.Effect<OrmEntity, BaseException, never>,
 ): (
-state: BuilderState<DM, OrmEntity, QueryParams>,
+  state: BuilderState<DM, OrmEntity, QueryParams>,
 ) => BuilderState<DM, OrmEntity, QueryParams>;
-
 ```
 
 #### `withQueryMapper(mapper: (params: QueryParams) => FindOptionsWhere<OrmEntity>)`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function withQueryMapper<DM, OrmEntity, QueryParams>(
-mapper: (params: QueryParams) => FindOptionsWhere<OrmEntity>,
+  mapper: (params: QueryParams) => FindOptionsWhere<OrmEntity>,
 ): (
-state: BuilderState<DM, OrmEntity, QueryParams>,
+  state: BuilderState<DM, OrmEntity, QueryParams>,
 ) => BuilderState<DM, OrmEntity, QueryParams>;
-
 ```
 
 #### `build(state: BuilderState)`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function build<DM, OrmEntity, QueryParams>(
-state: BuilderState<DM, OrmEntity, QueryParams>,
+  state: BuilderState<DM, OrmEntity, QueryParams>,
 ): Effect.Effect<RepositoryPort<DM>, BaseException, DataSource>;
-
 ```
 
 #### `buildLayer(repositoryTag: Context.Tag)`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function buildLayer<DM, OrmEntity, QueryParams>(
-repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
+  repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
 ): (
-state: BuilderState<DM, OrmEntity, QueryParams>,
+  state: BuilderState<DM, OrmEntity, QueryParams>,
 ) => Layer.Layer<RepositoryPort<DM>, BaseException, DataSource>;
-
-````
+```
 
 **Complete Functional Builder Example:**
 
@@ -1736,7 +1728,7 @@ import {
   withDomainMapper,
   withOrmMapper,
   withQueryMapper,
-  build
+  build,
 } from 'effect-ddd/typeorm';
 
 // Domain model types
@@ -1754,7 +1746,7 @@ type Product = {
 type ProductQuery = {
   categoryId?: string;
   status?: string;
-  minPrice?: number
+  minPrice?: number;
 };
 
 // ORM entity class
@@ -1766,15 +1758,16 @@ class ProductEntity {
   categoryId!: string;
   createdAt!: Date;
   updatedAt?: Date | null;
-};
+}
 
 // Mock implementations
 const ProductTrait = {
-  parse: (input: any) => Effect.succeed(input as Product)
+  parse: (input: any) => Effect.succeed(input as Product),
 };
 
 const MoneyTrait = {
-  parse: (amount: number) => Effect.succeed({ amount, currency: 'USD' } as Money)
+  parse: (amount: number) =>
+    Effect.succeed({ amount, currency: 'USD' } as Money),
 };
 
 const MoreThan = (value: number) => ({ $gt: value });
@@ -1789,7 +1782,7 @@ const productRepository = pipe(
         price: yield* MoneyTrait.parse(entity.price),
       });
       return product;
-    })
+    }),
   ),
   withOrmMapper((domain, existing) =>
     Effect.succeed({
@@ -1801,24 +1794,20 @@ const productRepository = pipe(
       categoryId: domain.props.category.id,
       createdAt: domain.createdAt,
       updatedAt: Option.getOrNull(domain.updatedAt),
-    })
+    }),
   ),
   withQueryMapper((params: ProductQuery) => ({
     category: params.categoryId ? { id: params.categoryId } : undefined,
     status: params.status,
     price: params.minPrice ? MoreThan(params.minPrice) : undefined,
   })),
-  build
+  build,
 );
-````
-
 ```
 
 ### Repository Port Interface
 
-TypeScript
-
-```
+```typescript
 
 interface RepositoryPort<A extends AggregateRoot, QueryParams = any> {
 /\*\* _ Save an existing aggregate root and publish domain events _/
@@ -1868,24 +1857,16 @@ setCorrelationId?(correlationId: string): this;
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function getTag(valueObject: ValueObject): string;
-
 ```
 
 #### `unpack<VO extends ValueObject>(valueObject): GetProps<VO>`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function unpack<VO extends ValueObject>(valueObject: VO): GetProps<VO>;
-
 ```
 
 #### `isEqual<VO extends ValueObject>(vo1, vo2): boolean`
@@ -1894,10 +1875,8 @@ function unpack<VO extends ValueObject>(valueObject: VO): GetProps<VO>;
 
 TypeScript
 
-```
-
+```typescript
 function isEqual<VO extends ValueObject>(vo1: VO, vo2: VO): boolean;
-
 ```
 
 #### `createValueObjectTrait<VO, N, P>(propsParser, tag): ValueObjectTrait<VO, N, P>`
@@ -1906,12 +1885,15 @@ function isEqual<VO extends ValueObject>(vo1: VO, vo2: VO): boolean;
 
 TypeScript
 
-```
-
-function createValueObjectTrait< VO extends ValueObject, N = unknown, P = unknown,>(
-propsParser: (raw: P) => ParseResult<VO['props']>, tag: string,
+```typescript
+function createValueObjectTrait<
+  VO extends ValueObject,
+  N = unknown,
+  P = unknown,
+>(
+  propsParser: (raw: P) => ParseResult<VO['props']>,
+  tag: string,
 ): ValueObjectTrait<VO, N, P>;
-
 ```
 
 ### EntityGenericTrait
@@ -1920,62 +1902,46 @@ propsParser: (raw: P) => ParseResult<VO['props']>, tag: string,
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function getId<E extends Entity>(entity: E): Identifier;
-
 ```
 
 #### `getCreatedAt<E extends Entity>(entity): Date`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function getCreatedAt<E extends Entity>(entity: E): Date;
-
 ```
 
 #### `getUpdatedAt<E extends Entity>(entity): Option<Date>`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function getUpdatedAt<E extends Entity>(entity: E): Option.Option<Date>;
-
 ```
 
 #### `markUpdated<E extends Entity>(entity): E`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function markUpdated<E extends Entity>(entity: E): E;
-
 ```
 
 #### `asCommand<E, I>(reducerLogic): (input: I) => CommandOnModel<E>`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function asCommand<E extends Entity, I>(
-reducerLogic: ( input: I, props: GetProps<E>, entity: E, ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
+  reducerLogic: (
+    input: I,
+    props: GetProps<E>,
+    entity: E,
+  ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
 ): (input: I) => CommandOnModel<E>;
-
 ```
 
 ### AggGenericTrait
@@ -1986,12 +1952,10 @@ reducerLogic: ( input: I, props: GetProps<E>, entity: E, ) => Effect.Effect<{ pr
 
 TypeScript
 
-```
-
+```typescript
 function getDomainEvents<A extends AggregateRoot>(
-aggregate: A,
+  aggregate: A,
 ): ReadonlyArray<IDomainEvent>;
-
 ```
 
 #### `clearEvents<A extends AggregateRoot>(aggregate): A`
@@ -2000,24 +1964,18 @@ aggregate: A,
 
 TypeScript
 
-```
-
+```typescript
 function clearEvents<A extends AggregateRoot>(aggregate: A): A;
-
 ```
 
 #### `addDomainEvent<A extends AggregateRoot>(event): (aggregate: A) => A`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function addDomainEvent<A extends AggregateRoot>(
-event: IDomainEvent,
+  event: IDomainEvent,
 ): (aggregate: A) => A;
-
 ```
 
 #### `asCommand<A, I>(reducerLogic): (input: I) => CommandOnModel<A>`
@@ -2026,14 +1984,19 @@ event: IDomainEvent,
 
 TypeScript
 
-```
-
+```typescript
 function asCommand<A extends AggregateRoot, I>(
-reducerLogic: ( input: I, props: GetProps<A>, aggregate: A, correlationId: string, ) => Effect.Effect< { props: GetProps<A>; domainEvents: IDomainEvent[] }, CoreException, never
-
-> ,
-> ): (input: I) => CommandOnModel<A>;
-
+  reducerLogic: (
+    input: I,
+    props: GetProps<A>,
+    aggregate: A,
+    correlationId: string,
+  ) => Effect.Effect<
+    { props: GetProps<A>; domainEvents: IDomainEvent[] },
+    CoreException,
+    never
+  >,
+): (input: I) => CommandOnModel<A>;
 ```
 
 ---
@@ -2046,12 +2009,15 @@ reducerLogic: ( input: I, props: GetProps<A>, aggregate: A, correlationId: strin
 
 **Type Signature:**
 
-TypeScript
-
-```
-
-function create<P, A extends AggregateRoot>(params: { name: string; payload: P; correlationId: string; causationId?: string; userId?: string; aggregate?: A;}): IDomainEvent<P>;
-
+```typescript
+function create<P, A extends AggregateRoot>(params: {
+  name: string;
+  payload: P;
+  correlationId: string;
+  causationId?: string;
+  userId?: string;
+  aggregate?: A;
+}): IDomainEvent<P>;
 ```
 
 **Parameters:**
@@ -2067,27 +2033,23 @@ function create<P, A extends AggregateRoot>(params: { name: string; payload: P; 
 
 **Example:**
 
-TypeScript
-
-```
-
+```typescript
 import { DomainEventTrait, IdentifierTrait } from 'effect-ddd';
 // Assuming orderAggregate is defined elsewhere
 declare const orderAggregate: any;
 
 const orderPlacedEvent = DomainEventTrait.create({
-name: 'ORDER_PLACED',
-payload: {
-orderId: '123',
-customerId: 'customer-456',
-totalAmount: 299.99,
-},
-correlationId: IdentifierTrait.uuid(),
-causationId: 'command-123',
-userId: 'user-789',
-aggregate: orderAggregate,
+  name: 'ORDER_PLACED',
+  payload: {
+    orderId: '123',
+    customerId: 'customer-456',
+    totalAmount: 299.99,
+  },
+  correlationId: IdentifierTrait.uuid(),
+  causationId: 'command-123',
+  userId: 'user-789',
+  aggregate: orderAggregate,
 });
-
 ```
 
 ### Domain Event Publisher
@@ -2098,23 +2060,20 @@ aggregate: orderAggregate,
 
 TypeScript
 
-```
-
+```typescript
 interface IDomainEventPublisher {
-publish(event: IDomainEvent): Effect.Effect<void, BaseException, never>;
-publishAll(
-events: ReadonlyArray<IDomainEvent>,
-): Effect.Effect<void, BaseException, never>;
+  publish(event: IDomainEvent): Effect.Effect<void, BaseException, never>;
+  publishAll(
+    events: ReadonlyArray<IDomainEvent>,
+  ): Effect.Effect<void, BaseException, never>;
 }
-
 ```
 
 **Example:**
 
 TypeScript
 
-```
-
+```typescript
 import { Effect, Context } from 'effect';
 import { IDomainEventPublisher } from 'effect-ddd/model/event'; // Assuming this import path
 // Assuming DomainEventPublisherContext, orderPlacedEvent, event1, event2, event3 are defined elsewhere
@@ -2125,12 +2084,11 @@ declare const event2: any;
 declare const event3: any;
 
 const publishEvent = Effect.gen(function* () {
-const publisher = yield* DomainEventPublisherContext;
+  const publisher = yield* DomainEventPublisherContext;
 
-yield* publisher.publish(orderPlacedEvent);
-yield* publisher.publishAll([event1, event2, event3]);
+  yield* publisher.publish(orderPlacedEvent);
+  yield* publisher.publishAll([event1, event2, event3]);
 });
-
 ```
 
 ---
@@ -2143,9 +2101,7 @@ yield* publisher.publishAll([event1, event2, event3]);
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 
 class ValidationException extends Data.TaggedError('ValidationFail')<{
 code: string;
@@ -2164,9 +2120,7 @@ violations?: Array<{ rule: string; code: string; message: string; }>;
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 
 static new(
 code: string,
@@ -2180,9 +2134,7 @@ content?: ValidationException['content'],
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 
 static withViolations(
 violations: Array<{ rule: string; code: string; message: string; }>,
@@ -2192,33 +2144,29 @@ violations: Array<{ rule: string; code: string; message: string; }>,
 
 **Example:**
 
-TypeScript
-
-```
-
+```typescript
 import { ValidationException } from 'effect-ddd';
 
 // Simple validation error
 const validationError = ValidationException.new(
-'INVALID_EMAIL',
-'Email format is invalid',
-{
-loc: ['user', 'email'],
-instruction: ['Email must be a valid email address'],
-details: ['Provided: not-an-email'],
-},
+  'INVALID_EMAIL',
+  'Email format is invalid',
+  {
+    loc: ['user', 'email'],
+    instruction: ['Email must be a valid email address'],
+    details: ['Provided: not-an-email'],
+  },
 );
 
 // Multiple violations
 const multipleViolations = ValidationException.withViolations([
-{ rule: 'email_format', code: 'INVALID_EMAIL', message: 'Invalid email' },
-{
-rule: 'password_strength',
-code: 'WEAK_PASSWORD',
-message: 'Password too weak',
-},
+  { rule: 'email_format', code: 'INVALID_EMAIL', message: 'Invalid email' },
+  {
+    rule: 'password_strength',
+    code: 'WEAK_PASSWORD',
+    message: 'Password too weak',
+  },
 ]);
-
 ```
 
 #### `NotFoundException`
@@ -2227,7 +2175,7 @@ message: 'Password too weak',
 
 TypeScript
 
-```
+```typescript
 
 class NotFoundException extends Data.TaggedError('Notfound')<BaseException>
 
@@ -2239,9 +2187,7 @@ static new(code: string, message: string, content?: BaseException['content']): N
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 
 class OperationException extends Data.TaggedError('Operation')<BaseException>
 
@@ -2259,25 +2205,19 @@ static new(code: string, message: string, content?: BaseException['content']): O
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 interface IidentifierTrait {
-parse: typeof parseId;
-new: typeof parseId;
-uuid(): Identifier;
+  parse: typeof parseId;
+  new: typeof parseId;
+  uuid(): Identifier;
 }
 
 const IdentifierTrait: IidentifierTrait;
-
 ```
 
 **Example:**
 
-TypeScript
-
-```
+```typescript
 
 import { IdentifierTrait } from 'effect-ddd';
 
@@ -2292,50 +2232,38 @@ const parsedId = yield \* IdentifierTrait.parse('existing-uuid');
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 type HasProps<T> = {
-readonly props: T;
+  readonly props: T;
 };
 
 type GetProps<T extends HasProps<unknown>> = T['props'];
 
 function getRawProps<A extends HasProps<unknown>>(a: A): GetProps<A>;
 function queryOnProps<A extends HasProps<any>, R>(
-key: keyof GetProps<A>,
+  key: keyof GetProps<A>,
 ): (a: A) => R;
-
 ```
 
 #### `ObjectWithId`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 type ObjectWithId = {
-readonly id: Identifier;
+  readonly id: Identifier;
 };
-
 ```
 
 #### `WithTime`
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 type WithTime = {
-readonly createdAt: Option.Option<Date>;
-readonly updatedAt: Option.Option<Date>;
+  readonly createdAt: Option.Option<Date>;
+  readonly updatedAt: Option.Option<Date>;
 };
-
 ```
 
 ### Application Layer
@@ -2344,9 +2272,7 @@ readonly updatedAt: Option.Option<Date>;
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 
 type Command<T> = HasProps<T> & {
 readonly lifecycle: LifeCycleMeta;
@@ -2369,9 +2295,7 @@ correlationId<T>(command: T): string; // Corrected to T, assuming T is Command<u
 
 **Type Signature:**
 
-TypeScript
-
-```
+```typescript
 
 type Query<T> = {
 readonly props: T;
@@ -2388,18 +2312,14 @@ queryProps: typeof queryOnProps;
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 type CommandHandler<Cmd extends Command<unknown>, Res> = (
-command: Cmd,
+  command: Cmd,
 ) => Effect.Effect<Res, BaseException>;
 
 type QueryHandler<Q extends Query<unknown>, Res> = (
-query: Q,
+  query: Q,
 ) => Effect.Effect<Res, BaseException>;
-
 ```
 
 ### Functional Programming Utilities
@@ -2408,12 +2328,8 @@ query: Q,
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function randomItem<T>(items: T[]): T;
-
 ```
 
 **Parameters:**
@@ -2426,12 +2342,8 @@ function randomItem<T>(items: T[]): T;
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function toSnakeCase(str: string): string;
-
 ```
 
 **Parameters:**
@@ -2444,15 +2356,14 @@ function toSnakeCase(str: string): string;
 
 **Type Signature:**
 
-TypeScript
-
-```
-
+```typescript
 function now(): Date;
-
 ```
 
 **Returns:** Current date and time
 
 This comprehensive API reference provides detailed information about all the major components and utilities in the effect-ddd library, including complete type signatures, parameter descriptions, and practical examples for each function and interface.
+
+```
+
 ```
