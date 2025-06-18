@@ -138,12 +138,7 @@ These functions initiate the configuration pipeline for different domain model t
       ParseParams = NewParams,
     >(
       tag: string,
-    ): DomainConfig<
-      VO,
-      ParseParams,
-      NewParams,
-      Record<string, never>
-    >;
+    ): DomainConfig<VO, ParseParams, NewParams, Record<string, never>>;
     ```
 
   - **Parameters:**
@@ -459,7 +454,10 @@ export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
   getSubscriptionStatus: UserQuery<Effect.Effect<any, any, any>>;
   activate: (i: void) => CommandOnModel<User, User>;
   updateEmail: (i: string) => CommandOnModel<User, User>;
-  updateProfile: (i: { name?: string; email?: string }) => CommandOnModel<User, User>;
+  updateProfile: (i: {
+    name?: string;
+    email?: string;
+  }) => CommandOnModel<User, User>;
 }
 
 // Assume fetchUserPreferences and subscriptionService are defined elsewhere
@@ -1283,10 +1281,15 @@ The Repository Factory provides functional composition for creating TypeORM-base
 **Type Signature:**
 
 ```typescript
-function createRepository<  DM extends AggregateRoot,  OrmEntity extends AggregateTypeORMEntityBase,  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,>(
+function createRepository<
+  DM extends AggregateRoot,
+  OrmEntity extends AggregateTypeORMEntityBase,
+  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
+>(
   config: RepositoryConfig<DM, OrmEntity, QueryParams>,
 ): Effect.Effect<RepositoryPort<DM>, BaseException, DataSource>;
 ```
+
 ```
 
 **Parameters:**
@@ -1300,21 +1303,23 @@ function createRepository<  DM extends AggregateRoot,  OrmEntity extends Aggrega
 TypeScript
 
 ```
+
 import { createRepository } from 'effect-ddd/typeorm';
 // Assuming UserEntity and UserTrait are defined elsewhere
 declare class UserEntity {};
 declare const UserTrait: any;
 
 const userRepository = createRepository({
-  entityClass: UserEntity,
-  relations: ['profile', 'orders'],
-  mappers: {
-    toDomain: (entity) => UserTrait.parse(entity),
-    toOrm: (domain, existing, repo) =>
-      Effect.succeed({ ...existing, ...domain.props, id: domain.id }),
-    prepareQuery: (params) => ({ id: params.id }),
-  },
+entityClass: UserEntity,
+relations: ['profile', 'orders'],
+mappers: {
+toDomain: (entity) => UserTrait.parse(entity),
+toOrm: (domain, existing, repo) =>
+Effect.succeed({ ...existing, ...domain.props, id: domain.id }),
+prepareQuery: (params) => ({ id: params.id }),
+},
 });
+
 ```
 
 ---
@@ -1326,9 +1331,11 @@ const userRepository = createRepository({
 TypeScript
 
 ```
-function createRepositoryWithDefaults<  DM extends AggregateRoot,  OrmEntity extends AggregateTypeORMEntityBase,  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,>(
-  partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
+
+function createRepositoryWithDefaults< DM extends AggregateRoot, OrmEntity extends AggregateTypeORMEntityBase, QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,>(
+partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
 ): Effect.Effect<RepositoryPort<DM>, BaseException, DataSource>;
+
 ```
 
 **Parameters:**
@@ -1342,19 +1349,21 @@ function createRepositoryWithDefaults<  DM extends AggregateRoot,  OrmEntity ext
 TypeScript
 
 ```
+
 import { createRepositoryWithDefaults } from 'effect-ddd/typeorm';
 // Assuming ProductEntity and ProductTrait are defined elsewhere
 declare class ProductEntity {};
 declare const ProductTrait: any;
 
 const productRepository = createRepositoryWithDefaults({
-  entityClass: ProductEntity,
-  relations: ['category'],
-  mappers: {
-    toDomain: (entity) => ProductTrait.parse(entity),
-    // toOrm and prepareQuery auto-generated
-  },
+entityClass: ProductEntity,
+relations: ['category'],
+mappers: {
+toDomain: (entity) => ProductTrait.parse(entity),
+// toOrm and prepareQuery auto-generated
+},
 });
+
 ```
 
 ---
@@ -1366,10 +1375,13 @@ const productRepository = createRepositoryWithDefaults({
 TypeScript
 
 ```
-function createRepositoryWithConventions<  DM extends AggregateRoot,  OrmEntity extends AggregateTypeORMEntityBase,  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,  Trait extends AggregateRootTrait<DM, any, any> = AggregateRootTrait<    DM,    any,    any
-  >,>(
-  config: ConventionConfig<DM, OrmEntity, QueryParams, Trait>,
-): Effect.Effect<RepositoryPort<DM>, BaseException, DataSource>;
+
+function createRepositoryWithConventions< DM extends AggregateRoot, OrmEntity extends AggregateTypeORMEntityBase, QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams, Trait extends AggregateRootTrait<DM, any, any> = AggregateRootTrait< DM, any, any
+
+> ,>(
+> config: ConventionConfig<DM, OrmEntity, QueryParams, Trait>,
+> ): Effect.Effect<RepositoryPort<DM>, BaseException, DataSource>;
+
 ```
 
 **Parameters:**
@@ -1383,22 +1395,24 @@ function createRepositoryWithConventions<  DM extends AggregateRoot,  OrmEntity 
 TypeScript
 
 ```
+
 import { createRepositoryWithConventions } from 'effect-ddd/typeorm';
 // Assuming OrderEntity and OrderTrait are defined elsewhere
 declare class OrderEntity {};
 declare const OrderTrait: any;
 
 const orderRepository = createRepositoryWithConventions({
-  entityClass: OrderEntity,
-  domainTrait: OrderTrait,
-  relations: ['items', 'customer'],
-  customMappings: {
-    prepareQuery: (params) => ({
-      customer: { id: params.customerId },
-      status: params.status,
-    }),
-  },
+entityClass: OrderEntity,
+domainTrait: OrderTrait,
+relations: ['items', 'customer'],
+customMappings: {
+prepareQuery: (params) => ({
+customer: { id: params.customerId },
+status: params.status,
+}),
+},
 });
+
 ```
 
 ### Layer Factory Functions
@@ -1410,9 +1424,11 @@ const orderRepository = createRepositoryWithConventions({
 TypeScript
 
 ```
-function createRepositoryLayer<  DM extends AggregateRoot,  OrmEntity extends AggregateTypeORMEntityBase,  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,>(
-  repositoryTag: Context.Tag<any, RepositoryPort<DM>>,  config: RepositoryConfig<DM, OrmEntity, QueryParams>,
+
+function createRepositoryLayer< DM extends AggregateRoot, OrmEntity extends AggregateTypeORMEntityBase, QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,>(
+repositoryTag: Context.Tag<any, RepositoryPort<DM>>, config: RepositoryConfig<DM, OrmEntity, QueryParams>,
 ): Layer.Layer<RepositoryPort<DM>, BaseException, DataSource>;
+
 ```
 
 **Parameters:**
@@ -1427,6 +1443,7 @@ function createRepositoryLayer<  DM extends AggregateRoot,  OrmEntity extends Ag
 TypeScript
 
 ```
+
 import { Context } from 'effect';
 import { createRepositoryLayer } from 'effect-ddd/typeorm';
 // Assuming RepositoryPort<User>, UserEntity, UserTrait are defined elsewhere
@@ -1438,15 +1455,16 @@ declare type User = any;
 const UserRepositoryTag = Context.Tag<RepositoryPort<User>>();
 
 const UserRepositoryLayer = createRepositoryLayer(UserRepositoryTag, {
-  entityClass: UserEntity,
-  relations: ['profile'],
-  mappers: {
-    toDomain: (entity) => UserTrait.parse(entity),
-    toOrm: (domain, existing, repo) =>
-      Effect.succeed({ ...existing, ...domain.props }),
-    prepareQuery: (params) => ({ email: params.email }),
-  },
+entityClass: UserEntity,
+relations: ['profile'],
+mappers: {
+toDomain: (entity) => UserTrait.parse(entity),
+toOrm: (domain, existing, repo) =>
+Effect.succeed({ ...existing, ...domain.props }),
+prepareQuery: (params) => ({ email: params.email }),
+},
 });
+
 ```
 
 ### Functional Builder Functions
@@ -1458,7 +1476,9 @@ const UserRepositoryLayer = createRepositoryLayer(UserRepositoryTag, {
 TypeScript
 
 ```
-function repositoryBuilder<  DM extends AggregateRoot,  OrmEntity extends AggregateTypeORMEntityBase,  QueryParams = any,>(entityClass: new () => OrmEntity): BuilderState<DM, OrmEntity, QueryParams>;
+
+function repositoryBuilder< DM extends AggregateRoot, OrmEntity extends AggregateTypeORMEntityBase, QueryParams = any,>(entityClass: new () => OrmEntity): BuilderState<DM, OrmEntity, QueryParams>;
+
 ```
 
 **Parameters:**
@@ -1474,11 +1494,13 @@ function repositoryBuilder<  DM extends AggregateRoot,  OrmEntity extends Aggreg
 TypeScript
 
 ```
+
 function withRelations<DM, OrmEntity, QueryParams>(
-  relations: readonly string[],
+relations: readonly string[],
 ): (
-  state: BuilderState<DM, OrmEntity, QueryParams>,
+state: BuilderState<DM, OrmEntity, QueryParams>,
 ) => BuilderState<DM, OrmEntity, QueryParams>;
+
 ```
 
 **Parameters:**
@@ -1492,11 +1514,13 @@ function withRelations<DM, OrmEntity, QueryParams>(
 TypeScript
 
 ```
+
 function withDomainMapper<DM, OrmEntity, QueryParams>(
-  mapper: (ormEntity: OrmEntity) => Effect.Effect<DM, BaseException, never>,
+mapper: (ormEntity: OrmEntity) => Effect.Effect<DM, BaseException, never>,
 ): (
-  state: BuilderState<DM, OrmEntity, QueryParams>,
+state: BuilderState<DM, OrmEntity, QueryParams>,
 ) => BuilderState<DM, OrmEntity, QueryParams>;
+
 ```
 
 #### `withOrmMapper(mapper: (domain: DM, existing?: OrmEntity) => Effect<OrmEntity, BaseException>)`
@@ -1506,11 +1530,13 @@ function withDomainMapper<DM, OrmEntity, QueryParams>(
 TypeScript
 
 ```
+
 function withOrmMapper<DM, OrmEntity, QueryParams>(
-  mapper: (    domain: DM,    existing?: OrmEntity,  ) => Effect.Effect<OrmEntity, BaseException, never>,
+mapper: ( domain: DM, existing?: OrmEntity, ) => Effect.Effect<OrmEntity, BaseException, never>,
 ): (
-  state: BuilderState<DM, OrmEntity, QueryParams>,
+state: BuilderState<DM, OrmEntity, QueryParams>,
 ) => BuilderState<DM, OrmEntity, QueryParams>;
+
 ```
 
 #### `withQueryMapper(mapper: (params: QueryParams) => FindOptionsWhere<OrmEntity>)`
@@ -1520,11 +1546,13 @@ function withOrmMapper<DM, OrmEntity, QueryParams>(
 TypeScript
 
 ```
+
 function withQueryMapper<DM, OrmEntity, QueryParams>(
-  mapper: (params: QueryParams) => FindOptionsWhere<OrmEntity>,
+mapper: (params: QueryParams) => FindOptionsWhere<OrmEntity>,
 ): (
-  state: BuilderState<DM, OrmEntity, QueryParams>,
+state: BuilderState<DM, OrmEntity, QueryParams>,
 ) => BuilderState<DM, OrmEntity, QueryParams>;
+
 ```
 
 #### `build(state: BuilderState)`
@@ -1534,9 +1562,11 @@ function withQueryMapper<DM, OrmEntity, QueryParams>(
 TypeScript
 
 ```
+
 function build<DM, OrmEntity, QueryParams>(
-  state: BuilderState<DM, OrmEntity, QueryParams>,
+state: BuilderState<DM, OrmEntity, QueryParams>,
 ): Effect.Effect<RepositoryPort<DM>, BaseException, DataSource>;
+
 ```
 
 #### `buildLayer(repositoryTag: Context.Tag)`
@@ -1546,11 +1576,13 @@ function build<DM, OrmEntity, QueryParams>(
 TypeScript
 
 ```
+
 function buildLayer<DM, OrmEntity, QueryParams>(
-  repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
+repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
 ): (
-  state: BuilderState<DM, OrmEntity, QueryParams>,
+state: BuilderState<DM, OrmEntity, QueryParams>,
 ) => Layer.Layer<RepositoryPort<DM>, BaseException, DataSource>;
+
 ```
 
 **Complete Functional Builder Example:**
@@ -1558,6 +1590,7 @@ function buildLayer<DM, OrmEntity, QueryParams>(
 TypeScript
 
 ```
+
 import { pipe, Effect, Option } from 'effect';
 import { repositoryBuilder, withRelations, withDomainMapper, withOrmMapper, withQueryMapper, build } from 'effect-ddd/typeorm';
 // Assuming Product, ProductEntity, ProductQuery, ProductTrait, MoneyTrait are defined elsewhere
@@ -1569,36 +1602,37 @@ declare const MoneyTrait: any;
 declare const MoreThan: any;
 
 const productRepository = pipe(
-  repositoryBuilder<Product, ProductEntity, ProductQuery>(ProductEntity),
-  withRelations(['category', 'reviews', 'variants']),
-  withDomainMapper((entity) =>
-    Effect.gen(function* () {
-      const product = yield* ProductTrait.parse({
-        ...entity,
-        price: yield* MoneyTrait.parse(entity.price),
-      });
-      return product;
-    }),
-  ),
-  withOrmMapper((domain, existing) =>
-    Effect.succeed({
-      ...existing,
-      id: domain.id,
-      name: domain.props.name,
-      price: domain.props.price.amount,
-      currency: domain.props.price.currency,
-      categoryId: domain.props.category.id,
-      createdAt: domain.createdAt,
-      updatedAt: Option.getOrNull(domain.updatedAt),
-    }),
-  ),
-  withQueryMapper((params: ProductQuery) => ({
-    category: params.categoryId ? { id: params.categoryId } : undefined,
-    status: params.status,
-    price: params.minPrice ? MoreThan(params.minPrice) : undefined,
-  })),
-  build,
+repositoryBuilder<Product, ProductEntity, ProductQuery>(ProductEntity),
+withRelations(['category', 'reviews', 'variants']),
+withDomainMapper((entity) =>
+Effect.gen(function* () {
+const product = yield* ProductTrait.parse({
+...entity,
+price: yield\* MoneyTrait.parse(entity.price),
+});
+return product;
+}),
+),
+withOrmMapper((domain, existing) =>
+Effect.succeed({
+...existing,
+id: domain.id,
+name: domain.props.name,
+price: domain.props.price.amount,
+currency: domain.props.price.currency,
+categoryId: domain.props.category.id,
+createdAt: domain.createdAt,
+updatedAt: Option.getOrNull(domain.updatedAt),
+}),
+),
+withQueryMapper((params: ProductQuery) => ({
+category: params.categoryId ? { id: params.categoryId } : undefined,
+status: params.status,
+price: params.minPrice ? MoreThan(params.minPrice) : undefined,
+})),
+build,
 );
+
 ```
 
 ### Repository Port Interface
@@ -1606,41 +1640,43 @@ const productRepository = pipe(
 TypeScript
 
 ```
+
 interface RepositoryPort<A extends AggregateRoot, QueryParams = any> {
-  /**   * Save an existing aggregate root and publish domain events   */
-  save(aggregateRoot: A): Effect.Effect<void, BaseException, never>;
+/\*\* _ Save an existing aggregate root and publish domain events _/
+save(aggregateRoot: A): Effect.Effect<void, BaseException, never>;
 
-  /**   * Add a new aggregate root and publish domain events   */
-  add(entity: A): Effect.Effect<void, BaseException, never>;
+/\*\* _ Add a new aggregate root and publish domain events _/
+add(entity: A): Effect.Effect<void, BaseException, never>;
 
-  /**   * Save multiple aggregate roots   */
-  saveMultiple(entities: A[]): Effect.Effect<void, BaseException, never>;
+/\*\* _ Save multiple aggregate roots _/
+saveMultiple(entities: A[]): Effect.Effect<void, BaseException, never>;
 
-  /**   * Find one aggregate root by query parameters   */
-  findOne(
-    params: QueryParams,
-  ): Effect.Effect<Option.Option<A>, BaseException, never>;
+/\*\* _ Find one aggregate root by query parameters _/
+findOne(
+params: QueryParams,
+): Effect.Effect<Option.Option<A>, BaseException, never>;
 
-  /**   * Find one aggregate root by query parameters or throw   */
-  findOneOrThrow(params: QueryParams): Effect.Effect<A, BaseException, never>;
+/\*\* _ Find one aggregate root by query parameters or throw _/
+findOneOrThrow(params: QueryParams): Effect.Effect<A, BaseException, never>;
 
-  /**   * Find one aggregate root by ID or throw   */
-  findOneByIdOrThrow(id: Identifier): Effect.Effect<A, BaseException, never>;
+/\*\* _ Find one aggregate root by ID or throw _/
+findOneByIdOrThrow(id: Identifier): Effect.Effect<A, BaseException, never>;
 
-  /**   * Find many aggregate roots by query parameters   */
-  findMany(params: QueryParams): Effect.Effect<A[], BaseException, never>;
+/\*\* _ Find many aggregate roots by query parameters _/
+findMany(params: QueryParams): Effect.Effect<A[], BaseException, never>;
 
-  /**   * Find many aggregate roots with pagination   */
-  findManyPaginated(
-    options: FindManyPaginatedParams<QueryParams>,
-  ): Effect.Effect<DataWithPaginationMeta<A[]>, BaseException, never>;
+/\*\* _ Find many aggregate roots with pagination _/
+findManyPaginated(
+options: FindManyPaginatedParams<QueryParams>,
+): Effect.Effect<DataWithPaginationMeta<A[]>, BaseException, never>;
 
-  /**   * Delete an aggregate root   */
-  delete(entity: A): Effect.Effect<void, BaseException, never>;
+/\*\* _ Delete an aggregate root _/
+delete(entity: A): Effect.Effect<void, BaseException, never>;
 
-  /**   * Set correlation ID for tracking   */
-  setCorrelationId?(correlationId: string): this;
+/\*\* _ Set correlation ID for tracking _/
+setCorrelationId?(correlationId: string): this;
 }
+
 ```
 
 ---
@@ -1656,7 +1692,9 @@ interface RepositoryPort<A extends AggregateRoot, QueryParams = any> {
 TypeScript
 
 ```
+
 function getTag(valueObject: ValueObject): string;
+
 ```
 
 #### `unpack<VO extends ValueObject>(valueObject): GetProps<VO>`
@@ -1666,7 +1704,9 @@ function getTag(valueObject: ValueObject): string;
 TypeScript
 
 ```
+
 function unpack<VO extends ValueObject>(valueObject: VO): GetProps<VO>;
+
 ```
 
 #### `isEqual<VO extends ValueObject>(vo1, vo2): boolean`
@@ -1676,7 +1716,9 @@ function unpack<VO extends ValueObject>(valueObject: VO): GetProps<VO>;
 TypeScript
 
 ```
+
 function isEqual<VO extends ValueObject>(vo1: VO, vo2: VO): boolean;
+
 ```
 
 #### `createValueObjectTrait<VO, N, P>(propsParser, tag): ValueObjectTrait<VO, N, P>`
@@ -1686,9 +1728,11 @@ function isEqual<VO extends ValueObject>(vo1: VO, vo2: VO): boolean;
 TypeScript
 
 ```
-function createValueObjectTrait<  VO extends ValueObject,  N = unknown,  P = unknown,>(
-  propsParser: (raw: P) => ParseResult<VO['props']>,  tag: string,
+
+function createValueObjectTrait< VO extends ValueObject, N = unknown, P = unknown,>(
+propsParser: (raw: P) => ParseResult<VO['props']>, tag: string,
 ): ValueObjectTrait<VO, N, P>;
+
 ```
 
 ### EntityGenericTrait
@@ -1700,7 +1744,9 @@ function createValueObjectTrait<  VO extends ValueObject,  N = unknown,  P = unk
 TypeScript
 
 ```
+
 function getId<E extends Entity>(entity: E): Identifier;
+
 ```
 
 #### `getCreatedAt<E extends Entity>(entity): Date`
@@ -1710,7 +1756,9 @@ function getId<E extends Entity>(entity: E): Identifier;
 TypeScript
 
 ```
+
 function getCreatedAt<E extends Entity>(entity: E): Date;
+
 ```
 
 #### `getUpdatedAt<E extends Entity>(entity): Option<Date>`
@@ -1720,7 +1768,9 @@ function getCreatedAt<E extends Entity>(entity: E): Date;
 TypeScript
 
 ```
+
 function getUpdatedAt<E extends Entity>(entity: E): Option.Option<Date>;
+
 ```
 
 #### `markUpdated<E extends Entity>(entity): E`
@@ -1730,7 +1780,9 @@ function getUpdatedAt<E extends Entity>(entity: E): Option.Option<Date>;
 TypeScript
 
 ```
+
 function markUpdated<E extends Entity>(entity: E): E;
+
 ```
 
 #### `asCommand<E, I>(reducerLogic): (input: I) => CommandOnModel<E>`
@@ -1740,9 +1792,11 @@ function markUpdated<E extends Entity>(entity: E): E;
 TypeScript
 
 ```
+
 function asCommand<E extends Entity, I>(
-  reducerLogic: (    input: I,    props: GetProps<E>,    entity: E,  ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
+reducerLogic: ( input: I, props: GetProps<E>, entity: E, ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
 ): (input: I) => CommandOnModel<E>;
+
 ```
 
 ### AggGenericTrait
@@ -1754,9 +1808,11 @@ function asCommand<E extends Entity, I>(
 TypeScript
 
 ```
+
 function getDomainEvents<A extends AggregateRoot>(
-  aggregate: A,
+aggregate: A,
 ): ReadonlyArray<IDomainEvent>;
+
 ```
 
 #### `clearEvents<A extends AggregateRoot>(aggregate): A`
@@ -1766,7 +1822,9 @@ function getDomainEvents<A extends AggregateRoot>(
 TypeScript
 
 ```
+
 function clearEvents<A extends AggregateRoot>(aggregate: A): A;
+
 ```
 
 #### `addDomainEvent<A extends AggregateRoot>(event): (aggregate: A) => A`
@@ -1776,9 +1834,11 @@ function clearEvents<A extends AggregateRoot>(aggregate: A): A;
 TypeScript
 
 ```
+
 function addDomainEvent<A extends AggregateRoot>(
-  event: IDomainEvent,
+event: IDomainEvent,
 ): (aggregate: A) => A;
+
 ```
 
 #### `asCommand<A, I>(reducerLogic): (input: I) => CommandOnModel<A>`
@@ -1788,10 +1848,13 @@ function addDomainEvent<A extends AggregateRoot>(
 TypeScript
 
 ```
+
 function asCommand<A extends AggregateRoot, I>(
-  reducerLogic: (    input: I,    props: GetProps<A>,    aggregate: A,    correlationId: string,  ) => Effect.Effect<    { props: GetProps<A>; domainEvents: IDomainEvent[] },    CoreException,    never
-  >,
-): (input: I) => CommandOnModel<A>;
+reducerLogic: ( input: I, props: GetProps<A>, aggregate: A, correlationId: string, ) => Effect.Effect< { props: GetProps<A>; domainEvents: IDomainEvent[] }, CoreException, never
+
+> ,
+> ): (input: I) => CommandOnModel<A>;
+
 ```
 
 ---
@@ -1807,7 +1870,9 @@ function asCommand<A extends AggregateRoot, I>(
 TypeScript
 
 ```
-function create<P, A extends AggregateRoot>(params: {  name: string;  payload: P;  correlationId: string;  causationId?: string;  userId?: string;  aggregate?: A;}): IDomainEvent<P>;
+
+function create<P, A extends AggregateRoot>(params: { name: string; payload: P; correlationId: string; causationId?: string; userId?: string; aggregate?: A;}): IDomainEvent<P>;
+
 ```
 
 **Parameters:**
@@ -1826,22 +1891,24 @@ function create<P, A extends AggregateRoot>(params: {  name: string;  payload: P
 TypeScript
 
 ```
+
 import { DomainEventTrait, IdentifierTrait } from 'effect-ddd';
 // Assuming orderAggregate is defined elsewhere
 declare const orderAggregate: any;
 
 const orderPlacedEvent = DomainEventTrait.create({
-  name: 'ORDER_PLACED',
-  payload: {
-    orderId: '123',
-    customerId: 'customer-456',
-    totalAmount: 299.99,
-  },
-  correlationId: IdentifierTrait.uuid(),
-  causationId: 'command-123',
-  userId: 'user-789',
-  aggregate: orderAggregate,
+name: 'ORDER_PLACED',
+payload: {
+orderId: '123',
+customerId: 'customer-456',
+totalAmount: 299.99,
+},
+correlationId: IdentifierTrait.uuid(),
+causationId: 'command-123',
+userId: 'user-789',
+aggregate: orderAggregate,
 });
+
 ```
 
 ### Domain Event Publisher
@@ -1853,12 +1920,14 @@ const orderPlacedEvent = DomainEventTrait.create({
 TypeScript
 
 ```
+
 interface IDomainEventPublisher {
-  publish(event: IDomainEvent): Effect.Effect<void, BaseException, never>;
-  publishAll(
-    events: ReadonlyArray<IDomainEvent>,
-  ): Effect.Effect<void, BaseException, never>;
+publish(event: IDomainEvent): Effect.Effect<void, BaseException, never>;
+publishAll(
+events: ReadonlyArray<IDomainEvent>,
+): Effect.Effect<void, BaseException, never>;
 }
+
 ```
 
 **Example:**
@@ -1866,6 +1935,7 @@ interface IDomainEventPublisher {
 TypeScript
 
 ```
+
 import { Effect, Context } from 'effect';
 import { IDomainEventPublisher } from 'effect-ddd/model/event'; // Assuming this import path
 // Assuming DomainEventPublisherContext, orderPlacedEvent, event1, event2, event3 are defined elsewhere
@@ -1876,11 +1946,12 @@ declare const event2: any;
 declare const event3: any;
 
 const publishEvent = Effect.gen(function* () {
-  const publisher = yield* DomainEventPublisherContext;
+const publisher = yield* DomainEventPublisherContext;
 
-  yield* publisher.publish(orderPlacedEvent);
-  yield* publisher.publishAll([event1, event2, event3]);
+yield* publisher.publish(orderPlacedEvent);
+yield* publisher.publishAll([event1, event2, event3]);
 });
+
 ```
 
 ---
@@ -1896,16 +1967,18 @@ const publishEvent = Effect.gen(function* () {
 TypeScript
 
 ```
+
 class ValidationException extends Data.TaggedError('ValidationFail')<{
-  code: string;
-  message: string;
-  content?: {
-    loc?: string[];
-    instruction?: string[];
-    details?: string[];
-    violations?: Array<{ rule: string; code: string; message: string; }>;
-  };
+code: string;
+message: string;
+content?: {
+loc?: string[];
+instruction?: string[];
+details?: string[];
+violations?: Array<{ rule: string; code: string; message: string; }>;
+};
 }>
+
 ```
 
 #### `ValidationException.new(code, message, content?): ValidationException`
@@ -1915,11 +1988,13 @@ class ValidationException extends Data.TaggedError('ValidationFail')<{
 TypeScript
 
 ```
+
 static new(
-  code: string,
-  message: string,
-  content?: ValidationException['content'],
+code: string,
+message: string,
+content?: ValidationException['content'],
 ): ValidationException
+
 ```
 
 #### `ValidationException.withViolations(violations): ValidationException`
@@ -1929,9 +2004,11 @@ static new(
 TypeScript
 
 ```
+
 static withViolations(
-  violations: Array<{ rule: string; code: string; message: string; }>,
+violations: Array<{ rule: string; code: string; message: string; }>,
 ): ValidationException
+
 ```
 
 **Example:**
@@ -1939,28 +2016,30 @@ static withViolations(
 TypeScript
 
 ```
+
 import { ValidationException } from 'effect-ddd';
 
 // Simple validation error
 const validationError = ValidationException.new(
-  'INVALID_EMAIL',
-  'Email format is invalid',
-  {
-    loc: ['user', 'email'],
-    instruction: ['Email must be a valid email address'],
-    details: ['Provided: not-an-email'],
-  },
+'INVALID_EMAIL',
+'Email format is invalid',
+{
+loc: ['user', 'email'],
+instruction: ['Email must be a valid email address'],
+details: ['Provided: not-an-email'],
+},
 );
 
 // Multiple violations
 const multipleViolations = ValidationException.withViolations([
-  { rule: 'email_format', code: 'INVALID_EMAIL', message: 'Invalid email' },
-  {
-    rule: 'password_strength',
-    code: 'WEAK_PASSWORD',
-    message: 'Password too weak',
-  },
+{ rule: 'email_format', code: 'INVALID_EMAIL', message: 'Invalid email' },
+{
+rule: 'password_strength',
+code: 'WEAK_PASSWORD',
+message: 'Password too weak',
+},
 ]);
+
 ```
 
 #### `NotFoundException`
@@ -1970,9 +2049,11 @@ const multipleViolations = ValidationException.withViolations([
 TypeScript
 
 ```
+
 class NotFoundException extends Data.TaggedError('Notfound')<BaseException>
 
 static new(code: string, message: string, content?: BaseException['content']): NotFoundException
+
 ```
 
 #### `OperationException`
@@ -1982,9 +2063,11 @@ static new(code: string, message: string, content?: BaseException['content']): N
 TypeScript
 
 ```
+
 class OperationException extends Data.TaggedError('Operation')<BaseException>
 
 static new(code: string, message: string, content?: BaseException['content']): OperationException
+
 ```
 
 ---
@@ -2000,13 +2083,15 @@ static new(code: string, message: string, content?: BaseException['content']): O
 TypeScript
 
 ```
+
 interface IidentifierTrait {
-  parse: typeof parseId;
-  new: typeof parseId;
-  uuid(): Identifier;
+parse: typeof parseId;
+new: typeof parseId;
+uuid(): Identifier;
 }
 
 const IdentifierTrait: IidentifierTrait;
+
 ```
 
 **Example:**
@@ -2014,10 +2099,12 @@ const IdentifierTrait: IidentifierTrait;
 TypeScript
 
 ```
+
 import { IdentifierTrait } from 'effect-ddd';
 
 const id = IdentifierTrait.uuid(); // Generate new UUID
-const parsedId = yield * IdentifierTrait.parse('existing-uuid');
+const parsedId = yield \* IdentifierTrait.parse('existing-uuid');
+
 ```
 
 ### Type Classes
@@ -2029,16 +2116,18 @@ const parsedId = yield * IdentifierTrait.parse('existing-uuid');
 TypeScript
 
 ```
+
 type HasProps<T> = {
-  readonly props: T;
+readonly props: T;
 };
 
 type GetProps<T extends HasProps<unknown>> = T['props'];
 
 function getRawProps<A extends HasProps<unknown>>(a: A): GetProps<A>;
 function queryOnProps<A extends HasProps<any>, R>(
-  key: keyof GetProps<A>,
+key: keyof GetProps<A>,
 ): (a: A) => R;
+
 ```
 
 #### `ObjectWithId`
@@ -2048,9 +2137,11 @@ function queryOnProps<A extends HasProps<any>, R>(
 TypeScript
 
 ```
+
 type ObjectWithId = {
-  readonly id: Identifier;
+readonly id: Identifier;
 };
+
 ```
 
 #### `WithTime`
@@ -2060,10 +2151,12 @@ type ObjectWithId = {
 TypeScript
 
 ```
+
 type WithTime = {
-  readonly createdAt: Option.Option<Date>;
-  readonly updatedAt: Option.Option<Date>;
+readonly createdAt: Option.Option<Date>;
+readonly updatedAt: Option.Option<Date>;
 };
+
 ```
 
 ### Application Layer
@@ -2075,20 +2168,22 @@ type WithTime = {
 TypeScript
 
 ```
+
 type Command<T> = HasProps<T> & {
-  readonly lifecycle: LifeCycleMeta;
+readonly lifecycle: LifeCycleMeta;
 };
 
 const CommandTrait = {
-  factory<Cmd extends Command<unknown>>(params: {
-    lifecycle: Option.Option<LifeCycleMeta>;
-    props: GetProps<Cmd>;
-  }): Cmd;
+factory<Cmd extends Command<unknown>>(params: {
+lifecycle: Option.Option<LifeCycleMeta>;
+props: GetProps<Cmd>;
+}): Cmd;
 
-  queryProps: typeof queryOnProps;
-  getProps: typeof getRawProps;
-  correlationId<T>(command: T): string; // Corrected to T, assuming T is Command<unknown>
+queryProps: typeof queryOnProps;
+getProps: typeof getRawProps;
+correlationId<T>(command: T): string; // Corrected to T, assuming T is Command<unknown>
 };
+
 ```
 
 #### `Query<T>`
@@ -2098,14 +2193,16 @@ const CommandTrait = {
 TypeScript
 
 ```
+
 type Query<T> = {
-  readonly props: T;
+readonly props: T;
 };
 
 const QueryTrait = {
-  factory<Q extends Query<unknown>>(props: GetProps<Q>): Q;
-  queryProps: typeof queryOnProps;
+factory<Q extends Query<unknown>>(props: GetProps<Q>): Q;
+queryProps: typeof queryOnProps;
 };
+
 ```
 
 #### `CommandHandler<Cmd, Res>` & `QueryHandler<Q, Res>`
@@ -2115,13 +2212,15 @@ const QueryTrait = {
 TypeScript
 
 ```
+
 type CommandHandler<Cmd extends Command<unknown>, Res> = (
-  command: Cmd,
+command: Cmd,
 ) => Effect.Effect<Res, BaseException>;
 
 type QueryHandler<Q extends Query<unknown>, Res> = (
-  query: Q,
+query: Q,
 ) => Effect.Effect<Res, BaseException>;
+
 ```
 
 ### Functional Programming Utilities
@@ -2133,7 +2232,9 @@ type QueryHandler<Q extends Query<unknown>, Res> = (
 TypeScript
 
 ```
+
 function randomItem<T>(items: T[]): T;
+
 ```
 
 **Parameters:**
@@ -2149,7 +2250,9 @@ function randomItem<T>(items: T[]): T;
 TypeScript
 
 ```
+
 function toSnakeCase(str: string): string;
+
 ```
 
 **Parameters:**
@@ -2165,9 +2268,12 @@ function toSnakeCase(str: string): string;
 TypeScript
 
 ```
+
 function now(): Date;
+
 ```
 
 **Returns:** Current date and time
 
 This comprehensive API reference provides detailed information about all the major components and utilities in the effect-ddd library, including complete type signatures, parameter descriptions, and practical examples for each function and interface.
+```
