@@ -63,8 +63,10 @@ type EmailProps = { value: string };
 export type Email = ValueObject<EmailProps>;
 
 // 3. Define the Trait Interface for Email
+type EmailQuery<R> = QueryFunction<Email, R>;
+
 export interface IEmailTrait extends ValueObjectTrait<Email, string, string> {
-  getDomain(): QueryOnModel<Email, string>; // Example custom query
+  getDomain(): EmailQuery<string>; // Example custom query
 }
 
 // 4-7. Define and Build the Email Trait using withPropsParser
@@ -447,12 +449,14 @@ const UserSchema = Schema.Struct({
 export type User = Entity<UserProps>;
 
 // 3. Define Trait Interface
+type UserQuery<R> = QueryFunction<User, R>;
+
 export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
-  isActive: () => boolean;
-  getDisplayName: () => string;
-  getEmailDomain: () => string;
-  getPreferences: () => Effect.Effect<any, any, any>;
-  getSubscriptionStatus: () => Effect.Effect<any, any, any>;
+  isActive: UserQuery<boolean>;
+  getDisplayName: UserQuery<string>;
+  getEmailDomain: UserQuery<string>;
+  getPreferences: UserQuery<Effect.Effect<any, any, any>>;
+  getSubscriptionStatus: UserQuery<Effect.Effect<any, any, any>>;
   activate: (i: void) => CommandOnModel<User, User>;
   updateEmail: (i: string) => CommandOnModel<User, User>;
   updateProfile: (i: { name?: string; email?: string }) => CommandOnModel<User, User>;
@@ -779,9 +783,11 @@ const OrderSchema = Schema.Struct({
 export type Order = AggregateRoot<OrderProps>;
 
 // 3. Define Trait Interface
+type OrderQuery<R> = QueryFunction<Order, R>;
+
 export interface IOrderTrait extends AggregateRootTrait<Order, OrderInput, OrderInput> {
   addItem: (i: OrderItem) => CommandOnModel<Order, Order>;
-  getItemCount: () => number;
+  getItemCount: OrderQuery<number>;
   // Define other commands/queries/event handlers as needed
 }
 
