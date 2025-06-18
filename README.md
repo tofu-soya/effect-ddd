@@ -65,6 +65,7 @@ import {
   buildValueObject,
   type ValueObject,
   type ValueObjectTrait,
+  type QueryFunction,
 } from 'effect-ddd';
 
 // 1. Define the schema
@@ -79,11 +80,14 @@ type LocationProps = Schema.Schema.Type<typeof LocationSchema>;
 export type Location = ValueObject<LocationProps>;
 export type LocationInput = { name: string };
 
+// Define query types for this model
+type LocationQuery<R> = QueryFunction<Location, R>;
+
 // 3. Define trait interface
 export interface LocationTrait
   extends ValueObjectTrait<Location, LocationInput, LocationInput> {
-  isInternational: () => boolean;
-  getCountry: () => string;
+  isInternational: LocationQuery<boolean>;
+  getCountry: LocationQuery<string>;
 }
 
 // 4. Build the trait
@@ -127,7 +131,9 @@ import {
   buildEntity,
   type Entity,
   type EntityTrait,
-  ValidationException
+  ValidationException,
+  type QueryFunction,
+  type CommandOnModel,
 } from 'effect-ddd';
 
 // 1. Types for User properties and input
@@ -152,11 +158,14 @@ const UserSchema = Schema.Struct({
 // 3. User Entity type
 export type User = Entity<UserProps>;
 
+// Define query and command types for this model
+type UserQuery<R> = QueryFunction<User, R>;
+
 // 4. Trait Interface for User
 export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
-  isActive: () => boolean;
-  getDisplayName: () => string;
-  activate: () => (user: User) => Effect.Effect<User, ValidationException>;
+  isActive: UserQuery<boolean>;
+  getDisplayName: UserQuery<string>;
+  activate: (i: void) => CommandOnModel<User, User>;
 }
 
 // 5. User entity with functional builder
@@ -202,7 +211,9 @@ import {
   ValidationException,
   IDomainEvent,
   IdentifierTrait,
-} from 'yl-ddd-ts';
+  type QueryFunction,
+  type CommandOnModel,
+} from 'effect-ddd';
 
 // Helper types and functions (simplified for README)
 type OrderItem = {
@@ -244,21 +255,23 @@ const OrderSchema = Schema.Struct({
 // 3. Aggregate type
 export type Order = AggregateRoot<OrderProps>;
 
+// Define query and command types for this model
+type OrderQuery<R> = QueryFunction<Order, R>;
+
 // 4. Trait Interface for Order
 export interface IOrderTrait
   extends AggregateRootTrait<Order, OrderInput, OrderInput> {
-  addItem: (
-    item: OrderItem,
-  ) => (
-    order: Order,
-    correlationId: string,
-  ) => Effect.Effect<Order, ValidationException>;
+  getItemCount: OrderQuery<number>;
+  getTotal: OrderQuery<number>;
+  addItem: (i: OrderItem) => CommandOnModel<Order, Order>;
 }
 
 // 5. OrderTrait definition
 export const OrderTrait: IOrderTrait = pipe(
   createAggregateRoot<OrderProps, OrderInput>('Order'),
   withSchema(OrderSchema),
+  withQuery('getItemCount', (props) => props.items.length),
+  withQuery('getTotal', (props) => props.total),
   withAggregateCommand(
     'addItem',
     (item: OrderItem, props: OrderProps, aggregate, correlationId) =>
@@ -308,7 +321,8 @@ async function usageExample() {
   const updatedOrder = await Effect.runPromise(
     OrderTrait.addItem(newItem)(order, IdentifierTrait.uuid()),
   );
-  console.log('Order items count:', updatedOrder.unpack().items.length); // 1
+  console.log('Order items count:', updatedOrder.getItemCount()); // 1
+  console.log('Order total:', updatedOrder.getTotal()); // 100
   console.log(
     'Order has pending events:',
     updatedOrder.getDomainEvents().length > 0,
