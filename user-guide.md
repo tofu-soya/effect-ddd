@@ -709,14 +709,15 @@ These functions apply transformations and add behaviors to entity configurations
 
     type UserProps = { name: string; email: string; isActive: boolean };
     type UserInput = { name: string; email: string };
-    
+
     // Define Entity type
     export type User = Entity<UserProps>;
 
     // Define Trait Interface
     type UserQuery<R> = QueryFunction<User, R>;
 
-    export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
+    export interface IUserTrait
+      extends EntityTrait<User, UserInput, UserInput> {
       isActive: UserQuery<boolean>;
       activate: (i: void) => CommandOnModel<User, User>;
     }
@@ -898,16 +899,21 @@ export const OrderTrait: IOrderTrait = pipe(
 
   - **Type Signature:**
 
-    TypeScript
-
-    ```
+    ```typescript
     function createAggregateRoot<
       A extends AggregateRoot,
       NewParams = A['props'],
       ParseParams = NewParams,
     >(
       tag: string,
-    ): AggregateConfig<A, ParseParams, NewParams, Record<string, never>, Record<string, never>, Record<string, never>>;
+    ): AggregateConfig<
+      A,
+      ParseParams,
+      NewParams,
+      Record<string, never>,
+      Record<string, never>,
+      Record<string, never>
+    >;
     ```
 
   - **Parameters:**
@@ -919,11 +925,14 @@ export const OrderTrait: IOrderTrait = pipe(
   - **Returns:** `AggregateConfig` - Configuration object with command, query, and event handler support
   - **Example:**
 
-    TypeScript
-
-    ```
-    type OrderProps = { customerId: string; items: OrderItem[]; status: 'draft' | 'confirmed' | 'shipped'; total: number; };
-    type OrderInput = { customerId: string; shippingAddress?: string; };
+    ```typescript
+    type OrderProps = {
+      customerId: string;
+      items: OrderItem[];
+      status: 'draft' | 'confirmed' | 'shipped';
+      total: number;
+    };
+    type OrderInput = { customerId: string; shippingAddress?: string };
     const OrderConfig = createAggregateRoot<OrderProps, OrderInput>('Order');
     ```
 
@@ -989,12 +998,13 @@ These functions apply transformations and add behaviors to aggregate root config
 
   - **Type Signature:**
 
-    TypeScript
-
-    ```
+    ```typescript
     function buildAggregateRoot<T extends AggregateRoot, NewParams>(
       config: AggregateConfig<T, NewParams>,
-    ): AggregateRootTrait<T, NewParams, unknown> &  Commands &  Queries &  EventHandlers;
+    ): AggregateRootTrait<T, NewParams, unknown> &
+      Commands &
+      Queries &
+      EventHandlers;
     ```
 
   - **Parameters:**
@@ -1004,17 +1014,31 @@ These functions apply transformations and add behaviors to aggregate root config
   - **Returns:** Aggregate root trait with all methods and event handlers
   - **Example:**
 
-    TypeScript
-
-    ```
+    ```typescript
     import { pipe } from 'effect';
-    import { createAggregateRoot, withSchema, withAggregateCommand, withEventHandler, buildAggregateRoot } from 'effect-ddd';
+    import {
+      createAggregateRoot,
+      withSchema,
+      withAggregateCommand,
+      withEventHandler,
+      buildAggregateRoot,
+    } from 'effect-ddd';
     import { Schema } from 'effect';
 
     // Assuming OrderProps, OrderInput, OrderSchema, addItemCommand, orderConfirmedHandler are defined
-    type OrderProps = { customerId: string; items: any[]; status: string; total: number; };
-    type OrderInput = { customerId: string; shippingAddress?: string; };
-    const OrderSchema = Schema.Struct({ customerId: Schema.String, items: Schema.Array(Schema.unknown), status: Schema.String, total: Schema.Number });
+    type OrderProps = {
+      customerId: string;
+      items: any[];
+      status: string;
+      total: number;
+    };
+    type OrderInput = { customerId: string; shippingAddress?: string };
+    const OrderSchema = Schema.Struct({
+      customerId: Schema.String,
+      items: Schema.Array(Schema.unknown),
+      status: Schema.String,
+      total: Schema.Number,
+    });
     const addItemCommand = () => {}; // Placeholder
     const orderConfirmedHandler = () => {}; // Placeholder
 
