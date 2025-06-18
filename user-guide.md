@@ -753,9 +753,7 @@ Aggregate Roots are special Entities that form a consistency boundary for a clus
 
 **Complete Example (Order Aggregate Root):**
 
-TypeScript
-
-```
+```typescript
 import { Effect, pipe, Schema } from 'effect';
 import {
   createAggregateRoot,
@@ -772,8 +770,14 @@ import {
 } from 'effect-ddd';
 
 // Assume OrderItem and calculateTotal are defined elsewhere
-type OrderItem = { productId: string; quantity: number; price: number; productName: string };
-const calculateTotal = (items: OrderItem[]): number => items.reduce((sum, item) => sum + item.quantity * item.price, 0);
+type OrderItem = {
+  productId: string;
+  quantity: number;
+  price: number;
+  productName: string;
+};
+const calculateTotal = (items: OrderItem[]): number =>
+  items.reduce((sum, item) => sum + item.quantity * item.price, 0);
 
 // 1. Define Props type
 type OrderProps = {
@@ -791,17 +795,17 @@ type OrderInput = {
 
 // Schema definition (example)
 const OrderItemSchema = Schema.Struct({
-    productId: Schema.String,
-    quantity: Schema.Number,
-    price: Schema.Number,
-    productName: Schema.String
+  productId: Schema.String,
+  quantity: Schema.Number,
+  price: Schema.Number,
+  productName: Schema.String,
 });
 
 const OrderSchema = Schema.Struct({
-    customerId: Schema.String,
-    items: Schema.Array(OrderItemSchema),
-    status: Schema.Literal('draft', 'confirmed', 'shipped'),
-    total: Schema.Number,
+  customerId: Schema.String,
+  items: Schema.Array(OrderItemSchema),
+  status: Schema.Literal('draft', 'confirmed', 'shipped'),
+  total: Schema.Number,
 });
 
 // 2. Define AggregateRoot type
@@ -810,7 +814,8 @@ export type Order = AggregateRoot<OrderProps>;
 // 3. Define Trait Interface
 type OrderQuery<R> = QueryFunction<Order, R>;
 
-export interface IOrderTrait extends AggregateRootTrait<Order, OrderInput, OrderInput> {
+export interface IOrderTrait
+  extends AggregateRootTrait<Order, OrderInput, OrderInput> {
   addItem: (i: OrderItem) => CommandOnModel<Order, Order>;
   getItemCount: OrderQuery<number>;
   // Define other commands/queries/event handlers as needed
@@ -818,7 +823,10 @@ export interface IOrderTrait extends AggregateRootTrait<Order, OrderInput, Order
 
 // Handler for 'addItem' command (could be defined separately or inline)
 const addItemCommand = (
-  item: OrderItem,  props: OrderProps,  aggregate: Order,  correlationId: string,
+  item: OrderItem,
+  props: OrderProps,
+  aggregate: Order,
+  correlationId: string,
 ) =>
   Effect.gen(function* () {
     if (props.status !== 'draft') {
@@ -848,8 +856,11 @@ const addItemCommand = (
 
 // Handler for 'OrderConfirmed' event (could be defined separately or inline)
 const orderConfirmedHandler = (event: IDomainEvent) => {
-    console.log(`Order confirmed: ${event.aggregateId} with payload:`, event.payload);
-    // Here you would trigger side effects, e.g., send confirmation email, reserve inventory.
+  console.log(
+    `Order confirmed: ${event.aggregateId} with payload:`,
+    event.payload,
+  );
+  // Here you would trigger side effects, e.g., send confirmation email, reserve inventory.
 };
 
 // 4-8. Define and Build the Order Trait
@@ -1610,19 +1621,19 @@ repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
 state: BuilderState<DM, OrmEntity, QueryParams>,
 ) => Layer.Layer<RepositoryPort<DM>, BaseException, DataSource>;
 
-```
+````
 
 **Complete Functional Builder Example:**
 
 ```typescript
 import { pipe, Effect, Option } from 'effect';
-import { 
-  repositoryBuilder, 
-  withRelations, 
-  withDomainMapper, 
-  withOrmMapper, 
-  withQueryMapper, 
-  build 
+import {
+  repositoryBuilder,
+  withRelations,
+  withDomainMapper,
+  withOrmMapper,
+  withQueryMapper,
+  build
 } from 'effect-ddd/typeorm';
 
 // Domain model types
@@ -1637,21 +1648,21 @@ type Product = {
   };
 };
 
-type ProductQuery = { 
-  categoryId?: string; 
-  status?: string; 
-  minPrice?: number 
+type ProductQuery = {
+  categoryId?: string;
+  status?: string;
+  minPrice?: number
 };
 
 // ORM entity class
-class ProductEntity { 
-  id!: string; 
-  name!: string; 
-  price!: number; 
-  currency!: string; 
-  categoryId!: string; 
-  createdAt!: Date; 
-  updatedAt?: Date | null; 
+class ProductEntity {
+  id!: string;
+  name!: string;
+  price!: number;
+  currency!: string;
+  categoryId!: string;
+  createdAt!: Date;
+  updatedAt?: Date | null;
 };
 
 // Mock implementations
@@ -1696,7 +1707,7 @@ const productRepository = pipe(
   })),
   build
 );
-```
+````
 
 ```
 
