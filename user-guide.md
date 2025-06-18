@@ -1025,27 +1025,91 @@ These functions apply transformations and add behaviors to aggregate root config
     } from 'effect-ddd';
     import { Schema } from 'effect';
 
-    // Assuming OrderProps, OrderInput, OrderSchema, addItemCommand, orderConfirmedHandler are defined
+    // Define Order aggregate types
     type OrderProps = {
       customerId: string;
-      items: any[];
-      status: string;
+      items: OrderItem[];
+      status: 'draft' | 'confirmed' | 'shipped';
       total: number;
     };
-    type OrderInput = { customerId: string; shippingAddress?: string };
+
+    type OrderInput = { 
+      customerId: string; 
+      shippingAddress?: string 
+    };
+
+    // Define Order aggregate root type
+    export type Order = AggregateRoot<OrderProps>;
+
+    // Define OrderQuery type for query methods
+    type OrderQuery<R> = QueryFunction<Order, R>;
+
+    // Define Trait Interface
+    export interface IOrderTrait extends AggregateRootTrait<Order, OrderInput, OrderInput> {
+      addItem: (i: OrderItem) => CommandOnModel<Order, Order>;
+      getItemCount: OrderQuery<number>;
+      getTotal: OrderQuery<number>;
+      confirm: (i: void) => CommandOnModel<Order, Order>;
+    }
+
+    // Schema definition
     const OrderSchema = Schema.Struct({
       customerId: Schema.String,
-      items: Schema.Array(Schema.unknown),
-      status: Schema.String,
+      items: Schema.Array(OrderItemSchema),
+      status: Schema.Literal('draft', 'confirmed', 'shipped'),
       total: Schema.Number,
     });
-    const addItemCommand = () => {}; // Placeholder
-    const orderConfirmedHandler = () => {}; // Placeholder
 
-    const OrderTrait = pipe(
+    // Command and event handler implementations
+    const addItemCommand = (
+      item: OrderItem,
+      props: OrderProps,
+      aggregate: Order,
+      correlationId: string,
+    ) => Effect.gen(function* () {
+      if (props.status !== 'draft') {
+        return yield* Effect.fail(
+          ValidationException.new(
+            'ORDER_LOCKED',
+            'Cannot modify confirmed order',
+          ),
+        );
+      }
+
+      const newItems = [...props.items, item];
+      const newTotal = calculateTotal(newItems);
+
+      const event = DomainEventTrait.create({
+        name: 'OrderItemAdded',
+        payload: { item, newTotal },
+        correlationId,
+        aggregate,
+      });
+
+      return {
+        props: { ...props, items: newItems, total: newTotal },
+        domainEvents: [event],
+      };
+    });
+
+    const orderConfirmedHandler = (event: IDomainEvent) => {
+      console.log(`Order confirmed: ${event.aggregateId}`);
+      // Trigger side effects like sending confirmation email
+    };
+
+    // Build the OrderTrait
+    export const OrderTrait: IOrderTrait = pipe(
       createAggregateRoot<OrderProps, OrderInput>('Order'),
       withSchema(OrderSchema),
       withAggregateCommand('addItem', addItemCommand),
+      withQuery('getItemCount', (props) => props.items.length),
+      withQuery('getTotal', (props) => props.total),
+      withCommand('confirm', (_, props) => 
+        Effect.succeed({ 
+          props: { ...props, status: 'confirmed' },
+          domainEvents: [/* confirmation event */]
+        })
+      ),
       withEventHandler('OrderConfirmed', orderConfirmedHandler),
       buildAggregateRoot,
     );
