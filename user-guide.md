@@ -246,7 +246,7 @@ These functions apply transformations and add behaviors to value object configur
       currency: Schema.String,
     });
 
-    type QueryOnModel<R> = QueryFunction<Money, R>;
+    type QueryOnModel<DM extends DomainModel, R> = QueryFunction<DM['props'], R>;
 
     export interface IMoneyTrait
       extends ValueObjectTrait<Money, MoneyProps, MoneyProps> {}
@@ -352,11 +352,16 @@ These functions finalize the configuration into a runnable trait.
     import { Schema } from 'effect';
 
     type EmailProps = { value: string };
-    const EmailSchema = Schema.Struct({ value: Schema.String }); // Assuming this is defined
+    const EmailSchema = Schema.Struct({ 
+      value: Schema.String.pipe(
+        Schema.pattern(/^[^@]+@[^@]+\.[^@]+$/),
+        Schema.brand('Email')
+      )
+    });
 
     export type Email = ValueObject<EmailProps>;
 
-    type QueryOnModel<R> = QueryFunction<Email, R>;
+    type EmailQuery<R> = QueryFunction<EmailProps, R>;
     // 3. Define the Trait Interface for Email
     export interface IEmailTrait
       extends ValueObjectTrait<Email, string, string> {
