@@ -1,4 +1,4 @@
-# Effect DDD - Comprehensive API ReferencF
+# Effect DDD - Comprehensive API Reference
 
 Complete API documentation for the functional domain modeling library with detailed function signatures, examples, and advanced patterns.
 
@@ -31,8 +31,42 @@ Value Objects represent descriptive aspects of the domain with no conceptual ide
 3. **Define Trait Interface:** Create an interface (`IYourVOTrait`) that extends `ValueObjectTrait<YourVO, NewParams, ParseParams>`. This interface will include any custom query methods you add.
 4. **Initiate Configuration:** Use `createValueObject<YourVOProps, NewParams>(tag: string)` to start the configuration. The `tag` is a unique identifier.
 5. **Define Structure and Validation (Choose one):**
-   - **`withSchema(schema: Schema.Schema<S>)` (Recommended for declarative validation):** Apply an Effect Schema that defines the structure and validation rules for your props. This is the primary way for robust validation and automatic TypeScript inference. Setting `withSchema` clears any existing `propsParser` to avoid conflicts. Schema validation runs before custom validators.
+
+   - **`withSchema(schema: Schema.Schema<S>)` (Recommended for declarative validation):**
+     Apply an Effect Schema that defines the structure and validation rules for your props. Follow this pattern:
+
+     1. First define the schema (e.g. `MyPropsSchema`)
+     2. Infer the props type from it (`type MyProps = typeof MyPropsSchema.Type`)
+     3. Use that type for your model (`type MyModel = ValueObject<MyProps>`)
+     4. Pass the original schema to `withSchema`
+
+     Example:
+
+     ```typescript
+     const MyPropsSchema = Schema.Struct({
+       id: Identifier,
+       name: CommonSchemas.NonEmptyString,
+     });
+     type MyProps = typeof MyPropsSchema.Type;
+     type MyModel = ValueObject<MyProps>;
+
+     const MyModelTrait = pipe(
+       createValueObject<MyModel>('MyModel'),
+       withSchema(MyPropsSchema), // Same schema used here
+       // ...
+     );
+     ```
+
+     Benefits:
+
+     - Single source of truth for both runtime validation and types
+     - Impossible for types to drift from validation
+     - Works perfectly with Effect's type inference
+
+     Schema validation runs before custom validators. Setting `withSchema` clears any existing `propsParser` to avoid conflicts.
+
    - **`withPropsParser(propsParser: NewPropsParser)` (For complex custom parsing):** Provide a custom parser function that takes input and returns validated properties as an Effect. This is useful for complex business logic, external API calls during validation, or when you need full control over error handling. Setting `withPropsParser` clears any existing `schema` to avoid conflicts.
+
 6. **Add Queries (Optional):**
    - Use `withQuery<K, R>(name: K, query: (props: Props) => R)` for synchronous computations derived from the value object's properties.
    - Use `withQueryEffect<K, R>(name: K, query: (props: Props) => Effect<R, any, any>)` for asynchronous computations or side effects.
@@ -151,13 +185,17 @@ These functions initiate the configuration pipeline for different domain model t
   - **Example:**
 
     ```typescript
-    import { createValueObject } from 'effect-ddd';
+    import { createValueObject, Schema } from 'effect-ddd';
+    import { Schema } from 'effect';
 
-    // Simple value object where new() takes same input as props
-    const SimpleConfig = createValueObject<{ value: string }>('Simple');
+    // Schema-first pattern example:
+    const EmailSchema = Schema.Struct({
+      value: Schema.String.pipe(Schema.email()),
+    });
+    type EmailProps = typeof EmailSchema.Type;
+    type Email = ValueObject<EmailProps>;
 
-    // Value object where new() takes different input type
-    const EmailConfig = createValueObject<{ value: string }, string>('Email');
+    const EmailConfig = createValueObject<Email, string>('Email');
     ```
 
 #### Configuration Transformers - Value Object Specific
@@ -184,6 +222,20 @@ These functions apply transformations and add behaviors to value object configur
 
   - **Returns:** Function that transforms the configuration to use the new schema type
   - **Notes:** Setting `withSchema` clears any existing `propsParser` to avoid conflicts. Schema validation runs before custom validators. Provides automatic TypeScript inference.
+
+  - **Best Practice:**
+    For robust validation and type safety, follow the schema-first pattern:
+
+    1. First define the schema (e.g. `MyPropsSchema`)
+    2. Infer the props type from it (`type MyProps = typeof MyPropsSchema.Type`)
+    3. Use that type for your model (`type MyModel = ValueObject<MyProps>`)
+    4. Pass the original schema to `withSchema`
+
+    This ensures:
+
+    - Single source of truth for both runtime validation and types
+    - Impossible for types to drift from validation
+    - Works perfectly with Effect's type inference
 
 - `withPropsParser<TConfig, NewPropsParser>(propsParser: NewPropsParser)`
 
@@ -454,10 +506,7 @@ export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
   getSubscriptionStatus: UserQuery<Effect.Effect<any, any, any>>;
   activate: (i: void) => CommandOnModel<User>;
   updateEmail: (i: string) => CommandOnModel<User>;
-  updateProfile: (i: {
-    name?: string;
-    email?: string;
-  }) => CommandOnModel<User>;
+  updateProfile: (i: { name?: string; email?: string }) => CommandOnModel<User>;
 }
 
 // Assume fetchUserPreferences and subscriptionService are defined elsewhere

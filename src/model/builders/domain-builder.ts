@@ -256,6 +256,21 @@ const withSchema =
     // Clear propsParser when schema is set to avoid conflicts
     propsParser: undefined,
   });
+const withSchemaStrict =
+  <
+    TConfig extends AnyDomainConfig,
+    S extends Schema.Schema<
+      TConfig extends DomainConfig<infer DM, any, any, any> ? DM['props'] : any
+    >,
+  >(
+    schema: S,
+  ) =>
+  (config: TConfig): TConfig => ({
+    ...config,
+    schema,
+    // Clear propsParser when schema is set to avoid conflicts
+    propsParser: undefined,
+  });
 
 /**
  * Set a custom props parser that will be used instead of schema-based parsing
@@ -740,6 +755,7 @@ export const createAggregateRoot = <
 
 export {
   withSchema,
+  withSchemaStrict,
   withPropsParser,
   withValidation,
   withInvariant,
