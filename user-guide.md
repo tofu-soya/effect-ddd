@@ -2144,6 +2144,22 @@ const publishEvent = Effect.gen(function* () {
 
 ## ✅ Validation & Exceptions API
 
+### Base Exception Structure
+
+All exceptions extend from `CommonException` which provides a consistent structure:
+
+```typescript
+interface BaseExceptionProps<CONTENT> {
+  readonly code: string;
+  readonly message: string;
+  readonly content?: CONTENT;
+}
+
+class CommonException extends Data.TaggedError('BaseException')<
+  BaseExceptionProps<any>
+> {}
+```
+
 ### Exception Types
 
 #### `ValidationException`
@@ -2151,97 +2167,149 @@ const publishEvent = Effect.gen(function* () {
 **Type Signature:**
 
 ```typescript
-
-class ValidationException extends Data.TaggedError('ValidationFail')<{
-code: string;
-message: string;
-content?: {
-loc?: string[];
-instruction?: string[];
-details?: string[];
-violations?: Array<{ rule: string; code: string; message: string; }>;
-};
-}>
-
+class ValidationException extends Data.TaggedError('ValidationFail')<
+  BaseExceptionProps<{
+    loc?: string[];
+    instruction?: string[];
+    details?: string[];
+    parseError?: any;
+    violations?: Array<{
+      rule: string;
+      code: string;
+      message: string;
+    }>;
+  }>
+>
 ```
 
-#### `ValidationException.new(code, message, content?): ValidationException`
-
-**Type Signature:**
-
+**Factory Methods:**
 ```typescript
-
 static new(
-code: string,
-message: string,
-content?: ValidationException['content'],
+  code: string,
+  message: string,
+  content?: ValidationException['content'],
 ): ValidationException
-
-```
-
-#### `ValidationException.withViolations(violations): ValidationException`
-
-**Type Signature:**
-
-```typescript
 
 static withViolations(
-violations: Array<{ rule: string; code: string; message: string; }>,
+  violations: Array<{
+    rule: string;
+    code: string;
+    message: string;
+  }>,
 ): ValidationException
 
+static fromParseError(
+  parseError: ParseError,
+  code?: string,
+  message?: string,
+): ValidationException
 ```
 
-**Example:**
-
+**Example Usage:**
 ```typescript
 import { ValidationException } from 'effect-ddd';
 
 // Simple validation error
-const validationError = ValidationException.new(
+const error = ValidationException.new(
   'INVALID_EMAIL',
-  'Email format is invalid',
+  'Invalid email format',
   {
     loc: ['user', 'email'],
-    instruction: ['Email must be a valid email address'],
-    details: ['Provided: not-an-email'],
-  },
+    details: ['Provided: not-an-email']
+  }
 );
 
-// Multiple violations
-const multipleViolations = ValidationException.withViolations([
-  { rule: 'email_format', code: 'INVALID_EMAIL', message: 'Invalid email' },
+// With multiple violations
+const violationsError = ValidationException.withViolations([
   {
-    rule: 'password_strength',
-    code: 'WEAK_PASSWORD',
-    message: 'Password too weak',
-  },
+    rule: 'email_format',
+    code: 'INVALID_EMAIL',
+    message: 'Must be valid email'
+  }
 ]);
+
+// From parse error
+const parseError = new ParseError('Failed to parse');
+const parseException = ValidationException.fromParseError(parseError);
 ```
 
 #### `NotFoundException`
 
 **Type Signature:**
-
-TypeScript
-
 ```typescript
+class NotFoundException extends Data.TaggedError('Notfound')<
+  BaseExceptionProps<{
+    loc?: string[];
+    instruction?: string[];
+    details?: string[];
+  }>
+>
+```
 
-class NotFoundException extends Data.TaggedError('Notfound')<BaseException>
-
-static new(code: string, message: string, content?: BaseException['content']): NotFoundException
-
+**Factory Method:**
+```typescript
+static new(
+  code: string,
+  message: string,
+  content?: NotFoundException['content'],
+): NotFoundException
 ```
 
 #### `OperationException`
 
 **Type Signature:**
+```typescript
+class OperationException extends Data.TaggedError('Operation')<
+  BaseExceptionProps<{
+    loc?: string[];
+    instruction?: string[];
+    details?: string[];
+  }>
+>
+```
+
+**Factory Method:**
+```typescript
+static new(
+  code: string,
+  message: string,
+  content?: OperationException['content'],
+): OperationException
+```
+
+### Common Exception Factory
+
+For creating basic exceptions:
 
 ```typescript
+const CommonExceptionTrait = {
+  construct: (
+    code: string,
+    message: string,
+    content?: unknown,
+  ): CommonException
+}
+```
 
-class OperationException extends Data.TaggedError('Operation')<BaseException>
+**Example:**
+```typescript
+const error = CommonExceptionTrait.construct(
+  'AUTH_FAILED',
+  'Authentication failed'
+);
+```
 
-static new(code: string, message: string, content?: BaseException['content']): OperationException
+### Base Exception Type
 
+All exceptions can be referenced via the `BaseException` type:
+
+```typescript
+type BaseException =
+  | CommonException
+  | OperationException
+  | ValidationException
+  | NotFoundException
+  | ParseError;
 ```
 
 ---
