@@ -1,20 +1,24 @@
-export interface BaseException<CONTENT = unknown> {
-  readonly _tag: string;
+import { Data } from 'effect';
+
+export interface BaseExceptionProps<CONTENT> {
   readonly code: string;
   readonly message: string;
   readonly content?: CONTENT;
 }
 
-export const BaseExceptionTrait = {
+export class CommonException extends Data.TaggedError('BaseException')<
+  BaseExceptionProps<any>
+> {}
+
+export const CommonExceptionTrait = {
   construct: (
-    tag: string,
     code: string,
     message: string,
     content?: unknown,
-  ): BaseException => ({
-    _tag: tag,
-    code,
-    message,
-    content,
-  }),
+  ): CommonException =>
+    new CommonException({
+      code,
+      message,
+      content,
+    }),
 };

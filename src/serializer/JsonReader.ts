@@ -1,4 +1,4 @@
-import { BaseExceptionTrait } from '@model/exception';
+import { CommonExceptionTrait } from '@model/exception';
 import R from 'ramda';
 
 export class JsonMediaReader {
@@ -8,7 +8,7 @@ export class JsonMediaReader {
     try {
       this.representation = JSON.parse(aJson);
     } catch (error) {
-      throw BaseExceptionTrait.construct(
+      throw CommonExceptionTrait.construct(
         'MEDIA_NOT_IN_JSON_FORMAT',
         'This media instance is not in json format',
         '',
@@ -25,7 +25,7 @@ export class JsonMediaReader {
   }
   getValue(path: string) {
     if (!/(^(?:\/[a-zA-Z0-9_]+)+$)/g.test(path)) {
-      BaseExceptionTrait.construct(
+      CommonExceptionTrait.construct(
         'JSON_PATH_ILLGEGAL',
         `Json Path Reader is in illegal ${path}`,
         '',

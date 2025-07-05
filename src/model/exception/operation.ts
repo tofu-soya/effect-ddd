@@ -1,17 +1,15 @@
 import { Data } from 'effect';
-import { BaseException } from './base';
+import { NotFoundExceptionContent } from './not-found';
+import { BaseExceptionProps } from './base';
 
-export class OperationException extends Data.TaggedError(
-  'Operation',
-)<BaseException> {
+interface OperationExceptionContent extends NotFoundExceptionContent {}
+export class OperationException extends Data.TaggedError('Operation')<
+  BaseExceptionProps<OperationExceptionContent>
+> {
   static new(
     code: string,
     message: string,
-    content?: {
-      loc?: string[];
-      instruction?: string[];
-      details?: string[];
-    },
+    content?: OperationExceptionContent,
   ): OperationException {
     return new OperationException({ code, message, content });
   }

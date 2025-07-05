@@ -1,21 +1,21 @@
-import { Data } from 'effect';
-import { BaseException } from './base';
+import { Data, ParseResult } from 'effect';
+import { ParseError } from 'effect/ParseResult';
+import { NotFoundExceptionContent } from './not-found';
+import { BaseExceptionProps } from './base';
 
-export class ValidationException extends Data.TaggedError('ValidationFail')<{
-  code: string;
-  message: string;
-  content?: {
-    loc?: string[];
-    instruction?: string[];
-    details?: string[];
-    // Support multiple violations for complex domain objects
-    violations?: Array<{
-      rule: string;
-      code: string;
-      message: string;
-    }>;
-  };
-}> {
+interface ValidationExceptionContent extends NotFoundExceptionContent {
+  parseError?: any;
+  // Support multiple violations for complex domain objects
+  violations?: Array<{
+    rule: string;
+    code: string;
+    message: string;
+  }>;
+}
+
+export class ValidationException extends Data.TaggedError('ValidationFail')<
+  BaseExceptionProps<ValidationExceptionContent>
+> {
   /**
    * Create simple validation exception (current usage - UNCHANGED)
    */
@@ -44,6 +44,20 @@ export class ValidationException extends Data.TaggedError('ValidationFail')<{
       content: {
         violations,
         details: violations.map((v) => `${v.rule}: ${v.message}`),
+      },
+    });
+  }
+
+  static fromParseError(
+    parseError: ParseError,
+    code: string = 'PARSE_ERROR_VALIDATION',
+    message = 'failed with parse error',
+  ): ValidationException {
+    return new ValidationException({
+      code,
+      message,
+      content: {
+        parseError: ParseResult.ArrayFormatter.formatErrorSync(parseError),
       },
     });
   }

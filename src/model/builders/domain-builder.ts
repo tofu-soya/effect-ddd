@@ -31,7 +31,9 @@ import { parse } from 'path';
 /**
  * Query function type for domain models
  */
-export type QueryFunction<Props = any, Return = any> = (props: Props) => Return;
+export type QueryFunction<Props = any, Return = any> = (
+  props: Props,
+) => Return extends Array<any> ? Readonly<Return> : Return;
 
 /**
  * Query effect function type for async queries

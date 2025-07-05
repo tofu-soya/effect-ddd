@@ -1,4 +1,4 @@
-import { BaseException, BaseExceptionTrait } from '@model/exception';
+import { BaseException, CommonExceptionTrait } from '@model/exception';
 import { Effect } from 'effect';
 import { UnknownRecord } from 'type-fest';
 
@@ -11,7 +11,7 @@ export const JsonUtil: JsonUtil = {
     Effect.try({
       try: () => JSON.parse(s),
       catch: (e) =>
-        BaseExceptionTrait.construct(
+        CommonExceptionTrait.construct(
           'JSON',
           'JSON_PARSE_FAILED',
           (e as Error).message,

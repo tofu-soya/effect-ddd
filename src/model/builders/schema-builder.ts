@@ -436,6 +436,14 @@ export const createAuditFields = (): Schema.Struct<{
     updatedBy: Schema.optionalWith(Schema.UUID, { as: 'Option' }),
   });
 
+export function identitySchema<T>(): Schema.Schema<T, T> {
+  return Schema.Any.pipe(
+    Schema.filter((input): input is T => true, {
+      message: () => 'Type assertion failed', // This will never fail
+    }),
+  );
+}
+
 // ===== COMMON SCHEMAS =====
 
 /**

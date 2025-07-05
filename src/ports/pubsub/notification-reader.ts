@@ -1,4 +1,4 @@
-import { BaseExceptionTrait } from '@model/exception';
+import { CommonExceptionTrait } from '@model/exception';
 import { JsonMediaReader } from 'src/serializer/JsonReader';
 
 export class NotificationMessageReader extends JsonMediaReader {
@@ -7,7 +7,7 @@ export class NotificationMessageReader extends JsonMediaReader {
     super(aNotificationMessage);
     this.event = this.getRepresentation()['event'];
     if (!this.event) {
-      BaseExceptionTrait.construct(
+      CommonExceptionTrait.construct(
         'NOTIFICATION_NULL',
         'Notification does not contains event information',
         '',

@@ -1,17 +1,18 @@
 import { Data } from 'effect';
-import { BaseException } from './base';
+import { BaseExceptionProps } from './base';
 
-export class NotFoundException extends Data.TaggedError(
-  'Notfound',
-)<BaseException> {
+export interface NotFoundExceptionContent {
+  loc?: string[];
+  instruction?: string[];
+  details?: string[];
+}
+export class NotFoundException extends Data.TaggedError('Notfound')<
+  BaseExceptionProps<NotFoundExceptionContent>
+> {
   static new(
     code: string,
     message: string,
-    content?: {
-      loc?: string[];
-      instruction?: string[];
-      details?: string[];
-    },
+    content?: NotFoundExceptionContent,
   ): NotFoundException {
     return new NotFoundException({ code, message, content });
   }
