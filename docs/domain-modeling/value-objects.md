@@ -2,76 +2,174 @@
 
 Value Objects represent descriptive aspects of the domain with no conceptual identity. They are immutable and defined purely by their attributes. Examples include `Email`, `Money`, and `Address`.
 
-## Defining Value Objects
-
-1. **Define Properties (Props Type):** Create a TypeScript type (`YourVOProps`) for the value object's immutable attributes.
-2. **Define ValueObject Type:** Extend the generic `ValueObject` type from `effect-ddd` with your `Props` type.
-3. **Define Trait Interface:** Create an interface (`IYourVOTrait`) that extends `ValueObjectTrait<YourVO, NewParams, ParseParams>`. This interface will include any custom query methods you add.
-4. **Initiate Configuration:** Use `createValueObject<YourVOProps, NewParams>(tag: string)` to start the configuration. The `tag` is a unique identifier.
-5. **Define Structure and Validation**:
-   - Use `withSchema()` for declarative validation
-   - Or `withPropsParser()` for custom parsing logic
-6. **Add Queries**:
-   - `withQuery()` for synchronous computations
-   - `withQueryEffect()` for async computations
-7. **Build the Trait:** Call `buildValueObject()`
-
-## Example: Email Value Object
+## Core Interface
 
 ```typescript
-import { Effect, pipe } from 'effect';
-import {
-  createValueObject,
-  buildValueObject,
-  ValidationException,
-  ValueObject,
-  ValueObjectTrait,
-  withPropsParser,
-  withQuery,
-} from 'effect-ddd';
-import validator from 'validator';
-
-type EmailProps = { value: string };
-export type Email = ValueObject<EmailProps>;
-
-export interface IEmailTrait extends ValueObjectTrait<Email, string, string> {
-  getDomain(): string;
+export interface ValueObject<Props extends Record<string, unknown> = Record<string, unknown>> {
+  readonly props: Readonly<Props>;
 }
 
-export const EmailTrait: IEmailTrait = pipe(
-  createValueObject<Email, string, string>('Email'),
-  withPropsParser((emailString: string) =>
-    Effect.gen(function* () {
-      const normalized = emailString.toLowerCase().trim();
-      if (!validator.isEmail(normalized)) {
-        return yield* Effect.fail(
-          ValidationException.new('INVALID_EMAIL', 'Invalid email format'),
-        );
-      }
-      return { value: normalized };
-    }),
+export interface ValueObjectTrait<
+  VO extends ValueObject,
+  NewParams = unknown,
+  ParseParams = unknown,
+> {
+  // Core Methods provided by trait
+  new(params: NewParams): Effect.Effect<VO, ValidationException>;
+  parse(data: ParseParams): Effect.Effect<VO, ValidationException>;
+}
+```
+
+## Defining Value Objects
+
+**Recommended Pattern** for value objects with many queries (better TypeScript LSP performance):
+
+### Step 1: Define Types
+```typescript
+type EmailProps = {
+  value: string;
+};
+
+type EmailInput = string;
+
+export type Email = ValueObject<EmailProps>;
+```
+
+### Step 2: Define Schema (or Custom Parser)
+```typescript
+// Option A: Using Schema
+const EmailSchema = Schema.Struct({
+  value: Schema.String.pipe(
+    Schema.minLength(1),
+    Schema.maxLength(254),
+    Schema.includes('@')
   ),
-  withQuery('getDomain', (props) => props.value.split('@')[1]),
-  buildValueObject,
+});
+
+// Option B: Using Custom Parser
+const emailParser = (emailString: string) =>
+  Effect.gen(function* () {
+    const normalized = emailString.toLowerCase().trim();
+    if (!validator.isEmail(normalized)) {
+      return yield* Effect.fail(
+        ValidationException.new('INVALID_EMAIL', 'Invalid email format')
+      );
+    }
+    return { value: normalized };
+  });
+```
+
+### Step 3: Create Base Trait (using builders as utilities)
+```typescript
+// Using schema
+const BaseEmailTrait = pipe(
+  createValueObject<EmailProps, EmailInput>('Email'),
+  withSchema(EmailSchema),
+  buildValueObject
+);
+
+// Or using custom parser
+const BaseEmailTrait = pipe(
+  createValueObject<EmailProps, EmailInput>('Email'),
+  withPropsParser(emailParser),
+  buildValueObject
 );
 ```
 
-## Configuration Methods
+> **📖 See:** [Value Object Trait Builder Guide](./value-object-trait-builder.md) for detailed builder API documentation
 
-### `createValueObject<Props, NewParams>(tag: string)`
-Initializes value object configuration.
+### Step 4: Define Trait Interface
+```typescript
+export interface IEmailTrait extends ValueObjectTrait<Email, EmailInput, EmailInput> {
+  // Queries
+  getDomain(email: Email): string;
+  getLocalPart(email: Email): string;
+  isCommonDomain(email: Email): boolean;
+}
+```
 
-### `withSchema(schema: Schema.Schema<S>)` 
-Applies Effect Schema for declarative validation.
+### Step 5: Implement Domain Logic
+```typescript
+export const EmailTrait: IEmailTrait = {
+  // Inherit basic operations (new, parse)
+  ...BaseEmailTrait,
+  
+  // Implement domain queries
+  getDomain: (email) => email.props.value.split('@')[1],
+  getLocalPart: (email) => email.props.value.split('@')[0],
+  isCommonDomain: (email) => {
+    const domain = email.props.value.split('@')[1];
+    const commonDomains = ['gmail.com', 'yahoo.com', 'outlook.com'];
+    return commonDomains.includes(domain.toLowerCase());
+  },
+};
+```
 
-### `withPropsParser(propsParser: NewPropsParser)`
-Provides custom parsing logic.
+## Usage
 
-### `withQuery(name, query)`
-Adds synchronous query method.
+```typescript
+const email = await Effect.runPromise(EmailTrait.new('john@gmail.com'));
+console.log(EmailTrait.getDomain(email)); // "gmail.com"
+console.log(EmailTrait.getLocalPart(email)); // "john"
+console.log(EmailTrait.isCommonDomain(email)); // true
 
-### `withQueryEffect(name, query)`
-Adds asynchronous query method.
+// Parse from external data
+const emailFromAPI = await Effect.runPromise(EmailTrait.parse('USER@EXAMPLE.COM'));
+console.log(emailFromAPI.props.value); // "user@example.com" (normalized)
+```
 
-### `buildValueObject(config)`
-Finalizes the value object trait.
+## Common Patterns
+
+### Money Value Object
+```typescript
+type MoneyProps = { amount: number; currency: string };
+export type Money = ValueObject<MoneyProps>;
+
+const MoneyTrait = {
+  ...pipe(
+    createValueObject<MoneyProps, MoneyProps>('Money'),
+    withSchema(Schema.Struct({
+      amount: Schema.Number.pipe(Schema.greaterThanOrEqualTo(0)),
+      currency: Schema.String.pipe(Schema.length(3))
+    })),
+    buildValueObject
+  ),
+  
+  add: (other: Money) => (money: Money) => 
+    money.props.currency === other.props.currency
+      ? Effect.succeed({ amount: money.props.amount + other.props.amount, currency: money.props.currency })
+      : Effect.fail(ValidationException.new('CURRENCY_MISMATCH', 'Cannot add different currencies')),
+};
+```
+
+### Address Value Object
+```typescript
+type AddressProps = {
+  street: string;
+  city: string;
+  postalCode: string;
+  country: string;
+};
+
+export type Address = ValueObject<AddressProps>;
+
+const AddressTrait = {
+  ...pipe(
+    createValueObject<AddressProps, AddressProps>('Address'),
+    withSchema(AddressSchema),
+    buildValueObject
+  ),
+  
+  getFullAddress: (address: Address) => 
+    `${address.props.street}, ${address.props.city} ${address.props.postalCode}, ${address.props.country}`,
+  
+  isSameCity: (other: Address) => (address: Address) =>
+    address.props.city === other.props.city && address.props.country === other.props.country,
+};
+```
+
+## Builder Functions as Utilities
+
+- `createValueObject()` / `buildValueObject()` are **trait building utilities**
+- They provide basic `new`, `parse` operations and schema validation
+- **Not intended** for complex domain logic (use normal methods instead for better LSP performance)

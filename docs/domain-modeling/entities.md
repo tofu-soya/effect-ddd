@@ -2,74 +2,130 @@
 
 Entities represent domain objects with a distinct identity and mutable state. Their state changes are managed through explicit commands.
 
-## Defining Entities
-
-1. **Define Properties (Props Type):** Create a type (`YourEntityProps`) for the entity's unique properties.
-2. **Define Entity Type:** Extend the generic `Entity` type with your `Props` type.
-3. **Define Trait Interface:** Create an interface (`IYourEntityTrait`) that extends `EntityTrait<YourEntity, NewParams, ParseParams>`.
-4. **Initiate Configuration:** Use `createEntity<YourEntityProps, NewParams>(tag: string)`.
-5. **Define Structure and Validation:** Use `withSchema()` with an Effect Schema.
-6. **Add Custom Validation Logic:** Use `withValidation()` for additional business rules.
-7. **Define Invariants:** Use `withInvariant()` to enforce strict conditions.
-8. **Add Queries:** Use `withQuery()` or `withQueryEffect()`.
-9. **Add Commands:** Use `withCommand()` to define state-modifying methods.
-10. **Build the Trait:** Call `buildEntity()`.
-
-## Example: User Entity
+## Core Interface
 
 ```typescript
-import { Effect, pipe, Schema } from 'effect';
-import {
-  createEntity,
-  withSchema,
-  withValidation,
-  withQuery,
-  withCommand,
-  buildEntity,
-  Entity,
-  EntityTrait,
-  ValidationException,
-} from 'effect-ddd';
+export interface Entity<Props extends Record<string, unknown>> extends ValueObject<Props> {
+  readonly id: string;
+  readonly createdAt: Date;
+  readonly updatedAt: Option<Date>;
+}
 
+export interface EntityTrait<
+  E extends Entity,
+  NewParams = unknown,
+  ParseParams = unknown,
+> extends ValueObjectTrait<E, NewParams, ParseParams> {
+  // Core Methods provided by trait
+  new(params: NewParams): Effect.Effect<E, ValidationException>;
+  parse(data: ParseParams): Effect.Effect<E, ValidationException>;
+}
+```
+
+## Defining Entities
+
+**Recommended Pattern** for entities with many commands/queries (better TypeScript LSP performance):
+
+### Step 1: Define Types
+```typescript
 type UserProps = {
   name: string;
-  email: string; 
+  email: string;
+  age: number;
   isActive: boolean;
+};
+
+type UserInput = {
+  name: string;
+  email: string;
   age: number;
 };
 
 export type User = Entity<UserProps>;
+```
 
-export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
-  isActive: boolean;
-  activate(): CommandOnModel<User>;
-}
+### Step 2: Define Schema
+```typescript
+const UserSchema = Schema.Struct({
+  name: Schema.String.pipe(Schema.minLength(1)),
+  email: Schema.String.pipe(Schema.includes('@')),
+  age: Schema.Number.pipe(Schema.greaterThanOrEqualTo(0)),
+  isActive: Schema.Boolean.pipe(Schema.optional).withDefault(() => false),
+});
+```
 
-export const UserTrait: IUserTrait = pipe(
+### Step 3: Create Base Trait (using builders as utilities)
+```typescript
+const BaseUserTrait = pipe(
   createEntity<UserProps, UserInput>('User'),
   withSchema(UserSchema),
-  withValidation((props) => 
-    props.age < 13 
-      ? Effect.fail(ValidationException.new('MINOR_NO_CONSENT', 'Minors require consent'))
-      : Effect.succeed(props)
-  ),
-  withCommand('activate', (_, props) => 
-    Effect.succeed({ props: { ...props, isActive: true } })
-  ),
-  buildEntity,
+  buildEntity
 );
 ```
 
-## Configuration Methods
+> **📖 See:** [Entity Trait Builder Guide](./entity-trait-builder.md) for detailed builder API documentation
 
-### `createEntity<Props, NewParams>(tag: string)`
-Initializes entity configuration.
+### Step 4: Define Trait Interface
+```typescript
+export interface IUserTrait extends EntityTrait<User, UserInput, UserInput> {
+  // Queries
+  getDisplayName(user: User): string;
+  isAdult(user: User): boolean;
+  
+  // Commands
+  activate(): (user: User) => Effect.Effect<User, ValidationException>;
+  updateEmail(newEmail: string): (user: User) => Effect.Effect<User, ValidationException>;
+}
+```
 
-### `withValidation(validator)`
-Adds custom validation logic.
+### Step 5: Implement Domain Logic
+```typescript
+export const UserTrait: IUserTrait = {
+  // Inherit basic operations (new, parse)
+  ...BaseUserTrait,
+  
+  // Implement domain queries
+  getDisplayName: (user) => `${user.props.name} <${user.props.email}>`,
+  isAdult: (user) => user.props.age >= 18,
+  
+  // Implement domain commands
+  activate: () => (user) =>
+    BaseUserTrait.parse({
+      ...user.props,
+      isActive: true,
+    }),
+    
+  updateEmail: (newEmail) => (user) =>
+    Effect.gen(function* () {
+      if (!newEmail.includes('@')) {
+        return yield* Effect.fail(
+          ValidationException.new('INVALID_EMAIL', 'Email must contain @')
+        );
+      }
+      
+      return BaseUserTrait.parse({
+        ...user.props,
+        email: newEmail,
+      });
+    }),
+};
+```
 
-### `withCommand(name, handler)`
-Adds state-modifying command method.
+## Usage
 
-### `buildEntity(config)`
-Finalizes the entity trait.
+```typescript
+const user = await Effect.runPromise(
+  UserTrait.new({ name: 'John', email: 'john@example.com', age: 25 })
+);
+console.log(UserTrait.getDisplayName(user)); // "John <john@example.com>"
+console.log(UserTrait.isAdult(user)); // true
+
+const activatedUser = await Effect.runPromise(UserTrait.activate()(user));
+console.log(activatedUser.props.isActive); // true
+```
+
+## Builder Functions as Utilities
+
+- `createEntity()` / `buildEntity()` are **trait building utilities**
+- They provide basic `new`, `parse` operations and schema validation
+- **Not intended** for complex domain logic (use normal methods instead for better LSP performance)

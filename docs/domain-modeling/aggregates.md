@@ -1,70 +1,125 @@
 # Aggregate Roots
 
-Aggregate Roots are special Entities that form a consistency boundary for a cluster of domain objects. All operations within the aggregate boundary go through the Aggregate Root.
+Aggregate Roots are special Entities that form a consistency boundary for domain objects and can emit domain events.
+
+## Core Interface
+
+```typescript
+export interface AggregateRoot<Props extends Record<string, unknown>> extends Entity<Props> {
+  readonly domainEvents: ReadonlyArray<IDomainEvent>;
+}
+
+export interface AggregateRootTrait<
+  A extends AggregateRoot,
+  NewParams = unknown,
+  ParseParams = unknown,
+> extends EntityTrait<A, NewParams, ParseParams> {
+  // Core Methods provided by trait
+  new(params: NewParams): Effect.Effect<A, ValidationException>;
+  parse(data: ParseParams): Effect.Effect<A, ValidationException>;
+}
+```
 
 ## Defining Aggregate Roots
 
-1. **Define Properties (Props Type):** Define the aggregate's properties (`YourARProps`).
-2. **Define AggregateRoot Type:** Extend the generic `AggregateRoot` type.
-3. **Define Trait Interface:** Create an interface (`IYourARTrait`) that extends `AggregateRootTrait<YourAR, NewParams, ParseParams>`.
-4. **Initiate Configuration:** Use `createAggregateRoot<YourARProps, NewParams>(tag: string)`.
-5. **Define Structure and Validation:** Use `withSchema()`.
-6. **Add Aggregate Commands:** Use `withAggregateCommand()` which can return domain events.
-7. **Add Event Handlers:** Use `withEventHandler()` to process domain events.
-8. **Build the Trait:** Call `buildAggregateRoot()`.
+**Recommended Pattern** for aggregates with many commands/queries (better TypeScript LSP performance):
 
-## Example: Order Aggregate
-
+### Step 1: Define Types
 ```typescript
-import { Effect, pipe } from 'effect';
-import {
-  createAggregateRoot,
-  withAggregateCommand,
-  buildAggregateRoot,
-  AggregateRoot,
-  ValidationException,
-} from 'effect-ddd';
-
 type OrderProps = {
   customerId: string;
   items: OrderItem[];
   status: 'draft' | 'confirmed';
+  total: number;
 };
 
+type OrderInput = { customerId: string };
 export type Order = AggregateRoot<OrderProps>;
+```
 
-export interface IOrderTrait extends AggregateRootTrait<Order, OrderInput> {
-  addItem(item: OrderItem): CommandOnModel<Order>;
-}
+### Step 2: Define Schema
+```typescript
+const OrderSchema = Schema.Struct({
+  customerId: Schema.String,
+  items: Schema.Array(OrderItemSchema),
+  status: Schema.Literal('draft', 'confirmed'),
+  total: Schema.Number,
+});
+```
 
-export const OrderTrait: IOrderTrait = pipe(
+### Step 3: Create Base Trait (using builders as utilities)
+```typescript
+const BaseOrderTrait = pipe(
   createAggregateRoot<OrderProps, OrderInput>('Order'),
-  withAggregateCommand('addItem', (item, props, aggregate, correlationId) =>
-    Effect.gen(function* () {
-      if (props.status !== 'draft') {
-        return yield* Effect.fail(
-          ValidationException.new('ORDER_LOCKED', 'Cannot modify order')
-        );
-      }
-      
-      const event = DomainEventTrait.create({
-        name: 'ItemAdded',
-        payload: { item },
-        correlationId,
-        aggregate
-      });
-
-      return {
-        props: { ...props, items: [...props.items, item] },
-        domainEvents: [event]
-      };
-    }),
-  buildAggregateRoot,
+  withSchema(OrderSchema),
+  buildAggregateRoot
 );
 ```
 
-## Key Differences from Entities
+> **📖 See:** [Aggregate Trait Builder Guide](./aggregate-trait-builder.md) for detailed builder API documentation
 
-1. **Consistency Boundary:** Aggregates maintain invariants across multiple objects
-2. **Domain Events:** Commands can emit domain events
-3. **Single Access Point:** All changes go through the Aggregate Root
+### Step 4: Define Trait Interface
+```typescript
+export interface IOrderTrait extends AggregateRootTrait<Order, OrderInput, OrderInput> {
+  // Queries
+  getItemCount(order: Order): number;
+  getTotal(order: Order): number;
+  
+  // Commands  
+  addItem(item: OrderItem): (order: Order, correlationId?: string) => Effect.Effect<Order, ValidationException>;
+  confirmOrder(): (order: Order, correlationId?: string) => Effect.Effect<Order, ValidationException>;
+}
+```
+
+### Step 5: Implement Domain Logic
+```typescript
+export const OrderTrait: IOrderTrait = {
+  // Inherit basic operations (new, parse)
+  ...BaseOrderTrait,
+  
+  // Implement domain queries
+  getItemCount: (order) => order.props.items.length,
+  getTotal: (order) => order.props.total,
+  
+  // Implement domain commands
+  addItem: (item) => (order, correlationId) =>
+    Effect.gen(function* () {
+      if (order.props.status !== 'draft') {
+        return yield* Effect.fail(ValidationException.new('ORDER_LOCKED', 'Cannot modify'));
+      }
+
+      const domainEvents = [
+        DomainEventTrait.create({
+          name: 'OrderItemAdded',
+          payload: { item },
+          correlationId: correlationId || IdentifierTrait.uuid(),
+          aggregate: order,
+        }),
+      ];
+
+      return BaseOrderTrait.parse({
+        ...order.props,
+        items: [...order.props.items, item],
+        domainEvents: [...order.domainEvents, ...domainEvents],
+      });
+    }),
+};
+```
+
+## Usage
+
+```typescript
+const order = await Effect.runPromise(OrderTrait.new({ customerId: 'cust-1' }));
+console.log(OrderTrait.getItemCount(order)); // 0
+
+const updatedOrder = await Effect.runPromise(
+  OrderTrait.addItem({ productId: 'P1', quantity: 1, price: 100 })(order)
+);
+console.log(OrderTrait.getItemCount(updatedOrder)); // 1
+```
+
+## Builder Functions as Utilities
+
+- `createAggregateRoot()` / `buildAggregateRoot()` are **trait building utilities**
+- They provide basic `new`, `parse` operations and schema validation
+- **Not intended** for complex domain logic (use normal methods instead for better LSP performance)
