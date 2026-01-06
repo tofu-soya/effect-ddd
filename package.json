@@ -8,6 +8,18 @@
   "license": "MIT",
   "typesVersions": {
     "*": {
+      "nestjs": [
+        "./dist/src/infra/nestjs/index.d.ts"
+      ],
+      "typeorm": [
+        "./dist/src/typeorm.d.ts"
+      ],
+      "aim": [
+        "./dist/src/aim/index.d.ts"
+      ],
+      "keyvalue": [
+        "./dist/src/ports/database/keyvalue/index.d.ts"
+      ],
       "*": [
         "./dist/src/*",
         "./dist/src/index.d.ts"
@@ -37,22 +49,42 @@
     "typedoc": "typedoc src/index.ts --out ./docs --tsconfig ./tsconfig.build.json"
   },
   "exports": {
-    ".": "./dist/src/index.js",
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "require": "./dist/src/index.js",
+      "import": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    },
     "./aim": {
-      "import": "./dist/src/aim/index.js"
+      "types": "./dist/src/aim/index.d.ts",
+      "require": "./dist/src/aim/index.js",
+      "import": "./dist/src/aim/index.js",
+      "default": "./dist/src/aim/index.js"
     },
     "./typeorm": {
+      "types": "./dist/src/typeorm.d.ts",
+      "require": "./dist/src/typeorm.js",
       "import": "./dist/src/typeorm.js",
-      "types": "./dist/src/typeorm.d.ts"
+      "default": "./dist/src/typeorm.js"
+    },
+    "./nestjs": {
+      "types": "./dist/src/infra/nestjs/index.d.ts",
+      "require": "./dist/src/infra/nestjs/index.js",
+      "import": "./dist/src/infra/nestjs/index.js",
+      "default": "./dist/src/infra/nestjs/index.js"
     },
     "./keyvalue": {
-      "import": "./dist/src/ports/database/keyvalue/index.js"
+      "types": "./dist/src/ports/database/keyvalue/index.d.ts",
+      "require": "./dist/src/ports/database/keyvalue/index.js",
+      "import": "./dist/src/ports/database/keyvalue/index.js",
+      "default": "./dist/src/ports/database/keyvalue/index.js"
     }
   },
   "dependencies": {
     "@fp-ts/optic": "0.19.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/cqrs": "~11.0.1",
+    "@nestjs/swagger": "^11.2.3",
     "amqp-connection-manager": "^4.1.11",
     "amqplib": "^0.10.3",
     "cls-hooked": "^4.2.2",
@@ -91,7 +123,6 @@
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.1",
-    "ts-documentation": "^1.2.0",
     "@types/cls-hooked": "^4.3.9",
     "@types/express": "^4",
     "@types/got": "^9.6.12",

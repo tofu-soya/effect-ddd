@@ -11,6 +11,7 @@ Complete API documentation for the functional domain modeling library with detai
 5. [📢 Domain Events API](#-domain-events-api)
 6. [✅ Validation & Exceptions API](#-validation--exceptions-api)
 7. [🔧 Utilities & Type Classes](#-utilities--type-classes)
+8. [🌐 NestJS Integration - DTO Layer](#-nestjs-integration---dto-layer)
 
 ---
 
@@ -2481,6 +2482,406 @@ function now(): Date;
 
 This comprehensive API reference provides detailed information about all the major components and utilities in the effect-ddd library, including complete type signatures, parameter descriptions, and practical examples for each function and interface.
 
+---
+
+## 🌐 NestJS Integration - DTO Layer
+
+The NestJS DTO layer provides standardized response structures, Swagger decorators, and utility functions for building consistent HTTP APIs with automatic OpenAPI documentation.
+
+### Response DTOs
+
+These DTOs provide consistent response structures for all API endpoints with built-in Swagger documentation support.
+
+#### `NormalResponseDto<T>`
+
+Wraps single-item responses with a message field.
+
+**Type Signature:**
+```typescript
+class NormalResponseDto<T> {
+  data: T;
+  message: string;
+}
 ```
 
+**Properties:**
+- `data`: The response payload of type `T`
+- `message`: Status or success message (e.g., "Success", "User created")
+
+#### `PaginationResponseDto<T>`
+
+Wraps paginated list responses with metadata.
+
+**Type Signature:**
+```typescript
+class PaginationResponseDto<T> {
+  message: string;
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+}
 ```
+
+**Properties:**
+- `message`: Status message
+- `data`: Array of items of type `T`
+- `total`: Total number of items across all pages
+- `page`: Current page number (1-indexed)
+- `limit`: Items per page
+
+#### `PaginationMetaDto`
+
+Standalone metadata for pagination (useful when separating data and metadata).
+
+**Type Signature:**
+```typescript
+class PaginationMetaDto {
+  total: number;
+  page: number;
+  limit: number;
+}
+```
+
+### Swagger Decorators
+
+These decorators automatically generate OpenAPI documentation for your NestJS endpoints.
+
+#### `ApiOkResponseNormal<DataDto>(dataDto, isArray?, isOptional?)`
+
+Decorator for normal responses with automatic Swagger schema generation.
+
+**Type Signature:**
+```typescript
+function ApiOkResponseNormal<DataDto extends Type<unknown>>(
+  dataDto: DataDto,
+  isArray?: boolean,
+  isOptional?: boolean,
+): MethodDecorator
+```
+
+**Parameters:**
+- `dataDto`: The DTO class for the `data` property
+- `isArray`: Whether `data` is an array (default: `false`)
+- `isOptional`: Whether `data` can be `null` (default: `false`)
+
+**Returns:** NestJS method decorator with OpenAPI metadata
+
+#### `ApiOkResponsePaginated<DataDto>(dataDto)`
+
+Decorator for paginated responses with automatic Swagger schema generation.
+
+**Type Signature:**
+```typescript
+function ApiOkResponsePaginated<DataDto extends Type<unknown>>(
+  dataDto: DataDto,
+): MethodDecorator
+```
+
+**Parameters:**
+- `dataDto`: The DTO class for items in the `data` array
+
+**Returns:** NestJS method decorator with OpenAPI metadata
+
+### Utility Functions
+
+Helper functions to create response objects following the standard structure.
+
+#### `toNormalResponse(message?)`
+
+Creates a normal response wrapper function.
+
+**Type Signature:**
+```typescript
+function toNormalResponse(
+  message?: string
+): <T>(data: T) => NormalResponseDto<T>
+```
+
+**Parameters:**
+- `message`: Success message (default: `"Success"`)
+
+**Returns:** Function that wraps data into `NormalResponseDto`
+
+**Usage Pattern:**
+```typescript
+const wrapSuccess = toNormalResponse("Operation completed");
+return wrapSuccess(userData); // { data: userData, message: "Operation completed" }
+```
+
+#### `toPaginationResponse<T>(data, total, page, limit, message?)`
+
+Creates a paginated response object.
+
+**Type Signature:**
+```typescript
+function toPaginationResponse<T>(
+  data: T[],
+  total: number,
+  page: number,
+  limit: number,
+  message?: string,
+): PaginationResponseDto<T>
+```
+
+**Parameters:**
+- `data`: Array of items for current page
+- `total`: Total number of items across all pages
+- `page`: Current page number
+- `limit`: Items per page
+- `message`: Success message (default: `"Success"`)
+
+**Returns:** Complete `PaginationResponseDto` object
+
+---
+
+### Complete Usage Examples
+
+#### Example 1: Simple CRUD Controller
+
+```typescript
+import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiOkResponseNormal,
+  toNormalResponse,
+} from 'effect-ddd/infra/nestjs/dto';
+
+// Your domain/DTO types
+class UserDto {
+  id: string;
+  name: string;
+  email: string;
+}
+
+class CreateUserDto {
+  name: string;
+  email: string;
+}
+
+@ApiTags('users')
+@Controller('users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Get(':id')
+  @ApiOkResponseNormal(UserDto) // Automatic Swagger documentation
+  async findOne(@Param('id') id: string) {
+    const user = await this.usersService.findOne(id);
+
+    // Use utility to wrap response
+    return toNormalResponse('User retrieved successfully')(user);
+    // Returns: { data: user, message: "User retrieved successfully" }
+  }
+
+  @Post()
+  @ApiOkResponseNormal(UserDto)
+  async create(@Body() createUserDto: CreateUserDto) {
+    const user = await this.usersService.create(createUserDto);
+
+    return toNormalResponse('User created successfully')(user);
+    // Returns: { data: user, message: "User created successfully" }
+  }
+}
+```
+
+#### Example 2: Paginated List Endpoint
+
+```typescript
+import { Controller, Get, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiOkResponsePaginated,
+  toPaginationResponse,
+} from 'effect-ddd/infra/nestjs/dto';
+
+class ProductDto {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+}
+
+class ListProductsQueryDto {
+  page?: number = 1;
+  limit?: number = 10;
+  category?: string;
+}
+
+@ApiTags('products')
+@Controller('products')
+export class ProductsController {
+  constructor(private readonly productsService: ProductsService) {}
+
+  @Get()
+  @ApiOkResponsePaginated(ProductDto) // Automatic Swagger for pagination
+  async findAll(@Query() query: ListProductsQueryDto) {
+    const page = query.page || 1;
+    const limit = query.limit || 10;
+
+    // Service returns { items, total }
+    const { items, total } = await this.productsService.findAll({
+      page,
+      limit,
+      category: query.category,
+    });
+
+    // Use utility to create paginated response
+    return toPaginationResponse(
+      items,
+      total,
+      page,
+      limit,
+      'Products retrieved successfully',
+    );
+    /* Returns:
+    {
+      message: "Products retrieved successfully",
+      data: [...products],
+      total: 150,
+      page: 1,
+      limit: 10
+    }
+    */
+  }
+}
+```
+
+#### Example 3: Optional and Array Responses
+
+```typescript
+import { Controller, Get, Delete, Param } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiOkResponseNormal,
+  toNormalResponse,
+} from 'effect-ddd/infra/nestjs/dto';
+
+class TagDto {
+  id: string;
+  name: string;
+}
+
+@ApiTags('posts')
+@Controller('posts')
+export class PostsController {
+  constructor(private readonly postsService: PostsService) {}
+
+  // Response with array of items
+  @Get(':id/tags')
+  @ApiOkResponseNormal(TagDto, true) // isArray = true
+  async getTags(@Param('id') id: string) {
+    const tags = await this.postsService.getTags(id);
+
+    return toNormalResponse('Tags retrieved')(tags);
+    // Returns: { data: [...tags], message: "Tags retrieved" }
+  }
+
+  // Response with optional data (might be null)
+  @Get(':id/featured-image')
+  @ApiOkResponseNormal(ImageDto, false, true) // isOptional = true
+  async getFeaturedImage(@Param('id') id: string) {
+    const image = await this.postsService.getFeaturedImage(id);
+
+    return toNormalResponse('Image retrieved')(image); // image might be null
+    // Returns: { data: image | null, message: "Image retrieved" }
+  }
+
+  // Void response (no data)
+  @Delete(':id')
+  @ApiOkResponseNormal(Object, false, true) // Allow null data
+  async delete(@Param('id') id: string) {
+    await this.postsService.delete(id);
+
+    return { data: null, message: 'Post deleted successfully' };
+  }
+}
+```
+
+#### Example 4: Effect Integration Pattern
+
+```typescript
+import { Controller, Get, Param } from '@nestjs/common';
+import { Effect, pipe } from 'effect';
+import {
+  ApiOkResponseNormal,
+  toNormalResponse,
+} from 'effect-ddd/infra/nestjs/dto';
+import { BaseException } from 'effect-ddd';
+
+class OrderDto {
+  id: string;
+  customerId: string;
+  items: OrderItem[];
+  total: number;
+  status: string;
+}
+
+@Controller('orders')
+export class OrdersController {
+  constructor(private readonly ordersService: OrdersService) {}
+
+  @Get(':id')
+  @ApiOkResponseNormal(OrderDto)
+  async findOne(@Param('id') id: string) {
+    // Service returns Effect<Order, BaseException>
+    const orderEffect = this.ordersService.findOne(id);
+
+    // Transform Effect to include response wrapper
+    const responseEffect = pipe(
+      orderEffect,
+      Effect.map(toNormalResponse('Order retrieved')),
+    );
+
+    // Execute Effect and return result
+    return Effect.runPromise(responseEffect);
+    // Returns: { data: order, message: "Order retrieved" }
+  }
+
+  @Get()
+  @ApiOkResponsePaginated(OrderDto)
+  async findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    // Service returns Effect<{ items, total }, BaseException>
+    const ordersEffect = this.ordersService.findAll({ page, limit });
+
+    const responseEffect = pipe(
+      ordersEffect,
+      Effect.map(({ items, total }) =>
+        toPaginationResponse(items, total, page, limit, 'Orders retrieved'),
+      ),
+    );
+
+    return Effect.runPromise(responseEffect);
+  }
+}
+```
+
+### Best Practices
+
+1. **Consistency**: Always use these DTOs for API responses to maintain a consistent structure across your application.
+
+2. **Swagger Documentation**: Apply `@ApiOkResponseNormal` or `@ApiOkResponsePaginated` decorators to all endpoints for automatic OpenAPI documentation.
+
+3. **Error Handling**: These DTOs are for successful responses. Use NestJS exception filters for error responses.
+
+4. **Message Quality**: Provide meaningful messages that describe the operation result:
+   ```typescript
+   // Good
+   toNormalResponse('User profile updated successfully')(user)
+
+   // Bad (too generic)
+   toNormalResponse('Success')(user)
+   ```
+
+5. **Pagination Metadata**: Always include accurate `total`, `page`, and `limit` values for pagination responses.
+
+6. **Type Safety**: Let TypeScript infer the generic type `T` from your data:
+   ```typescript
+   const user: User = { ... };
+   toNormalResponse()(user) // Type is NormalResponseDto<User>
+   ```
+
+---
