@@ -1,5 +1,4 @@
-import { Option } from '@logic/fp';
-import { pipe } from 'fp-ts/lib/function';
+import { Option, pipe } from 'effect';
 import { LifeCycleMeta, LifeCycleMetaMod } from './lifecyle.meta';
 import {
   GetProps,
@@ -21,7 +20,9 @@ const factory = <Cmd extends Command<unknown>>({
 }) => {
   return pipe(
     lifecycle,
-    Option.getOrElse(() => LifeCycleMetaMod.factory(Option.none, Option.none)),
+    Option.getOrElse(() =>
+      LifeCycleMetaMod.factory(Option.none(), Option.none()),
+    ),
     (lc) => ({
       lifecycle: lc,
       props,

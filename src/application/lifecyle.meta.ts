@@ -1,4 +1,5 @@
-import { Option, RRecord, pipe } from '@logic/fp';
+import { Option, pipe } from 'effect';
+import { ReadonlyRecord } from 'effect/Record';
 import { v4 as uuidv4 } from 'uuid';
 
 export type LifeCycleContext = Record<string, never>;
@@ -8,13 +9,13 @@ export type LifeCycleMeta = {
   /** ID for correlation purposes (for UnitOfWork, for commands that
    *  arrive from other microservices,logs correlation etc). */
   correlationId: string;
-  context: RRecord.ReadonlyRecord<string, never>;
+  context: ReadonlyRecord<string, never>;
 };
 
 export const LifeCycleMetaMod = {
   factory: (
     correlationId: Option.Option<string>,
-    context: Option.Option<RRecord.ReadonlyRecord<string, never>>,
+    context: Option.Option<ReadonlyRecord<string, never>>,
   ): LifeCycleMeta => ({
     createdTimestamp: Date.now(),
     correlationId: pipe(
@@ -26,6 +27,6 @@ export const LifeCycleMetaMod = {
       Option.getOrElse(() => ({})),
     ),
   }),
-  autoFactory: () => LifeCycleMetaMod.factory(Option.none, Option.none),
+  autoFactory: () => LifeCycleMetaMod.factory(Option.none(), Option.none()),
   correlationId: (meta: LifeCycleMeta) => meta.correlationId,
 };
