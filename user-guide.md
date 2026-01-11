@@ -12,6 +12,7 @@ Complete API documentation for the functional domain modeling library with detai
 6. [✅ Validation & Exceptions API](#-validation--exceptions-api)
 7. [🔧 Utilities & Type Classes](#-utilities--type-classes)
 8. [🌐 NestJS Integration - DTO Layer](#-nestjs-integration---dto-layer)
+9. [🗄️ NestJS Integration - TypeORM Infrastructure](#%EF%B8%8F-nestjs-integration---typeorm-infrastructure)
 
 ---
 
@@ -2883,5 +2884,416 @@ export class OrdersController {
    const user: User = { ... };
    toNormalResponse()(user) // Type is NormalResponseDto<User>
    ```
+
+---
+
+## 🗄️ NestJS Integration - TypeORM Infrastructure
+
+The TypeORM infrastructure layer provides transaction management, repository patterns, and seamless integration between Effect-based domain repositories and NestJS application handlers using the **Unit of Work pattern** with **CLS (Continuation Local Storage)**.
+
+### Overview
+
+This module enables:
+
+- ✅ **Transaction-aware repositories** that automatically participate in active transactions
+- ✅ **Unit of Work pattern** for explicit transaction boundary control
+- ✅ **@Transactional decorator** for automatic transaction management in handlers
+- ✅ **Effect integration** for functional composition with domain repositories
+- ✅ **CLS-based context** for request-scoped transactions without explicit parameter passing
+- ✅ **Zero configuration** - Effect repositories automatically detect and use transactional contexts
+
+### Key Components
+
+#### 1. BaseRepository
+
+Transaction-aware base repository that automatically uses the correct EntityManager from CLS context.
+
+**Type Signature:**
+```typescript
+class TypeOrmBaseRepository<T extends ObjectLiteral> {
+  constructor(dataSource: DataSource, entity: new () => T);
+
+  getEntityManager(): EntityManager;
+  getRepository(): Repository<T>;
+
+  // All standard TypeORM repository methods
+  create(entityLike: DeepPartial<T>): T;
+  save<A>(entity: A, options?: SaveOptions): Promise<A & T>;
+  find(options?: FindManyOptions<T>): Promise<T[]>;
+  findOne(options: FindOneOptions<T>): Promise<T | null>;
+  // ... and more
+}
+```
+
+#### 2. UnitOfWork Service
+
+Injectable service for managing transactional boundaries using Effect-based return types.
+
+**Type Signature:**
+```typescript
+import { Effect } from 'effect';
+import { OperationException, BaseException } from 'effect-ddd';
+
+@Injectable()
+class UnitOfWork {
+  begin(): Effect.Effect<EntityManager, OperationException>;
+  commit(): Effect.Effect<void, BaseException>;
+  rollback(): Effect.Effect<void, OperationException>;
+  isActive(): boolean;
+  execute<T>(
+    work: (entityManager: EntityManager) => Effect.Effect<T, BaseException>,
+    options?: { autoCommit?: boolean }
+  ): Effect.Effect<T, BaseException>;
+}
+```
+
+**Note**: All methods return `Effect` types. When calling directly (outside `@Transactional`), use `Effect.runPromise()`:
+```typescript
+await Effect.runPromise(this.unitOfWork.commit());
+```
+
+#### 3. @Transactional Decorator
+
+Method decorator for automatic transaction management in NestJS handlers.
+
+**Type Signature:**
+```typescript
+function Transactional(
+  options?: {
+    autoCommit?: boolean;
+    unitOfWorkProperty?: string;
+  }
+): MethodDecorator
+```
+
+**Parameters:**
+- `autoCommit`: Auto-commit on success (default: `true`)
+- `unitOfWorkProperty`: Property name for injected UnitOfWork (default: `'unitOfWork'`)
+
+### Quick Start
+
+#### 1. Setup CLS Middleware
+
+```typescript
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { ClsMiddleware } from 'effect-ddd/nestjs';
+
+@Module({})
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(ClsMiddleware).forRoutes('*');
+  }
+}
+```
+
+#### 2. Register UnitOfWork
+
+**Important**: `UnitOfWork` requires `DataSource` injection, so TypeORM must be configured first.
+
+```typescript
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UnitOfWork } from 'effect-ddd/nestjs';
+
+@Module({
+  imports: [
+    // TypeORM provides DataSource for dependency injection
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      // ... your database config
+    }),
+    // Or in a feature module:
+    // TypeOrmModule.forFeature([YourEntity]),
+  ],
+  providers: [
+    UnitOfWork,  // NestJS auto-injects DataSource
+  ],
+})
+export class MyModule {}
+```
+
+**Alternative 1**: If you use a custom `dataSourceFactory`:
+
+When using `TypeOrmModule.forRootAsync()` with a custom `dataSourceFactory`, the `DataSource` is not automatically exposed. You need to provide it manually:
+
+```typescript
+import { DataSource, getDataSourceToken } from 'typeorm';
+
+@Module({
+  imports: [
+    TypeOrmModule.forRootAsync({
+      useClass: TypeOrmConfigService,
+      dataSourceFactory: async (options) => {
+        return new DataSource(options).initialize();
+      },
+    }),
+  ],
+  providers: [
+    // Expose DataSource from TypeORM's internal token
+    {
+      provide: DataSource,
+      useFactory: (dataSource: DataSource) => dataSource,
+      inject: [getDataSourceToken()],  // Get from TypeORM's token
+    },
+    UnitOfWork,  // Will now receive DataSource via DI
+  ],
+})
+export class MyModule {}
+```
+
+**Alternative 2**: Manual UnitOfWork provider:
+
+```typescript
+import { DataSource } from 'typeorm';
+
+@Module({
+  providers: [
+    {
+      provide: UnitOfWork,
+      useFactory: (dataSource: DataSource) => new UnitOfWork(dataSource),
+      inject: [DataSource],
+    },
+  ],
+})
+export class MyModule {}
+```
+
+#### 3. Use @Transactional Decorator
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { Transactional, UnitOfWork } from 'effect-ddd/nestjs';
+
+@Injectable()
+export class CreateUserHandler {
+  constructor(
+    private readonly unitOfWork: UnitOfWork,  // Injected by NestJS
+    private readonly userRepo: UserRepository,
+  ) {}
+
+  @Transactional()
+  async execute(command: CreateUserCommand): Promise<User> {
+    // All repository operations here are transactional
+    const user = await this.userRepo.save(newUser);
+    return user;
+    // Auto-committed on success, auto-rolled back on error
+  }
+}
+```
+
+### Usage Patterns
+
+#### Pattern 1: Decorator with Auto-Commit (Recommended)
+
+```typescript
+@Injectable()
+export class OrderService {
+  constructor(private readonly unitOfWork: UnitOfWork) {}
+
+  @Transactional()
+  async createOrder(data: CreateOrderDto): Promise<Order> {
+    const order = await this.orderRepo.save(newOrder);
+    await this.inventoryRepo.reserve(order.items);
+    return order; // Auto-committed
+  }
+}
+```
+
+#### Pattern 2: Manual Commit Control
+
+```typescript
+import { Effect } from 'effect';
+
+@Injectable()
+export class ComplexService {
+  constructor(private readonly unitOfWork: UnitOfWork) {}
+
+  @Transactional({ autoCommit: false })
+  async complexOperation(data: ComplexData): Promise<void> {
+    await this.doStep1();
+    await this.doStep2();
+
+    // Commit at specific point (Effect-based)
+    await Effect.runPromise(this.unitOfWork.commit());
+
+    // Non-transactional operations after commit
+    await this.sendEmail();
+  }
+}
+```
+
+#### Pattern 3: Effect Integration
+
+Effect repositories automatically work with UnitOfWork:
+
+```typescript
+import { pipe, Effect } from 'effect';
+import { withUnitOfWork } from 'effect-ddd/nestjs';
+
+const createUser = (data: UserData) =>
+  pipe(
+    Effect.gen(function* () {
+      const repo = yield* UserRepositoryContext;
+      const user = yield* User.create(data);
+      yield* repo.save(user); // Uses transactional EntityManager!
+      return user;
+    }),
+    withUnitOfWork({ autoCommit: true })
+  );
+```
+
+#### Pattern 4: Programmatic UnitOfWork
+
+```typescript
+import { Effect } from 'effect';
+
+async doWork(): Promise<void> {
+  // execute() returns Effect, wrap with Effect.runPromise
+  await Effect.runPromise(
+    this.unitOfWork.execute((entityManager) => {
+      const repo = entityManager.getRepository(UserEntity);
+      return Effect.promise(() => repo.save(user));
+      // Auto-committed on success
+    })
+  );
+}
+```
+
+### How It Works
+
+The infrastructure uses CLS (Continuation Local Storage) to share the transactional `EntityManager` across the request context:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              @Transactional Decorator                   │
+│          or UnitOfWork.begin() called                   │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│              UnitOfWork Service                         │
+│  • Creates QueryRunner & EntityManager                  │
+│  • Injects into CLS namespace                          │
+│  • Key: 'ENTITY_MANAGER' → EntityManager               │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│         CLS Namespace (per-request storage)             │
+│         Stores: EntityManager, UnitOfWorkContext        │
+└─────────────┬────────────────────────┬──────────────────┘
+              │                        │
+              ▼                        ▼
+    ┌──────────────────┐    ┌──────────────────────┐
+    │  BaseRepository  │    │  Effect Repository   │
+    │  (NestJS)        │    │  (Domain)            │
+    │                  │    │                      │
+    │  Reads from CLS  │    │  Reads from CLS      │
+    │  Uses same EM    │    │  Uses same EM        │
+    └──────────────────┘    └──────────────────────┘
+```
+
+**Key Points:**
+- Both Promise-based and Effect-based repositories read from the same CLS context
+- No configuration needed - repositories automatically detect and use transactional context
+- Falls back to default DataSource.manager when not in a transaction
+
+### Effect Repository Integration
+
+Effect repositories from `src/ports/database/typeorm/effect-repository.factory.ts` automatically participate in transactions:
+
+```typescript
+// Domain Layer - Define Effect repository
+const userRepository = createTypeormRepository({
+  dataSource,
+  entityClass: UserEntity,
+  relations: ['profile'],
+  toDomain: (entity) => UserTrait.parse(entity),
+  toOrm: (domain, existing, repo) => Effect.succeed({ ...domain }),
+  prepareQuery: (params) => ({ id: params.id }),
+});
+
+// Application Layer - Use with @Transactional
+@Injectable()
+export class CreateUserHandler {
+  constructor(
+    private readonly unitOfWork: UnitOfWork,  // Injected by NestJS
+    private readonly dataSource: DataSource,   // Injected by NestJS
+  ) {}
+
+  @Transactional()
+  async execute(command: CreateUserCommand): Promise<User> {
+    // Effect repository uses transactional EntityManager from CLS
+    const program = pipe(
+      userRepository,
+      Effect.flatMap((repo) => {
+        const user = User.create(command);
+        return repo.save(user); // Transactional!
+      })
+    );
+
+    return Effect.runPromise(program);
+  }
+}
+```
+
+### Utilities
+
+#### getCurrentEntityManager()
+
+Get the current transactional EntityManager from CLS context.
+
+```typescript
+import { getCurrentEntityManager } from 'effect-ddd/nestjs';
+
+const em = getCurrentEntityManager();
+if (em) {
+  // Use transactional EntityManager
+}
+```
+
+#### isInTransaction()
+
+Check if currently executing within a transactional context.
+
+```typescript
+import { isInTransaction } from 'effect-ddd/nestjs';
+
+if (isInTransaction()) {
+  console.log('Running in transaction');
+}
+```
+
+#### requireEntityManager()
+
+Get EntityManager or throw error if not in transactional context.
+
+```typescript
+import { requireEntityManager } from 'effect-ddd/nestjs';
+
+const em = requireEntityManager(); // Throws if not in transaction
+```
+
+### Best Practices
+
+1. **Use @Transactional for handlers**: Apply decorator at the usecase handler level for clear transaction boundaries
+
+2. **Keep transactions short**: Only include database operations, avoid slow external API calls
+
+3. **One transaction per request**: Avoid nested transactions - use a single `@Transactional` per handler
+
+4. **Effect integration**: Effect repositories automatically work - no special configuration needed
+
+5. **Manual commit when needed**: Use `autoCommit: false` when you need to commit at a specific point
+
+6. **Error handling**: Let the decorator handle rollbacks - avoid catching and swallowing errors
+
+### Detailed Documentation
+
+For comprehensive guides, examples, and advanced patterns, see:
+
+- **[TypeORM Infrastructure Guide](../docs/typeorm/README.md)** - Complete setup, usage patterns, API reference, troubleshooting
+- **[Effect Integration Guide](../docs/typeorm/EFFECT_INTEGRATION.md)** - How Effect repositories integrate with UnitOfWork, functional patterns, complete examples
+- **[Concurrency and Isolation Deep Dive](../docs/typeorm/CONCURRENCY_AND_ISOLATION.md)** - How CLS provides isolation for concurrent requests, singleton safety, transaction sharing patterns
 
 ---
