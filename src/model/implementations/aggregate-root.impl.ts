@@ -70,6 +70,7 @@ export const AggGenericTrait: IAggGenericTrait = {
       CoreException,
       never
     >,
+    validators?: ReadonlyArray<(props: GetProps<A>) => Effect.Effect<GetProps<A>, CoreException, never>>,
   ) => {
     return (input: I): CommandOnModel<A> => {
       return (aggregate: A, correlationId?: string) => {
@@ -81,18 +82,31 @@ export const AggGenericTrait: IAggGenericTrait = {
             aggregate,
             _correlationId,
           ),
-          Effect.map(({ props, domainEvents }) => {
-            // Apply all domain events to the aggregate
-            const withEvents = domainEvents.reduce<A>(
-              (agg, event) => AggGenericTrait.addDomainEvent<A>(event)(agg),
-              aggregate,
-            );
+          Effect.flatMap(({ props, domainEvents }) => {
+            // Run validators on new props if provided
+            let validationEffect: Effect.Effect<GetProps<A>, CoreException, never> = Effect.succeed(props);
+            if (validators && validators.length > 0) {
+              for (const validator of validators) {
+                validationEffect = pipe(validationEffect, Effect.flatMap(validator));
+              }
+            }
 
-            return {
-              ...withEvents,
-              props: props as A['props'],
-              updatedAt: Option.some(new Date()),
-            };
+            return pipe(
+              validationEffect,
+              Effect.map((validatedProps) => {
+                // Apply all domain events to the aggregate
+                const withEvents = domainEvents.reduce<A>(
+                  (agg, event) => AggGenericTrait.addDomainEvent<A>(event)(agg),
+                  aggregate,
+                );
+
+                return {
+                  ...withEvents,
+                  props: validatedProps as A['props'],
+                  updatedAt: Option.some(new Date()),
+                };
+              }),
+            );
           }),
         );
       };

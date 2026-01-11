@@ -73,5 +73,8 @@ export interface IAggGenericTrait
       CoreException,
       never
     >,
+    validators?: ReadonlyArray<
+      (props: GetProps<A>) => Effect.Effect<GetProps<A>, CoreException, never>
+    >,
   ) => (input: I) => CommandOnModel<A>;
 }

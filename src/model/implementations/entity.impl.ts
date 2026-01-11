@@ -78,6 +78,9 @@ export const EntityGenericTrait: IEntityGenericTrait = {
       entity: E,
       correlationId: string,
     ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
+    validators?: ReadonlyArray<
+      (props: GetProps<E>) => Effect.Effect<GetProps<E>, CoreException, never>
+    >,
   ) => {
     return (input: I): CommandOnModel<E> => {
       return (entity: E, correlationId?: string) => {
@@ -89,14 +92,33 @@ export const EntityGenericTrait: IEntityGenericTrait = {
             entity,
             _correlationId,
           ),
-          Effect.map(
-            ({ props }): E => ({
-              ...entity,
-              props: props as E['props'],
-              updatedAt: Option.some(new Date()),
-              // Domain events would be handled separately in a real implementation
-            }),
-          ),
+          Effect.flatMap(({ props }) => {
+            // Run validators on new props if provided
+            let validationEffect: Effect.Effect<
+              GetProps<E>,
+              CoreException,
+              never
+            > = Effect.succeed(props);
+            if (validators && validators.length > 0) {
+              for (const validator of validators) {
+                validationEffect = pipe(
+                  validationEffect,
+                  Effect.flatMap(validator),
+                );
+              }
+            }
+
+            return pipe(
+              validationEffect,
+              Effect.map(
+                (validatedProps): E => ({
+                  ...entity,
+                  props: validatedProps as E['props'],
+                  updatedAt: Option.some(new Date()),
+                }),
+              ),
+            );
+          }),
         );
       };
     };

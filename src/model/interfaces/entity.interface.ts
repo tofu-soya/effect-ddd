@@ -93,6 +93,10 @@ export interface IEntityGenericTrait {
       input: I,
       props: GetProps<E>,
       entity: E,
+      correlationId: string,
     ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
+    validators?: ReadonlyArray<
+      (props: GetProps<E>) => Effect.Effect<GetProps<E>, CoreException, never>
+    >,
   ) => (input: I) => CommandOnModel<E>;
 }
