@@ -3,3 +3,5 @@ export * from './cqrs-event-bus';
 export * from './dto/decorator';
 export * from './dto/dto';
 export * from './dto/utils';
+export * from './typeorm';
+export * from './middleware';
