@@ -83,8 +83,9 @@
   "dependencies": {
     "@fp-ts/optic": "0.19.0",
     "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.0.1",
     "@nestjs/cqrs": "~11.0.1",
-    "@nestjs/swagger": "^11.2.3",
+    "@nestjs/swagger": "^11.0.1",
     "amqp-connection-manager": "^4.1.11",
     "amqplib": "^0.10.3",
     "cls-hooked": "^4.2.2",
