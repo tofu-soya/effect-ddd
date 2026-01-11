@@ -157,7 +157,20 @@ interface EnhancedEntityTrait<
     QueryFunction<E['props']> | QueryEffectFunction<E['props']>
   > = Record<string, never>,
   C extends Record<string, CommandFunction<E>> = Record<string, never>,
-> extends EntityTrait<E, NewParam, ParseParam> {}
+> extends EntityTrait<E, NewParam, ParseParam> {
+  asCommand: <I>(
+    reducerLogic: (
+      input: I,
+      props: E['props'],
+      entity: E,
+      correlationId: string,
+    ) => Effect.Effect<
+      { props: E['props']; domainEvents: IDomainEvent[] },
+      any,
+      never
+    >,
+  ) => CommandFunction<E, I>;
+}
 
 interface EnhancedAggregateRootTrait<
   A extends AggregateRoot,
@@ -179,21 +192,12 @@ type AnyEntityConfig = EntityConfig<any, any, any, any, any>;
 type AnyAggregateConfig = AggregateConfig<any, any, any, any, any, any>;
 
 // Type predicate to check if config is EntityConfig or AggregateConfig
-type IsEntityLikeConfig<T> = T extends EntityConfig<any, any, any, any, any>
-  ? true
-  : false;
+type IsEntityLikeConfig<T> =
+  T extends EntityConfig<any, any, any, any, any> ? true : false;
 
 // Type predicate to check if config is AggregateConfig
-type IsAggregateConfig<T> = T extends AggregateConfig<
-  any,
-  any,
-  any,
-  any,
-  any,
-  any
->
-  ? true
-  : false;
+type IsAggregateConfig<T> =
+  T extends AggregateConfig<any, any, any, any, any, any> ? true : false;
 
 // ===== Core Configuration Builders =====
 
@@ -668,9 +672,26 @@ function buildEntity<
     };
   });
 
+  // Create wrapped asCommand that automatically includes validators
+  const asCommandWithValidators = <I>(
+    reducerLogic: (
+      input: I,
+      props: E['props'],
+      entity: E,
+      correlationId: string,
+    ) => Effect.Effect<{ props: E['props'] }, any, never>,
+  ) => {
+    // Widen the error type from ParseError | ValidationException to CoreException
+    const widened = config.validators as ReadonlyArray<
+      (props: E['props']) => Effect.Effect<E['props'], any, never>
+    >;
+    return EntityGenericTrait.asCommand(reducerLogic, widened);
+  };
+
   return {
     ...baseTrait,
     new: newMethod,
+    asCommand: asCommandWithValidators,
     ...queryMethods,
     ...config.commands,
   } as any;
@@ -719,10 +740,31 @@ function buildAggregateRoot<
     };
   });
 
+  // Create wrapped asCommand that automatically includes validators
+  const asCommandWithValidators = <I>(
+    reducerLogic: (
+      input: I,
+      props: A['props'],
+      aggregate: A,
+      correlationId: string,
+    ) => Effect.Effect<
+      { props: A['props']; domainEvents: IDomainEvent[] },
+      any,
+      never
+    >,
+  ) => {
+    // Widen the error type from ParseError | ValidationException to CoreException
+    const widened = config.validators as ReadonlyArray<
+      (props: A['props']) => Effect.Effect<A['props'], any, never>
+    >;
+    return AggGenericTrait.asCommand(reducerLogic, widened);
+  };
+
   return {
     ...baseTrait,
     parse: baseTrait.parse,
     new: newMethod,
+    asCommand: asCommandWithValidators,
     ...queryMethods,
     ...config.commands,
     eventHandlers: config.eventHandlers,
