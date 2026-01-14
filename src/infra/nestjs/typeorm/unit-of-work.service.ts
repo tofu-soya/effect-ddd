@@ -64,11 +64,13 @@ export class UnitOfWork {
    */
   begin(): Effect.Effect<EntityManager, OperationException> {
     return Effect.tryPromise({
-      catch: (error) =>
-        OperationException.new(
+      catch: (error) => {
+        console.log('error on begin transaction', error);
+        return OperationException.new(
           'TRANSACTION_BEGIN_FAILED',
           `something end wrong ${error}`,
-        ),
+        );
+      },
       try: async () => {
         if (this.isActive()) {
           throw new Error(
@@ -103,11 +105,13 @@ export class UnitOfWork {
    */
   commit(): Effect.Effect<void, BaseException> {
     return Effect.tryPromise({
-      catch: (error) =>
-        OperationException.new(
+      catch: (error) => {
+        console.log('error when commit ', error);
+        return OperationException.new(
           'TRANSACTION_COMMIT_FAILED',
           `transaction commit failed: ${error}`,
-        ),
+        );
+      },
       try: async () => {
         const context = this.getContext();
 
@@ -132,11 +136,11 @@ export class UnitOfWork {
         }
       },
     }).pipe(
-      Effect.tapError(() => {
+      Effect.tapError((error) => {
         if (this.isActive()) {
           return this.rollback();
         }
-        return Effect.succeed(null) as Effect.Effect<void, BaseException>;
+        return Effect.fail(error) as Effect.Effect<void, BaseException>;
       }),
     );
   }
