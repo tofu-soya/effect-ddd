@@ -10,6 +10,7 @@ import {
   EntityTrait,
   ValueObjectTrait,
   PropsParser,
+  EntityValidator,
 } from '../interfaces';
 import {
   AggGenericTrait,
@@ -48,6 +49,32 @@ export type QueryEffectFunction<Props = any, Return = any> = (
 export type CommandFunction<E extends Entity, Input = any> = (
   input: Input,
 ) => (entity: E, correlationId?: string) => CommandResult<E>;
+
+/**
+ * Raw command handler for entities (before wrapping with validators)
+ * This is the reducer logic that transforms props
+ */
+export type RawEntityCommandHandler<E extends Entity, Input = any> = (
+  input: Input,
+  props: E['props'],
+  entity: E,
+  correlationId: string,
+) => Effect.Effect<{ props: E['props'] }, any, never>;
+
+/**
+ * Raw command handler for aggregates (before wrapping with validators)
+ * This is the reducer logic that transforms props and emits domain events
+ */
+export type RawAggregateCommandHandler<A extends AggregateRoot, Input = any> = (
+  input: Input,
+  props: A['props'],
+  aggregate: A,
+  correlationId: string,
+) => Effect.Effect<
+  { props: A['props']; domainEvents: IDomainEvent[] },
+  any,
+  never
+>;
 
 /**
  * Event handler function type
@@ -113,9 +140,13 @@ interface EntityConfig<
     string,
     QueryFunction<E['props']> | QueryEffectFunction<E['props']>
   > = Record<string, never>,
-  C extends Record<string, CommandFunction<E>> = Record<string, never>,
+  C extends Record<string, RawEntityCommandHandler<E, any>> = Record<
+    string,
+    never
+  >,
 > extends DomainConfig<E, ParseParam, NewParam, Q> {
-  readonly commands: C;
+  /** Raw command handlers - will be wrapped with validators at build time */
+  readonly rawCommands: C;
   readonly newMethod?: (
     params: NewParam,
     parse: (input: WithEntityMetaInput<ParseParam>) => ParseResult<E>,
@@ -130,9 +161,14 @@ interface AggregateConfig<
     string,
     QueryFunction<A['props']> | QueryEffectFunction<A['props']>
   > = Record<string, never>,
-  C extends Record<string, CommandFunction<A>> = Record<string, never>,
+  C extends Record<string, RawAggregateCommandHandler<A, any>> = Record<
+    string,
+    never
+  >,
   H extends Record<string, EventHandlerFunction> = Record<string, never>,
-> extends EntityConfig<A, ParseParam, NewParam, Q, C> {
+> extends Omit<EntityConfig<A, ParseParam, NewParam, Q, any>, 'rawCommands'> {
+  /** Raw aggregate command handlers - will be wrapped with validators at build time */
+  readonly rawCommands: C;
   readonly eventHandlers: H;
 }
 
@@ -164,11 +200,8 @@ interface EnhancedEntityTrait<
       props: E['props'],
       entity: E,
       correlationId: string,
-    ) => Effect.Effect<
-      { props: E['props']; domainEvents: IDomainEvent[] },
-      any,
-      never
-    >,
+    ) => Effect.Effect<{ props: E['props'] }, any, never>,
+    additionalValidators?: ReadonlyArray<EntityValidator<E>>,
   ) => CommandFunction<E, I>;
 }
 
@@ -192,12 +225,21 @@ type AnyEntityConfig = EntityConfig<any, any, any, any, any>;
 type AnyAggregateConfig = AggregateConfig<any, any, any, any, any, any>;
 
 // Type predicate to check if config is EntityConfig or AggregateConfig
-type IsEntityLikeConfig<T> =
-  T extends EntityConfig<any, any, any, any, any> ? true : false;
+type IsEntityLikeConfig<T> = T extends EntityConfig<any, any, any, any, any>
+  ? true
+  : false;
 
 // Type predicate to check if config is AggregateConfig
-type IsAggregateConfig<T> =
-  T extends AggregateConfig<any, any, any, any, any, any> ? true : false;
+type IsAggregateConfig<T> = T extends AggregateConfig<
+  any,
+  any,
+  any,
+  any,
+  any,
+  any
+>
+  ? true
+  : false;
 
 // ===== Core Configuration Builders =====
 
@@ -231,7 +273,7 @@ const createEntityConfig = <
 > => ({
   ...createDomainConfig<E, ParseParam, NewParam>(tag),
   newMethod: undefined,
-  commands: {},
+  rawCommands: {},
 });
 
 const createAggregateConfig = <
@@ -248,7 +290,9 @@ const createAggregateConfig = <
   Record<string, never>,
   Record<string, never>
 > => ({
-  ...createEntityConfig<A, ParseParam, NewParam>(tag),
+  ...createDomainConfig<A, ParseParam, NewParam>(tag),
+  newMethod: undefined,
+  rawCommands: {},
   eventHandlers: {},
 });
 
@@ -395,87 +439,55 @@ const withQueryEffect =
     }) as TConfig & { queries: TConfig['queries'] & Record<K, typeof query> };
 
 /**
- * Add command method - only works with Entity and Aggregate configs
+ * Add command method - only works with Entity configs
+ * Stores raw handler - will be wrapped with validators at build time
  */
 const withCommand =
   <TConfig extends AnyEntityConfig, K extends string, I>(
     name: K,
     handler: TConfig extends EntityConfig<infer E, any, any, any, any>
-      ? (
-          input: I,
-          props: E['props'],
-          entity: E,
-        ) => Effect.Effect<{ props: E['props'] }, any, never>
+      ? RawEntityCommandHandler<E, I>
       : never,
   ) =>
   (
     config: TConfig,
   ): TConfig & {
-    commands: TConfig['commands'] & TConfig extends EntityConfig<
-      infer E,
-      any,
-      any,
-      any,
-      any
-    >
-      ? Record<K, CommandFunction<E, I>>
-      : never;
+    rawCommands: TConfig['rawCommands'] & Record<K, typeof handler>;
   } => {
-    // Ensure we only accept EntityConfig or AggregateConfig
-    if (!('commands' in config)) {
+    // Ensure we only accept EntityConfig
+    if (!('rawCommands' in config)) {
       throw new Error(
-        'withCommand can only be used with Entity or Aggregate configurations',
+        'withCommand can only be used with Entity configurations',
       );
     }
 
-    const commandFunction = EntityGenericTrait.asCommand<
-      TConfig extends EntityConfig<infer E, any, any, any, any> ? E : any,
-      I
-    >(handler);
-
+    // Store raw handler - will be wrapped with validators at build time
     return {
       ...config,
-      commands: {
-        ...config.commands,
-        [name]: commandFunction,
+      rawCommands: {
+        ...config.rawCommands,
+        [name]: handler,
       },
     } as TConfig & {
-      commands: TConfig['commands'] & Record<K, CommandFunction<any, I>>;
+      rawCommands: TConfig['rawCommands'] & Record<K, typeof handler>;
     };
   };
 
 /**
  * Add aggregate command - only works with Aggregate configs
+ * Stores raw handler - will be wrapped with validators at build time
  */
 const withAggregateCommand =
   <TConfig extends AnyAggregateConfig, K extends string, I>(
     name: K,
     handler: TConfig extends AggregateConfig<infer A, any, any, any, any, any>
-      ? (
-          input: I,
-          props: A['props'],
-          aggregate: A,
-          correlationId: string,
-        ) => Effect.Effect<
-          { props: A['props']; domainEvents: IDomainEvent[] },
-          any,
-          any
-        >
+      ? RawAggregateCommandHandler<A, I>
       : never,
   ) =>
   (
     config: TConfig,
   ): TConfig & {
-    commands: TConfig['commands'] &
-      Record<
-        K,
-        CommandFunction<
-          TConfig extends AggregateConfig<infer A, any, any, any, any, any>
-            ? A
-            : never,
-          I
-        >
-      >;
+    rawCommands: TConfig['rawCommands'] & Record<K, typeof handler>;
   } => {
     // Ensure we only accept AggregateConfig
     if (!('eventHandlers' in config)) {
@@ -484,16 +496,15 @@ const withAggregateCommand =
       );
     }
 
-    const commandFunction = AggGenericTrait.asCommand(handler as any);
-
+    // Store raw handler - will be wrapped with validators at build time
     return {
       ...config,
-      commands: {
-        ...config.commands,
-        [name]: commandFunction,
+      rawCommands: {
+        ...config.rawCommands,
+        [name]: handler,
       },
     } as TConfig & {
-      commands: TConfig['commands'] & Record<K, CommandFunction<any, I>>;
+      rawCommands: TConfig['rawCommands'] & Record<K, typeof handler>;
     };
   };
 
@@ -638,22 +649,29 @@ function buildEntity<
     string,
     QueryFunction<E['props']> | QueryEffectFunction<E['props']>
   >,
-  C extends Record<string, CommandFunction<E>>,
+  C extends Record<string, RawEntityCommandHandler<E, any>>,
 >(
   config: EntityConfig<E, ParseParam, NewParam, Q, C>,
-): EnhancedEntityTrait<E, NewParam, ParseParam, Q, C> &
-  QueryMethods<E, Q> &
-  CommandMethods<E, C> {
+): EnhancedEntityTrait<E, NewParam, ParseParam, Q, any> &
+  QueryMethods<E, Q> & {
+    [K in keyof C]: CommandFunction<E, Parameters<C[K]>[0]>;
+  } {
   const propsParser = createPropsParser(
     config as DomainConfig<E, ParseParam, NewParam, Q>,
   );
 
-  // Use the existing EntityGenericTrait
+  // Widen validators for createEntityTrait
+  const configValidators = config.validators as ReadonlyArray<
+    (props: E['props']) => Effect.Effect<E['props'], any, never>
+  >;
+
+  // Create entity trait with validators baked in
+  // The trait's asCommand will automatically enforce these validators
   const baseTrait = EntityGenericTrait.createEntityTrait<
     E,
     NewParam,
     ParseParam
-  >(propsParser, config.tag);
+  >(propsParser, config.tag, { autoGenId: true }, configValidators);
 
   // Enhanced new method that provides parse access
   const newMethod = config.newMethod
@@ -672,28 +690,19 @@ function buildEntity<
     };
   });
 
-  // Create wrapped asCommand that automatically includes validators
-  const asCommandWithValidators = <I>(
-    reducerLogic: (
-      input: I,
-      props: E['props'],
-      entity: E,
-      correlationId: string,
-    ) => Effect.Effect<{ props: E['props'] }, any, never>,
-  ) => {
-    // Widen the error type from ParseError | ValidationException to CoreException
-    const widened = config.validators as ReadonlyArray<
-      (props: E['props']) => Effect.Effect<E['props'], any, never>
-    >;
-    return EntityGenericTrait.asCommand(reducerLogic, widened);
+  // Wrap all raw commands using baseTrait.asCommand (which has validators baked in)
+  const wrappedCommands = {} as {
+    [K in keyof C]: CommandFunction<E, Parameters<C[K]>[0]>;
   };
+  Object.entries(config.rawCommands).forEach(([key, rawHandler]) => {
+    (wrappedCommands as any)[key] = baseTrait.asCommand(rawHandler);
+  });
 
   return {
     ...baseTrait,
     new: newMethod,
-    asCommand: asCommandWithValidators,
     ...queryMethods,
-    ...config.commands,
+    ...wrappedCommands,
   } as any;
 }
 
@@ -705,23 +714,30 @@ function buildAggregateRoot<
     string,
     QueryFunction<A['props']> | QueryEffectFunction<A['props']>
   >,
-  C extends Record<string, CommandFunction<A>>,
+  C extends Record<string, RawAggregateCommandHandler<A, any>>,
   H extends Record<string, EventHandlerFunction>,
 >(
   config: AggregateConfig<A, ParseParam, NewParam, Q, C, H>,
-): EnhancedAggregateRootTrait<A, NewParam, ParseParam, Q, C, H> &
-  QueryMethods<A, Q> &
-  CommandMethods<A, C> {
+): EnhancedAggregateRootTrait<A, NewParam, ParseParam, Q, any, H> &
+  QueryMethods<A, Q> & {
+    [K in keyof C]: CommandFunction<A, Parameters<C[K]>[0]>;
+  } {
   const propsParser = createPropsParser(
     config as DomainConfig<A, ParseParam, NewParam, Q>,
   );
 
-  // Use the existing AggGenericTrait
+  // Widen validators for createAggregateRootTrait
+  const configValidators = config.validators as ReadonlyArray<
+    (props: A['props']) => Effect.Effect<A['props'], any, never>
+  >;
+
+  // Create aggregate root trait with validators baked in
+  // The trait's asCommand will automatically enforce these validators
   const baseTrait = AggGenericTrait.createAggregateRootTrait<
     A,
     NewParam,
     ParseParam
-  >(propsParser, config.tag);
+  >(propsParser, config.tag, { autoGenId: true }, configValidators);
 
   // Override the new method if provided
   const newMethod = config.newMethod
@@ -740,33 +756,19 @@ function buildAggregateRoot<
     };
   });
 
-  // Create wrapped asCommand that automatically includes validators
-  const asCommandWithValidators = <I>(
-    reducerLogic: (
-      input: I,
-      props: A['props'],
-      aggregate: A,
-      correlationId: string,
-    ) => Effect.Effect<
-      { props: A['props']; domainEvents: IDomainEvent[] },
-      any,
-      never
-    >,
-  ) => {
-    // Widen the error type from ParseError | ValidationException to CoreException
-    const widened = config.validators as ReadonlyArray<
-      (props: A['props']) => Effect.Effect<A['props'], any, never>
-    >;
-    return AggGenericTrait.asCommand(reducerLogic, widened);
+  // Wrap all raw commands using baseTrait.asCommand (which has validators baked in)
+  const wrappedCommands = {} as {
+    [K in keyof C]: CommandFunction<A, Parameters<C[K]>[0]>;
   };
+  Object.entries(config.rawCommands).forEach(([key, rawHandler]) => {
+    (wrappedCommands as any)[key] = baseTrait.asCommand(rawHandler);
+  });
 
   return {
     ...baseTrait,
-    parse: baseTrait.parse,
     new: newMethod,
-    asCommand: asCommandWithValidators,
     ...queryMethods,
-    ...config.commands,
+    ...wrappedCommands,
     eventHandlers: config.eventHandlers,
   } as any;
 }

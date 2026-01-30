@@ -35,3 +35,12 @@ export const checkIfNotEmpty =
       onSome: Effect.succeed,
       onNone: () => Effect.fail(exception) as Effect.Effect<OV, E>,
     })(oV);
+
+export const checkIfNullable =
+  <A, E extends BaseException>(e: E) =>
+  (v?: A) =>
+    pipe(
+      v,
+      Effect.fromNullable,
+      Effect.mapError(() => e),
+    );

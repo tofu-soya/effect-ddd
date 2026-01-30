@@ -2986,9 +2986,14 @@ export class AppModule implements NestModule {
 }
 ```
 
+**Why this matters**: CLS creates a **new context per HTTP request**, so each API call gets its own transactional EntityManager. If this middleware is missing, `@Transactional` cannot share context with repositories.
+
+**Context value management**: If you store request-scoped values in CLS (for example, correlation IDs, tenant IDs, or actor info), you must apply `ClsMiddleware` so the CLS namespace exists per request. Always access the namespace via `getNamespaceInstance()` (not `getNamespace()` directly) to ensure you read/write values against the active CLS context. Any context value set or read before this middleware runs will be lost or `undefined`.
+
 #### 2. Register UnitOfWork
 
 **Important**: `UnitOfWork` requires `DataSource` injection, so TypeORM must be configured first.
+Register it in the **AppModule/CoreModule** using a factory (so it is initialized with the `DataSource`), then import that module wherever you use `@Transactional` and **inject UnitOfWork** into services/handlers that use the decorator.
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -3041,7 +3046,7 @@ import { DataSource, getDataSourceToken } from 'typeorm';
 export class MyModule {}
 ```
 
-**Alternative 2**: Manual UnitOfWork provider:
+**Recommended**: Provide UnitOfWork in AppModule/CoreModule and export it for feature modules:
 
 ```typescript
 import { DataSource } from 'typeorm';
@@ -3054,11 +3059,128 @@ import { DataSource } from 'typeorm';
       inject: [DataSource],
     },
   ],
+  exports: [UnitOfWork],
+})
+export class CoreModule {}
+```
+
+Then import `CoreModule` in any feature module that uses `@Transactional`.
+
+#### 3. Create Repository Providers
+
+Use `createTypeOrmRepositoryProvider` to easily create transaction-aware repository providers for your entities.
+
+**Function Signature:**
+```typescript
+function createTypeOrmRepositoryProvider<T extends ObjectLiteral>(
+  entity: new () => T,
+): Provider
+```
+
+**What it does:**
+- Creates a NestJS provider for a `TypeOrmBaseRepository<T>` instance
+- The provider token is automatically named: `{EntityName}TransRepository`
+- Automatically injects `DataSource` and creates the repository
+- The repository is transaction-aware and works with `@Transactional` decorator
+
+**Usage Example:**
+
+```typescript
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { createTypeOrmRepositoryProvider, TypeOrmBaseRepository } from 'effect-ddd/nestjs';
+import { UserEntity } from './entities/user.entity';
+import { OrderEntity } from './entities/order.entity';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([UserEntity, OrderEntity]),  // Register entities
+  ],
+  providers: [
+    // Creates 'UserEntityTransRepository' provider
+    createTypeOrmRepositoryProvider(UserEntity),
+
+    // Creates 'OrderEntityTransRepository' provider
+    createTypeOrmRepositoryProvider(OrderEntity),
+  ],
 })
 export class MyModule {}
 ```
 
-#### 3. Use @Transactional Decorator
+**Injecting the Repository:**
+
+```typescript
+import { Injectable, Inject } from '@nestjs/common';
+import { TypeOrmBaseRepository } from 'effect-ddd/nestjs';
+import { UserEntity } from './entities/user.entity';
+
+@Injectable()
+export class UserService {
+  constructor(
+    @Inject('UserEntityTransRepository')
+    private readonly userRepo: TypeOrmBaseRepository<UserEntity>,
+  ) {}
+
+  async findUser(id: string): Promise<UserEntity | null> {
+    return this.userRepo.findOne({ where: { id } });
+  }
+
+  async saveUser(user: UserEntity): Promise<UserEntity> {
+    return this.userRepo.save(user);
+  }
+}
+```
+
+**Alternative: Custom Repository Class**
+
+If you need custom methods, extend `TypeOrmBaseRepository` instead:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { DataSource } from 'typeorm';
+import { TypeOrmBaseRepository } from 'effect-ddd/nestjs';
+import { UserEntity } from './entities/user.entity';
+
+@Injectable()
+export class UserRepository extends TypeOrmBaseRepository<UserEntity> {
+  constructor(dataSource: DataSource) {
+    super(dataSource, UserEntity);
+  }
+
+  // Custom query methods
+  async findByEmail(email: string): Promise<UserEntity | null> {
+    return this.getRepository().findOne({ where: { email } });
+  }
+
+  async findActiveUsers(): Promise<UserEntity[]> {
+    return this.createQueryBuilder('user')
+      .where('user.isActive = :active', { active: true })
+      .getMany();
+  }
+}
+
+// Then register as a regular provider
+@Module({
+  providers: [
+    UserRepository,  // NestJS auto-injects DataSource
+  ],
+})
+export class MyModule {}
+```
+
+**When to use `createTypeOrmRepositoryProvider`:**
+- ✅ Simple repositories with standard CRUD operations
+- ✅ Quick prototyping and development
+- ✅ When you don't need custom query methods
+- ✅ When entity name + "TransRepository" token is acceptable
+
+**When to use custom repository class:**
+- ✅ Need custom query methods or business logic
+- ✅ Want to control the provider token name
+- ✅ Need to implement repository interfaces from domain layer
+- ✅ Want better IDE autocomplete for custom methods
+
+#### 4. Use @Transactional Decorator
 
 ```typescript
 import { Injectable } from '@nestjs/common';

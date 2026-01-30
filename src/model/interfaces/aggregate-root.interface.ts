@@ -34,6 +34,13 @@ export type AggregatePropsParser<
 > = (raw: I) => ParseResult<A['props']>;
 
 /**
+ * Validator function type for aggregate props
+ */
+export type AggregateValidator<A extends AggregateRoot> = (
+  props: GetProps<A>,
+) => Effect.Effect<GetProps<A>, CoreException, never>;
+
+/**
  * Interface for aggregate root trait
  */
 export interface AggregateRootTrait<
@@ -42,27 +49,17 @@ export interface AggregateRootTrait<
   ParseParams = unknown,
 > extends EntityTrait<A, NewParams, ParseParams> {}
 
-/**
- * Generic aggregate root trait interface
- */
-export interface IAggGenericTrait
-  extends Omit<IEntityGenericTrait, 'asCommand'> {
-  getDomainEvents: <A extends AggregateRoot>(
-    aggregate: A,
-  ) => ReadonlyArray<IDomainEvent>;
-  clearEvents: <A extends AggregateRoot>(aggregate: A) => A;
-  addDomainEvent: <A extends AggregateRoot>(
-    event: IDomainEvent,
-  ) => (aggregate: A) => A;
-  addDomainEvents: <A extends AggregateRoot>(
-    events: ReadonlyArray<IDomainEvent>,
-  ) => (aggregate: A) => A;
-  createAggregateRootTrait: <A extends AggregateRoot, N = unknown, P = unknown>(
-    propsParser: AggregatePropsParser<A, P>,
-    tag: string,
-    options?: { autoGenId: boolean },
-  ) => AggregateRootTrait<A, N, P>;
-  asCommand: <A extends AggregateRoot, I>(
+export interface BaseAggregateRootTrait<
+  A extends AggregateRoot,
+  NewParams = unknown,
+  ParseParams = unknown,
+> extends AggregateRootTrait<A, NewParams, ParseParams> {
+  /**
+   * Creates a command that:
+   * 1. Always enforces validators from withInvariant/withValidation (baked into trait)
+   * 2. Allows additional validators per-command for customization
+   */
+  asCommand: <I>(
     reducerLogic: (
       input: I,
       props: GetProps<A>,
@@ -73,8 +70,33 @@ export interface IAggGenericTrait
       CoreException,
       never
     >,
-    validators?: ReadonlyArray<
-      (props: GetProps<A>) => Effect.Effect<GetProps<A>, CoreException, never>
-    >,
+    additionalValidators?: ReadonlyArray<AggregateValidator<A>>,
   ) => (input: I) => CommandOnModel<A>;
+}
+
+/**
+ * Generic aggregate root trait interface
+ */
+export interface IAggGenericTrait
+  extends Omit<IEntityGenericTrait, 'createEntityTrait'> {
+  getDomainEvents: <A extends AggregateRoot>(
+    aggregate: A,
+  ) => ReadonlyArray<IDomainEvent>;
+  clearEvents: <A extends AggregateRoot>(aggregate: A) => A;
+  addDomainEvent: <A extends AggregateRoot>(
+    event: IDomainEvent,
+  ) => (aggregate: A) => A;
+  addDomainEvents: <A extends AggregateRoot>(
+    events: ReadonlyArray<IDomainEvent>,
+  ) => (aggregate: A) => A;
+  /**
+   * Creates an aggregate root trait with validators baked in.
+   * The returned trait's asCommand will automatically enforce these validators.
+   */
+  createAggregateRootTrait: <A extends AggregateRoot, N = unknown, P = unknown>(
+    propsParser: AggregatePropsParser<A, P>,
+    tag: string,
+    options?: { autoGenId: boolean },
+    validators?: ReadonlyArray<AggregateValidator<A>>,
+  ) => BaseAggregateRootTrait<A, N, P>;
 }

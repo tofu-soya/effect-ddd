@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Option, pipe } from 'effect';
+import { Effect, Option, pipe } from 'effect';
 import {
   Repository,
   FindOptionsWhere,
@@ -8,10 +8,6 @@ import {
   ObjectLiteral,
 } from 'typeorm';
 import { Identifier } from '../../../typeclasses/obj-with-id';
-// import {
-//   DataWithPaginationMeta,
-//   FindManyPaginatedParams,
-// } from '../repository.base';
 import {
   ENTITY_MANAGER_KEY,
   getNamespaceInstance,
@@ -20,8 +16,8 @@ import { BaseException, OperationException } from '@model/exception';
 import {
   AggregateRoot,
   DataWithPaginationMeta,
-  DomainEventPublisherContext,
   FindManyPaginatedParams,
+  IDomainEventPublisher,
   RepositoryPort,
 } from '@model/interfaces';
 
@@ -41,8 +37,11 @@ export interface TypeormRepositoryConfig<
   OrmEntity extends ObjectLiteral,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 > {
-  // DataSource for database connection
+  // DataSource for database connection (injected by NestJS DI)
   dataSource: DataSource;
+
+  // Domain event publisher (injected by NestJS DI)
+  publisher: IDomainEventPublisher;
 
   // Entity class for TypeORM
   entityClass: new () => OrmEntity;
@@ -63,19 +62,53 @@ export interface TypeormRepositoryConfig<
   // Prepare query parameters for TypeORM
   prepareQuery: (params: QueryParams) => FindOptionsWhere<OrmEntity>;
 }
-export class DataSourceContext extends Context.Tag('DataSource')<
-  DataSourceContext,
-  DataSource
->() {}
 /**
- * Create a TypeORM repository implementation using Effect
+ * Create a TypeORM repository implementation.
+ *
+ * All dependencies (DataSource, DomainEventPublisher) are passed directly via config,
+ * so the returned repository methods return Effect<A, E> with NO Context requirements.
+ *
+ * Usage in NestJS Module:
+ * ```typescript
+ * @Module({
+ *   providers: [
+ *     {
+ *       provide: 'UserRepository',
+ *       useFactory: (dataSource: DataSource, publisher: IDomainEventPublisher) =>
+ *         createTypeormRepository({
+ *           dataSource,
+ *           publisher,
+ *           entityClass: UserEntity,
+ *           relations: ['profile'],
+ *           toDomain: (entity) => UserTrait.parse(entity),
+ *           toOrm: (domain, existing, repo) => Effect.succeed({ ...domain }),
+ *           prepareQuery: (params) => ({ id: params.id }),
+ *         }),
+ *       inject: [DataSource, 'DomainEventPublisher'],
+ *     },
+ *   ],
+ * })
+ * ```
+ *
+ * Usage in Service:
+ * ```typescript
+ * @Injectable()
+ * class UserService {
+ *   constructor(@Inject('UserRepository') private repo: RepositoryPort<User>) {}
+ *
+ *   async getUser(id: string) {
+ *     // No need to provide any Layer - just run it!
+ *     return Effect.runPromise(this.repo.findOneByIdOrThrow(id));
+ *   }
+ * }
+ * ```
  */
 export function createTypeormRepository<
   DM extends AggregateRoot,
   OrmEntity extends ObjectLiteral,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
->(config: TypeormRepositoryConfig<DM, OrmEntity, QueryParams>) {
-  const { dataSource, entityClass, relations, toDomain, toOrm, prepareQuery } =
+>(config: TypeormRepositoryConfig<DM, OrmEntity, QueryParams>): RepositoryPort<DM> {
+  const { dataSource, publisher, entityClass, relations, toDomain, toOrm, prepareQuery } =
     config;
 
   const getEntityManager = (): EntityManager => {
@@ -89,102 +122,84 @@ export function createTypeormRepository<
     return entityManager;
   };
 
-  /**
-   * Get the repository for the entity
-   */
   const getRepository = (): Repository<OrmEntity> => {
     return getEntityManager().getRepository(entityClass);
   };
 
-  return Effect.gen(function* () {
-    // Get the repository
-    const publisher = yield* DomainEventPublisherContext;
-    const repo = getRepository();
-    const save = (aggregateRoot: DM) => {
-      /**
-       * Save an existing aggregate root and publish its domain events
-       */
-      return Effect.gen(function* () {
-        // Find existing entity if it exists
-        const existingEntity = yield* Effect.tryPromise({
-          try: () =>
-            repo.findOne({
-              where: { id: aggregateRoot.id } as any,
-              relations,
-            }),
-          catch: (error) => {
-            // throw error;
-            return OperationException.new('ENTITY_DO_NOT_EXIST', `${error}`);
-          },
-        });
-
-        // Convert domain model to ORM entity
-        const ormEntity = yield* toOrm(
-          aggregateRoot,
-          Option.fromNullable(existingEntity),
-          repo,
-        );
-
-        // Save the entity
-        yield* Effect.tryPromise({
-          try: () => repo.save(ormEntity),
+  const save = (aggregateRoot: DM): Effect.Effect<void, BaseException> => {
+    return pipe(
+      Effect.tryPromise({
+        try: () =>
+          getRepository().findOne({
+            where: { id: aggregateRoot.id } as any,
+            relations,
+          }),
+        catch: (error) =>
+          OperationException.new('ENTITY_DO_NOT_EXIST', `${error}`),
+      }),
+      Effect.flatMap((existingEntity) =>
+        toOrm(aggregateRoot, Option.fromNullable(existingEntity), getRepository()),
+      ),
+      Effect.flatMap((ormEntity) =>
+        Effect.tryPromise({
+          try: () => getRepository().save(ormEntity),
           catch: (error) =>
             OperationException.new(
-              'FAILED_TO_STAVE_ENTITY',
+              'FAILED_TO_SAVE_ENTITY',
               `Failed to save entity: ${error}`,
             ),
-        });
-
-        // Get the domain events publisher
-
-        // Publish domain events
+        }),
+      ),
+      Effect.flatMap(() => {
         const events = aggregateRoot.domainEvents;
         if (events.length > 0) {
-          yield* publisher.publishAll(events);
+          return publisher.publishAll(events);
         }
-      });
-    };
-    const add = (entity: DM) => {
-      /**
-       * Add a new aggregate root and publish its domain events
-       */
-      return Effect.gen(function* () {
-        // Convert domain model to ORM entity
-        const ormEntity = yield* toOrm(entity, Option.none(), repo);
+        return Effect.succeed(undefined as void);
+      }),
+    );
+  };
 
-        // Save the entity
-        yield* Effect.tryPromise({
-          try: () => repo.save(ormEntity),
+  const add = (entity: DM): Effect.Effect<void, BaseException> => {
+    return pipe(
+      toOrm(entity, Option.none(), getRepository()),
+      Effect.flatMap((ormEntity) =>
+        Effect.tryPromise({
+          try: () => getRepository().save(ormEntity),
           catch: (error) =>
             OperationException.new(
               'FAILED_ADD_ENTITY',
               `Failed to add entity: ${error}`,
             ),
-        });
-
-        // Publish domain events
+        }),
+      ),
+      Effect.flatMap(() => {
         const events = entity.domainEvents;
         if (events.length > 0) {
-          yield* publisher.publishAll(events);
+          return publisher.publishAll(events);
         }
-      });
-    };
-    const saveMultiple = (entities: DM[]) => {
-      /**
-       * Save multiple aggregate roots and publish their domain events
-       */
-      return Effect.if(entities.length === 0, {
-        onTrue: () => Effect.succeedNone,
-        onFalse: () => {
-          return Effect.forEach(entities, (aggregate) => save(aggregate));
-        },
-      });
-    };
+        return Effect.succeed(undefined as void);
+      }),
+    );
+  };
 
-    const findOne = (params: QueryParams) => {
-      return Effect.tryPromise({
+  const saveMultiple = (entities: DM[]): Effect.Effect<void, BaseException> => {
+    if (entities.length === 0) {
+      return Effect.succeed(undefined as void);
+    }
+    return pipe(
+      Effect.forEach(entities, (aggregate) => save(aggregate)),
+      Effect.map(() => undefined as void),
+    );
+  };
+
+  const findOne = (
+    params: QueryParams,
+  ): Effect.Effect<Option.Option<DM>, BaseException> => {
+    return pipe(
+      Effect.tryPromise({
         try: () =>
-          repo.findOne({
+          getRepository().findOne({
             where: prepareQuery(params),
             relations,
           }),
@@ -193,86 +208,77 @@ export function createTypeormRepository<
             'FAILED_FIND_ENTITY',
             `Failed to find entity: ${error}`,
           ),
-      }).pipe(
-        Effect.flatMap((entity) => {
-          if (!entity) {
-            return Effect.succeed(Option.none());
-          } else {
-            return toDomain(entity).pipe(Effect.map(Option.some));
-          }
-        }),
-      );
-    };
+      }),
+      Effect.flatMap((entity) => {
+        if (!entity) {
+          return Effect.succeed(Option.none());
+        }
+        return pipe(toDomain(entity), Effect.map(Option.some));
+      }),
+    );
+  };
 
-    const findOneOrThrow = (params: QueryParams) =>
-      pipe(
-        params,
-        findOne,
-        Effect.flatMap(
-          Option.match({
-            onNone: () =>
-              Effect.fail(
-                OperationException.new(
-                  'ENTITY_NOT_FOUND',
-                  `Entity not found with params: ${JSON.stringify(params)}`,
-                ),
+  const findOneOrThrow = (params: QueryParams): Effect.Effect<DM, BaseException> => {
+    return pipe(
+      findOne(params),
+      Effect.flatMap(
+        Option.match({
+          onNone: () =>
+            Effect.fail(
+              OperationException.new(
+                'ENTITY_NOT_FOUND',
+                `Entity not found with params: ${JSON.stringify(params)}`,
               ),
-            onSome: (agg) => Effect.succeed(agg),
-          }),
-        ),
-      );
-
-    const findOneByIdOrThrow = (id: Identifier) =>
-      pipe({ id } as unknown as QueryParams, findOneOrThrow);
-
-    const findMany = (
-      params: QueryParams,
-    ): Effect.Effect<DM[], BaseException, never> => {
-      return Effect.gen(function* () {
-        // Get the repository
-        const repo = getRepository();
-
-        // Find entities
-        const entities = yield* Effect.tryPromise({
-          try: () =>
-            repo.find({
-              where: prepareQuery(params),
-              relations,
-            }),
-          catch: (error) =>
-            OperationException.new(
-              'FIND_MANY_FAILED',
-              `Failed to find entities: ${error}`,
             ),
-        });
+          onSome: (agg) => Effect.succeed(agg),
+        }),
+      ),
+    );
+  };
 
-        // Convert to domain models
-        return yield* Effect.forEach(entities, (entity) => toDomain(entity), {
+  const findOneByIdOrThrow = (id: Identifier): Effect.Effect<DM, BaseException> => {
+    return findOneOrThrow({ id } as unknown as QueryParams);
+  };
+
+  const findMany = (params: QueryParams): Effect.Effect<DM[], BaseException> => {
+    return pipe(
+      Effect.tryPromise({
+        try: () =>
+          getRepository().find({
+            where: prepareQuery(params),
+            relations,
+          }),
+        catch: (error) =>
+          OperationException.new(
+            'FIND_MANY_FAILED',
+            `Failed to find entities: ${error}`,
+          ),
+      }),
+      Effect.flatMap((entities) =>
+        Effect.forEach(entities, (entity) => toDomain(entity), {
           concurrency: 'unbounded',
-        });
-      });
-    };
+        }),
+      ),
+    );
+  };
 
-    const findManyPaginated = (
-      options: FindManyPaginatedParams<QueryParams>,
-    ): Effect.Effect<DataWithPaginationMeta<DM[]>, BaseException, never> => {
-      return Effect.gen(function* () {
-        // Get the repository
-        const repo = getRepository();
+  const findManyPaginated = (
+    options: FindManyPaginatedParams<QueryParams>,
+  ): Effect.Effect<DataWithPaginationMeta<DM[]>, BaseException> => {
+    const params = options.params || ({} as QueryParams);
+    const pagination = options.pagination || { skip: 0, limit: 10 };
+    const skip =
+      pagination.skip ??
+      (pagination.page
+        ? (pagination.page - 1) * (pagination.limit ?? 10)
+        : 0);
+    const take = pagination.limit ?? 10;
 
-        const params = options.params || ({} as QueryParams);
-        const pagination = options.pagination || { skip: 0, limit: 10 };
-        const skip =
-          pagination.skip ??
-          (pagination.page
-            ? (pagination.page - 1) * (pagination.limit ?? 10)
-            : 0);
-        const take = pagination.limit ?? 10;
-
-        // Count total entities
-        const total = yield* Effect.tryPromise({
+    return pipe(
+      Effect.all({
+        total: Effect.tryPromise({
           try: () =>
-            repo.count({
+            getRepository().count({
               where: prepareQuery(params),
             }),
           catch: (error) =>
@@ -280,12 +286,10 @@ export function createTypeormRepository<
               'COUNT_FAILED',
               `Failed to count entities: ${error}`,
             ),
-        });
-
-        // Find paginated entities
-        const entities = yield* Effect.tryPromise({
+        }),
+        entities: Effect.tryPromise({
           try: () =>
-            repo.find({
+            getRepository().find({
               where: prepareQuery(params),
               skip,
               take,
@@ -297,77 +301,119 @@ export function createTypeormRepository<
               'FIND_PAGINATED_FAILED',
               `Failed to find paginated entities: ${error}`,
             ),
-        });
-
-        // Convert to domain models
-        const domainEntities = yield* Effect.forEach(
-          entities,
-          (entity) => toDomain(entity),
-          {
+        }),
+      }),
+      Effect.flatMap(({ total, entities }) =>
+        pipe(
+          Effect.forEach(entities, (entity) => toDomain(entity), {
             concurrency: 'unbounded',
-          },
-        );
+          }),
+          Effect.map((domainEntities) => ({
+            data: domainEntities,
+            count: total,
+            limit: take,
+            page: pagination.page ?? Math.floor(skip / take) + 1,
+          })),
+        ),
+      ),
+    );
+  };
 
-        // Return with pagination metadata
-        return {
-          data: domainEntities,
-          count: total,
-          limit: take,
-          page: pagination.page ?? Math.floor(skip / take) + 1,
-        };
-      });
-    };
-
-    const del = (entity: DM): Effect.Effect<void, BaseException, never> => {
-      return Effect.tryPromise({
-        try: async () => {
-          await getRepository().delete(entity.id);
-        },
-        catch: (error) =>
-          OperationException.new(
-            'DELETE_FAILED',
-            `Failed to delete entity: ${error}`,
-          ) as BaseException,
-      });
-    };
-    const repository: RepositoryPort<DM> = {
-      save,
-      add,
-      saveMultiple,
-      findOne,
-      /**
-       * Find one aggregate root by query parameters
-       */
-      findOneOrThrow,
-      /**
-       * Find one aggregate root by ID
-       */
-      findOneByIdOrThrow,
-
-      /**
-       * Find many aggregate roots by query parameters
-       */
-      findMany,
-
-      /**
-       * Find many aggregate roots with pagination
-       */
-      findManyPaginated,
-
-      /**
-       * Delete an aggregate root
-       */
-      delete: del,
-
-      /**
-       * Set correlation ID for tracking
-       */
-      setCorrelationId: (correlationId: string): typeof repository => {
-        // Store correlation ID for tracking
-        // This is a placeholder - implement as needed
-        return repository;
+  const del = (entity: DM): Effect.Effect<void, BaseException> => {
+    return Effect.tryPromise({
+      try: async () => {
+        await getRepository().delete(entity.id);
       },
-    };
-    return repository;
-  });
+      catch: (error) =>
+        OperationException.new(
+          'DELETE_FAILED',
+          `Failed to delete entity: ${error}`,
+        ),
+    });
+  };
+
+  const repository: RepositoryPort<DM> = {
+    save,
+    add,
+    saveMultiple,
+    findOne,
+    findOneOrThrow,
+    findOneByIdOrThrow,
+    findMany,
+    findManyPaginated,
+    delete: del,
+    setCorrelationId: (correlationId: string): typeof repository => {
+      // Store correlation ID for tracking (placeholder)
+      return repository;
+    },
+  };
+
+  return repository;
+}
+
+/**
+ * Configuration for creating a NestJS repository provider (without dataSource and publisher)
+ */
+export type TypeormRepositoryProviderConfig<
+  DM extends AggregateRoot,
+  OrmEntity extends ObjectLiteral,
+  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
+> = Omit<TypeormRepositoryConfig<DM, OrmEntity, QueryParams>, 'dataSource' | 'publisher'>;
+
+/**
+ * NestJS Provider type for TypeORM repository
+ */
+export interface TypeormRepositoryProvider<DM extends AggregateRoot> {
+  provide: string | symbol;
+  useFactory: (
+    dataSource: DataSource,
+    publisher: IDomainEventPublisher,
+  ) => RepositoryPort<DM>;
+  inject: [typeof DataSource, string | symbol];
+}
+
+/**
+ * Create a NestJS provider for TypeORM Effect repository.
+ *
+ * This helper reduces boilerplate when registering repositories in NestJS modules.
+ * DataSource and DomainEventPublisher are automatically injected via NestJS DI.
+ *
+ * Usage:
+ * ```typescript
+ * @Module({
+ *   providers: [
+ *     createTypeormRepositoryProvider({
+ *       token: 'UserRepository',
+ *       publisherToken: 'DomainEventPublisher',
+ *       entityClass: UserEntity,
+ *       relations: ['profile', 'roles'],
+ *       toDomain: (entity) => UserTrait.parse(entity),
+ *       toOrm: (domain, existing, repo) => Effect.succeed({ ...domain }),
+ *       prepareQuery: (params) => ({ id: params.id }),
+ *     }),
+ *   ],
+ * })
+ * export class UserModule {}
+ * ```
+ */
+export function createTypeormRepositoryProvider<
+  DM extends AggregateRoot,
+  OrmEntity extends ObjectLiteral,
+  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
+>(options: {
+  token: string | symbol;
+  publisherToken: string | symbol;
+} & TypeormRepositoryProviderConfig<DM, OrmEntity, QueryParams>): TypeormRepositoryProvider<DM> {
+  const { token, publisherToken, ...config } = options;
+
+  return {
+    provide: token,
+    useFactory: (dataSource: DataSource, publisher: IDomainEventPublisher) =>
+      createTypeormRepository({
+        ...config,
+        dataSource,
+        publisher,
+      }),
+    inject: [DataSource, publisherToken],
+  };
 }

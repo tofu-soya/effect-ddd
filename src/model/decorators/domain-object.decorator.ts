@@ -8,6 +8,7 @@ import {
 import { ValidationException } from '@model/exception';
 import { Effect, Schema } from 'effect';
 import 'reflect-metadata';
+import { CommandOnModel } from '@model/interfaces';
 
 // Metadata keys
 const DOMAIN_OBJECT_TYPE = Symbol('domainObjectType');
@@ -178,7 +179,7 @@ export class DomainObjectFactory {
     };
 
     let baseTrait;
-
+    let transformedCommands = {};
     switch (type) {
       case 'ValueObject':
         baseTrait = ValueObjectGenericTrait.createValueObjectTrait(
@@ -188,9 +189,19 @@ export class DomainObjectFactory {
         break;
       case 'Entity':
         baseTrait = EntityGenericTrait.createEntityTrait(propsParser, tag);
+        transformedCommands = this.processCommands(
+          commands,
+          false,
+          baseTrait.asCommand,
+        );
         break;
       case 'AggregateRoot':
         baseTrait = AggGenericTrait.createAggregateRootTrait(propsParser, tag);
+        transformedCommands = this.processCommands(
+          commands,
+          true,
+          baseTrait.asCommand,
+        );
         break;
       default:
         throw new Error(`Unsupported domain object type: ${type}`);
@@ -199,7 +210,7 @@ export class DomainObjectFactory {
     // Add commands and queries
     return {
       ...baseTrait,
-      ...this.processCommands(commands, type === 'AggregateRoot'),
+      ...transformedCommands,
       ...queries,
     };
   }
@@ -207,18 +218,15 @@ export class DomainObjectFactory {
   private static processCommands(
     commands: Record<string, any>,
     isAggregateRoot: boolean,
+    asCommand: any,
   ) {
     const processedCommands: Record<string, any> = {};
 
     for (const [name, commandConfig] of Object.entries(commands)) {
       if (isAggregateRoot) {
-        processedCommands[name] = AggGenericTrait.asCommand(
-          commandConfig.handler,
-        );
+        processedCommands[name] = asCommand(commandConfig.handler);
       } else {
-        processedCommands[name] = EntityGenericTrait.asCommand(
-          commandConfig.handler,
-        );
+        processedCommands[name] = asCommand(commandConfig.handler);
       }
     }
 

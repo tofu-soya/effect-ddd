@@ -40,6 +40,13 @@ export type EntityPropsParser<E extends Entity = Entity, I = unknown> = (
 ) => ParseResult<E['props']>;
 
 /**
+ * Validator function type for entity props
+ */
+export type EntityValidator<E extends Entity> = (
+  props: GetProps<E>,
+) => Effect.Effect<GetProps<E>, CoreException, never>;
+
+/**
  * Interface for entity trait
  */
 export interface EntityTrait<
@@ -47,6 +54,27 @@ export interface EntityTrait<
   NewParams = unknown,
   ParseParams = unknown,
 > extends DomainModelTrait<E, NewParams, WithEntityMetaInput<ParseParams>> {}
+
+export interface BaseEntityTrait<
+  E extends Entity,
+  NewParams = unknown,
+  ParseParams = unknown,
+> extends EntityTrait<E, NewParams, WithEntityMetaInput<ParseParams>> {
+  /**
+   * Creates a command that:
+   * 1. Always enforces validators from withInvariant/withValidation (baked into trait)
+   * 2. Allows additional validators per-command for customization
+   */
+  asCommand: <I>(
+    reducerLogic: (
+      input: I,
+      props: GetProps<E>,
+      entity: E,
+      correlationId: string,
+    ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
+    additionalValidators?: ReadonlyArray<EntityValidator<E>>,
+  ) => (input: I) => CommandOnModel<E>;
+}
 
 /**
  * Type for entity invariant parser
@@ -83,20 +111,14 @@ export interface IEntityGenericTrait {
   markUpdated: <E extends Entity>(entity: E) => E;
   unpack: <E extends Entity>(entity: E) => GetProps<E>;
   isEqual: <E extends Entity>(entity1: E, entity2: E) => boolean;
+  /**
+   * Creates an entity trait with validators baked in.
+   * The returned trait's asCommand will automatically enforce these validators.
+   */
   createEntityTrait: <E extends Entity, N = unknown, P = unknown>(
     propsParser: EntityPropsParser<E, P>,
     tag: string,
     options?: { autoGenId: boolean },
-  ) => EntityTrait<E, N, P>;
-  asCommand: <E extends Entity, I>(
-    reducerLogic: (
-      input: I,
-      props: GetProps<E>,
-      entity: E,
-      correlationId: string,
-    ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
-    validators?: ReadonlyArray<
-      (props: GetProps<E>) => Effect.Effect<GetProps<E>, CoreException, never>
-    >,
-  ) => (input: I) => CommandOnModel<E>;
+    validators?: ReadonlyArray<EntityValidator<E>>,
+  ) => BaseEntityTrait<E, N, P>;
 }

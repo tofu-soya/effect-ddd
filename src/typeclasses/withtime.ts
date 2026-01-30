@@ -1,4 +1,4 @@
-import { Option } from '@logic/fp';
+import * as Option from 'fp-ts/Option';
 
 export type WithTime = {
   readonly createdAt: Option.Option<Date>;

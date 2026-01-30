@@ -1,4 +1,5 @@
-import { IO, Reader } from '@logic/fp';
+import * as IO from 'fp-ts/IO';
+import * as Reader from 'fp-ts/Reader';
 import { LoggerWithCtx } from './logger.base';
 
 export interface ConsoleDomainLogger extends LoggerWithCtx {}

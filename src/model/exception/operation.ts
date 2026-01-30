@@ -3,6 +3,7 @@ import { NotFoundExceptionContent } from './not-found';
 import { BaseExceptionProps } from './base';
 
 interface OperationExceptionContent extends NotFoundExceptionContent {}
+
 export class OperationException extends Data.TaggedError('Operation')<
   BaseExceptionProps<OperationExceptionContent>
 > {

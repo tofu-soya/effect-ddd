@@ -1,16 +1,16 @@
 // src/model/effect/factories/repository.factory.ts
 
-import { Effect, Context, Layer, pipe, Option } from 'effect';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import { Effect, pipe, Option } from 'effect';
+import { DataSource, FindOptionsWhere, Repository } from 'typeorm';
 import {
   AggregateRoot,
   AggregateRootTrait,
+  IDomainEventPublisher,
   RepositoryPort,
 } from '@model/interfaces';
 import {
   BaseTypeormQueryParams,
   createTypeormRepository,
-  DataSourceContext,
 } from '../../../ports/database/typeorm/effect-repository.factory';
 import { BaseException, OperationException } from '@model/exception';
 import { AggregateTypeORMEntityBase } from './base-entity';
@@ -223,10 +223,21 @@ const createConventionConfig = <
     config.prepareQuery ?? createAutoPrepareQuery<OrmEntity, QueryParams>(),
 });
 
+// ===== REPOSITORY DEPENDENCIES =====
+
+/**
+ * Dependencies required to create a repository
+ */
+export interface RepositoryDependencies {
+  dataSource: DataSource;
+  publisher: IDomainEventPublisher;
+}
+
 // ===== REPOSITORY FACTORIES =====
 
 /**
- * Create a repository with complete configuration
+ * Create a repository with complete configuration.
+ * DataSource and publisher are passed directly (no Effect Context).
  */
 export const createRepository = <
   DM extends AggregateRoot,
@@ -234,18 +245,16 @@ export const createRepository = <
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   config: RepositoryConfig<DM, OrmEntity, QueryParams>,
-) =>
-  Effect.gen(function* () {
-    const dataSource = yield* DataSourceContext;
-
-    return yield* createTypeormRepository({
-      dataSource,
-      entityClass: config.entityClass,
-      relations: [...config.relations],
-      toDomain: config.mappers.toDomain,
-      toOrm: config.mappers.toOrm,
-      prepareQuery: config.prepareQuery,
-    });
+  deps: RepositoryDependencies,
+): RepositoryPort<DM> =>
+  createTypeormRepository({
+    dataSource: deps.dataSource,
+    publisher: deps.publisher,
+    entityClass: config.entityClass,
+    relations: [...config.relations],
+    toDomain: config.mappers.toDomain,
+    toOrm: config.mappers.toOrm,
+    prepareQuery: config.prepareQuery,
   });
 
 /**
@@ -257,7 +266,9 @@ export const createRepositoryWithDefaults = <
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
 >(
   partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
-) => pipe(partialConfig, completeRepositoryConfig, createRepository);
+  deps: RepositoryDependencies,
+): RepositoryPort<DM> =>
+  createRepository(completeRepositoryConfig(partialConfig), deps);
 
 /**
  * Create repository with convention-based mapping
@@ -273,51 +284,9 @@ export const createRepositoryWithConventions = <
   >,
 >(
   config: ConventionConfig<DM, OrmEntity, QueryParams, Trait>,
-) => pipe(config, createConventionConfig, createRepository);
-
-// ===== LAYER FACTORIES =====
-
-/**
- * Create repository context layer
- */
-export const createRepositoryLayer = <
-  DM extends AggregateRoot,
-  OrmEntity extends AggregateTypeORMEntityBase,
-  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
->(
-  repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
-  config: RepositoryConfig<DM, OrmEntity, QueryParams>,
-) => Layer.effect(repositoryTag, createRepository(config));
-
-/**
- * Create repository layer with partial configuration
- */
-export const createRepositoryLayerWithDefaults = <
-  DM extends AggregateRoot,
-  OrmEntity extends AggregateTypeORMEntityBase,
-  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
->(
-  repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
-  partialConfig: PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
-) =>
-  pipe(partialConfig, completeRepositoryConfig, (config) =>
-    createRepositoryLayer(repositoryTag, config),
-  );
-
-/**
- * Create repository layer with conventions
- */
-export const createRepositoryLayerWithConventions = <
-  DM extends AggregateRoot,
-  OrmEntity extends AggregateTypeORMEntityBase,
-  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
->(
-  repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
-  config: ConventionConfig<DM, OrmEntity, QueryParams>,
-) =>
-  pipe(config, createConventionConfig, (completeConfig) =>
-    createRepositoryLayer(repositoryTag, completeConfig),
-  );
+  deps: RepositoryDependencies,
+): RepositoryPort<DM> =>
+  createRepository(createConventionConfig(config), deps);
 
 // ===== FUNCTIONAL BUILDER =====
 
@@ -431,41 +400,19 @@ export const withQueryMapper =
   });
 
 /**
- * Build repository from builder state
+ * Build repository from builder state.
+ * Returns a function that takes dependencies and returns the repository.
  */
-export const build = <
-  DM extends AggregateRoot,
-  OrmEntity extends AggregateTypeORMEntityBase,
-  QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
->(
-  state: BuilderState<DM, OrmEntity, QueryParams>,
-) =>
-  pipe(
-    {
-      entityClass: state.entityClass,
-      relations: state.relations,
-      mappers: {
-        toDomain: state.toDomain,
-        toOrm: state.toOrm,
-        prepareQuery: state.prepareQuery,
-      },
-    } as PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
-    createRepositoryWithDefaults,
-  );
-
-/**
- * Build repository layer from builder state
- */
-export const buildLayer =
+export const build =
   <
     DM extends AggregateRoot,
     OrmEntity extends AggregateTypeORMEntityBase,
     QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
   >(
-    repositoryTag: Context.Tag<any, RepositoryPort<DM>>,
+    state: BuilderState<DM, OrmEntity, QueryParams>,
   ) =>
-  (state: BuilderState<DM, OrmEntity, QueryParams>) =>
-    pipe(
+  (deps: RepositoryDependencies): RepositoryPort<DM> =>
+    createRepositoryWithDefaults(
       {
         entityClass: state.entityClass,
         relations: state.relations,
@@ -475,7 +422,7 @@ export const buildLayer =
           prepareQuery: state.prepareQuery,
         },
       } as PartialRepositoryConfig<DM, OrmEntity, QueryParams>,
-      (config) => createRepositoryLayerWithDefaults(repositoryTag, config),
+      deps,
     );
 
 // ===== CONVENIENCE FUNCTIONS =====
@@ -499,24 +446,33 @@ export const RepositoryFactoryTrait = {
   create: createRepository,
   createWithDefaults: createRepositoryWithDefaults,
   createWithConventions: createRepositoryWithConventions,
-  createLayer: createRepositoryLayer,
-  createLayerWithDefaults: createRepositoryLayerWithDefaults,
-  createLayerWithConventions: createRepositoryLayerWithConventions,
   builder: repositoryBuilder,
 } as const;
 
 // ===== USAGE EXAMPLES =====
 
 /*
-// 1. Simple usage with auto-mapping
-const userRepository = createRepositoryWithConventions({
-  entityClass: UserEntity,
-  domainTrait: UserTrait,
-  relations: ['profile', 'orders'],
-});
+// 1. Simple usage with auto-mapping in NestJS Module
+@Module({
+  providers: [
+    {
+      provide: 'UserRepository',
+      useFactory: (dataSource: DataSource, publisher: IDomainEventPublisher) =>
+        createRepositoryWithConventions(
+          {
+            entityClass: UserEntity,
+            domainTrait: UserTrait,
+            relations: ['profile', 'orders'],
+          },
+          { dataSource, publisher }
+        ),
+      inject: [DataSource, 'DomainEventPublisher'],
+    },
+  ],
+})
 
 // 2. Functional builder usage with pipe
-const productRepository = pipe(
+const productRepositoryFactory = pipe(
   repositoryBuilder<Product, ProductEntity, { categoryId?: string }>(ProductEntity),
   withRelations(['category', 'reviews']),
   withDomainMapper((entity) => ProductTrait.parse(entity)),
@@ -526,31 +482,22 @@ const productRepository = pipe(
   build
 );
 
-// 3. Layer creation with functional composition
-const ProductRepositoryLayer = pipe(
-  repositoryBuilder<Product, ProductEntity>(ProductEntity),
-  withRelations(['category']),
-  withDomainMapper((entity) => ProductTrait.parse(entity)),
-  buildLayer(ProductRepositoryTag)
-);
+// Use in NestJS Module:
+{
+  provide: 'ProductRepository',
+  useFactory: (dataSource: DataSource, publisher: IDomainEventPublisher) =>
+    productRepositoryFactory({ dataSource, publisher }),
+  inject: [DataSource, 'DomainEventPublisher'],
+}
 
-// 4. Using the trait interface
-const orderRepository = RepositoryFactoryTrait.createWithConventions({
-  entityClass: OrderEntity,
-  domainTrait: OrderTrait,
-  relations: ['items', 'customer'],
-});
-
-// 5. Complex configuration with partial config
-const customerRepository = RepositoryFactoryTrait.createWithDefaults({
-  entityClass: CustomerEntity,
-  relations: ['orders', 'profile'],
-  mappers: {
-    toDomain: (entity) => CustomerTrait.parse(entity),
-    prepareQuery: (params: { email?: string; status?: string }) => ({
-      email: params.email,
-      status: params.status,
-    }),
-  },
-});
+// 3. Using the trait interface
+const orderRepositoryFactory = (deps: RepositoryDependencies) =>
+  RepositoryFactoryTrait.createWithConventions(
+    {
+      entityClass: OrderEntity,
+      domainTrait: OrderTrait,
+      relations: ['items', 'customer'],
+    },
+    deps
+  );
 */

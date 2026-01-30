@@ -1,9 +1,11 @@
 import { Effect, Option, pipe } from 'effect';
 import {
+  BaseEntityTrait,
   CommandOnModel,
   Entity,
   EntityPropsParser,
   EntityTrait,
+  EntityValidator,
   IEntityGenericTrait,
   WithEntityMetaInput,
 } from '../interfaces/entity.interface';
@@ -37,7 +39,8 @@ export const EntityGenericTrait: IEntityGenericTrait = {
     propsParser: EntityPropsParser<E, P>,
     tag: string,
     options = { autoGenId: true },
-  ): EntityTrait<E, N, P> => {
+    validators: ReadonlyArray<EntityValidator<E>> = [],
+  ): BaseEntityTrait<E, N, P> => {
     const parse = (input: WithEntityMetaInput<P>): ParseResult<E> => {
       return pipe(
         Effect.succeed(input),
@@ -66,74 +69,90 @@ export const EntityGenericTrait: IEntityGenericTrait = {
       );
     };
 
+    /**
+     * Creates a command that:
+     * 1. Always enforces validators baked into this trait (from withInvariant/withValidation)
+     * 2. Allows additional validators per-command for customization
+     */
+    const asCommand = <I>(
+      reducerLogic: (
+        input: I,
+        props: GetProps<E>,
+        entity: E,
+        correlationId: string,
+      ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
+      additionalValidators?: ReadonlyArray<EntityValidator<E>>,
+    ) => {
+      // Merge baked-in validators with additional validators
+      const allValidators = additionalValidators
+        ? [...validators, ...additionalValidators]
+        : validators;
+
+      return (input: I): CommandOnModel<E> => {
+        return (entity: E, correlationId?: string) => {
+          const _correlationId = correlationId || IdentifierTrait.uuid();
+          return pipe(
+            reducerLogic(
+              input,
+              EntityGenericTrait.unpack(entity),
+              entity,
+              _correlationId,
+            ),
+            Effect.flatMap(({ props }) => {
+              // Run all validators on new props
+              let validationEffect: Effect.Effect<
+                GetProps<E>,
+                CoreException,
+                never
+              > = Effect.succeed(props);
+              if (allValidators.length > 0) {
+                for (const validator of allValidators) {
+                  validationEffect = pipe(
+                    validationEffect,
+                    Effect.flatMap(validator),
+                  );
+                }
+              }
+
+              return pipe(
+                validationEffect,
+                Effect.map(
+                  (validatedProps): E => ({
+                    ...entity,
+                    props: validatedProps as E['props'],
+                    updatedAt: Option.some(new Date()),
+                  }),
+                ),
+              );
+            }),
+          );
+        };
+      };
+    };
+
     return {
       parse,
       new: (params: N) => parse(params as unknown as WithEntityMetaInput<P>),
-    };
-  },
-  asCommand: <E extends Entity, I>(
-    reducerLogic: (
-      input: I,
-      props: GetProps<E>,
-      entity: E,
-      correlationId: string,
-    ) => Effect.Effect<{ props: GetProps<E> }, CoreException, never>,
-    validators?: ReadonlyArray<
-      (props: GetProps<E>) => Effect.Effect<GetProps<E>, CoreException, never>
-    >,
-  ) => {
-    return (input: I): CommandOnModel<E> => {
-      return (entity: E, correlationId?: string) => {
-        const _correlationId = correlationId || IdentifierTrait.uuid();
-        return pipe(
-          reducerLogic(
-            input,
-            EntityGenericTrait.unpack(entity),
-            entity,
-            _correlationId,
-          ),
-          Effect.flatMap(({ props }) => {
-            // Run validators on new props if provided
-            let validationEffect: Effect.Effect<
-              GetProps<E>,
-              CoreException,
-              never
-            > = Effect.succeed(props);
-            if (validators && validators.length > 0) {
-              for (const validator of validators) {
-                validationEffect = pipe(
-                  validationEffect,
-                  Effect.flatMap(validator),
-                );
-              }
-            }
-
-            return pipe(
-              validationEffect,
-              Effect.map(
-                (validatedProps): E => ({
-                  ...entity,
-                  props: validatedProps as E['props'],
-                  updatedAt: Option.some(new Date()),
-                }),
-              ),
-            );
-          }),
-        );
-      };
+      asCommand,
     };
   },
 };
 
 /**
- * Helper function to create an entity trait
+ * Helper function to create an entity trait with validators baked in
  */
 export const createEntityTrait = <E extends Entity, N = unknown, P = unknown>(
   propsParser: EntityPropsParser<E>,
   tag: string,
   options?: { autoGenId: boolean },
+  validators?: ReadonlyArray<EntityValidator<E>>,
 ): EntityTrait<E, N, P> => {
-  return EntityGenericTrait.createEntityTrait(propsParser, tag, options);
+  return EntityGenericTrait.createEntityTrait(
+    propsParser,
+    tag,
+    options,
+    validators,
+  );
 };
 
 /**

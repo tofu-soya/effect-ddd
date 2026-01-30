@@ -1,4 +1,4 @@
-import { IO } from '@logic/fp';
+import * as IO from 'fp-ts/IO';
 
 export interface Logger {
   info(message: string, ...meta: unknown[]): IO.IO<void>;
