@@ -107,9 +107,18 @@ export function createTypeormRepository<
   DM extends AggregateRoot,
   OrmEntity extends ObjectLiteral,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
->(config: TypeormRepositoryConfig<DM, OrmEntity, QueryParams>): RepositoryPort<DM> {
-  const { dataSource, publisher, entityClass, relations, toDomain, toOrm, prepareQuery } =
-    config;
+>(
+  config: TypeormRepositoryConfig<DM, OrmEntity, QueryParams>,
+): RepositoryPort<DM> {
+  const {
+    dataSource,
+    publisher,
+    entityClass,
+    relations,
+    toDomain,
+    toOrm,
+    prepareQuery,
+  } = config;
 
   const getEntityManager = (): EntityManager => {
     const namespace = getNamespaceInstance();
@@ -138,7 +147,11 @@ export function createTypeormRepository<
           OperationException.new('ENTITY_DO_NOT_EXIST', `${error}`),
       }),
       Effect.flatMap((existingEntity) =>
-        toOrm(aggregateRoot, Option.fromNullable(existingEntity), getRepository()),
+        toOrm(
+          aggregateRoot,
+          Option.fromNullable(existingEntity),
+          getRepository(),
+        ),
       ),
       Effect.flatMap((ormEntity) =>
         Effect.tryPromise({
@@ -147,6 +160,11 @@ export function createTypeormRepository<
             OperationException.new(
               'FAILED_TO_SAVE_ENTITY',
               `Failed to save entity: ${error}`,
+              {
+                context: {
+                  entity: ormEntity,
+                },
+              },
             ),
         }),
       ),
@@ -213,12 +231,25 @@ export function createTypeormRepository<
         if (!entity) {
           return Effect.succeed(Option.none());
         }
-        return pipe(toDomain(entity), Effect.map(Option.some));
+        return pipe(
+          toDomain(entity),
+          Effect.mapError((err) =>
+            OperationException.new(
+              'TO_DOMAIN_MAPPING_FAILED',
+              `[${entityClass.name}] Failed to map entity (id=${
+                (entity as any).id
+              }) to domain: ${err.message}`,
+            ),
+          ),
+          Effect.map(Option.some),
+        );
       }),
     );
   };
 
-  const findOneOrThrow = (params: QueryParams): Effect.Effect<DM, BaseException> => {
+  const findOneOrThrow = (
+    params: QueryParams,
+  ): Effect.Effect<DM, BaseException> => {
     return pipe(
       findOne(params),
       Effect.flatMap(
@@ -236,11 +267,15 @@ export function createTypeormRepository<
     );
   };
 
-  const findOneByIdOrThrow = (id: Identifier): Effect.Effect<DM, BaseException> => {
+  const findOneByIdOrThrow = (
+    id: Identifier,
+  ): Effect.Effect<DM, BaseException> => {
     return findOneOrThrow({ id } as unknown as QueryParams);
   };
 
-  const findMany = (params: QueryParams): Effect.Effect<DM[], BaseException> => {
+  const findMany = (
+    params: QueryParams,
+  ): Effect.Effect<DM[], BaseException> => {
     return pipe(
       Effect.tryPromise({
         try: () =>
@@ -255,9 +290,22 @@ export function createTypeormRepository<
           ),
       }),
       Effect.flatMap((entities) =>
-        Effect.forEach(entities, (entity) => toDomain(entity), {
-          concurrency: 'unbounded',
-        }),
+        Effect.forEach(
+          entities,
+          (entity) =>
+            pipe(
+              toDomain(entity),
+              Effect.mapError((err) =>
+                OperationException.new(
+                  'TO_DOMAIN_MAPPING_FAILED',
+                  `[${entityClass.name}] Failed to map entity (id=${
+                    (entity as any).id
+                  }) to domain: ${err.message}`,
+                ),
+              ),
+            ),
+          { concurrency: 'unbounded' },
+        ),
       ),
     );
   };
@@ -269,9 +317,7 @@ export function createTypeormRepository<
     const pagination = options.pagination || { skip: 0, limit: 10 };
     const skip =
       pagination.skip ??
-      (pagination.page
-        ? (pagination.page - 1) * (pagination.limit ?? 10)
-        : 0);
+      (pagination.page ? (pagination.page - 1) * (pagination.limit ?? 10) : 0);
     const take = pagination.limit ?? 10;
 
     return pipe(
@@ -305,9 +351,22 @@ export function createTypeormRepository<
       }),
       Effect.flatMap(({ total, entities }) =>
         pipe(
-          Effect.forEach(entities, (entity) => toDomain(entity), {
-            concurrency: 'unbounded',
-          }),
+          Effect.forEach(
+            entities,
+            (entity) =>
+              pipe(
+                toDomain(entity),
+                Effect.mapError((err) =>
+                  OperationException.new(
+                    'TO_DOMAIN_MAPPING_FAILED',
+                    `[${entityClass.name}] Failed to map entity (id=${
+                      (entity as any).id
+                    }) to domain: ${err.message}`,
+                  ),
+                ),
+              ),
+            { concurrency: 'unbounded' },
+          ),
           Effect.map((domainEntities) => ({
             data: domainEntities,
             count: total,
@@ -358,7 +417,10 @@ export type TypeormRepositoryProviderConfig<
   DM extends AggregateRoot,
   OrmEntity extends ObjectLiteral,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
-> = Omit<TypeormRepositoryConfig<DM, OrmEntity, QueryParams>, 'dataSource' | 'publisher'>;
+> = Omit<
+  TypeormRepositoryConfig<DM, OrmEntity, QueryParams>,
+  'dataSource' | 'publisher'
+>;
 
 /**
  * NestJS Provider type for TypeORM repository
@@ -400,10 +462,12 @@ export function createTypeormRepositoryProvider<
   DM extends AggregateRoot,
   OrmEntity extends ObjectLiteral,
   QueryParams extends BaseTypeormQueryParams = BaseTypeormQueryParams,
->(options: {
-  token: string | symbol;
-  publisherToken: string | symbol;
-} & TypeormRepositoryProviderConfig<DM, OrmEntity, QueryParams>): TypeormRepositoryProvider<DM> {
+>(
+  options: {
+    token: string | symbol;
+    publisherToken: string | symbol;
+  } & TypeormRepositoryProviderConfig<DM, OrmEntity, QueryParams>,
+): TypeormRepositoryProvider<DM> {
   const { token, publisherToken, ...config } = options;
 
   return {

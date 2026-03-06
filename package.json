@@ -82,6 +82,10 @@
   },
   "dependencies": {
     "@fp-ts/optic": "0.19.0",
+    "@nestjs/common": "11.0.1",
+    "@nestjs/core": "11.0.1",
+    "@nestjs/cqrs": "11.0.1",
+    "@nestjs/swagger": "^7.3.0",
     "amqp-connection-manager": "^4.1.11",
     "amqplib": "^0.10.3",
     "cls-hooked": "^4.2.2",
@@ -113,10 +117,6 @@
     "registry": "https://registry.npmjs.org"
   },
   "devDependencies": {
-    "@nestjs/common": "^11.0.1",
-    "@nestjs/core": "^11.0.1",
-    "@nestjs/cqrs": "^11.0.1",
-    "@nestjs/swagger": "^7.3.0",
     "@types/amqplib": "^0.10.1",
     "@types/cls-hooked": "^4.3.9",
     "@types/express": "^4",
@@ -147,7 +147,6 @@
     "tsconfig-paths": "^4.1.0",
     "type-fest": "^4.21.0",
     "typedoc": "^0.25.13",
-    "typeorm": "0.3.20",
     "typescript": "~5.7.2",
     "typescript-transform-paths": "^3.4.6"
   },
@@ -162,7 +161,7 @@
     "reflect-metadata": "^0.1.13 || ^0.2.0",
     "rxjs": "^7.0.0",
     "supertokens-node": "^16.0.0 || ^17.0.0 || ^18.0.0",
-    "typeorm": "^0.3.0"
+    "typeorm": "0.3.20"
   },
   "peerDependenciesMeta": {
     "@nestjs/common": {

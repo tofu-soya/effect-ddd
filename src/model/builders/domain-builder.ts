@@ -570,8 +570,15 @@ const createPropsParser =
     if (config.schema) {
       return Effect.gen(function* () {
         // First, validate with schema
-        const validated = (yield* Schema.decodeUnknown(config.schema!)(
-          raw,
+        const validated = (yield* pipe(
+          Schema.decodeUnknown(config.schema!)(raw),
+          Effect.mapError((parseError) =>
+            ValidationException.new(
+              `${config.tag}_SCHEMA_PARSE_FAILED`,
+              `[${config.tag}] Schema validation failed: ${parseError.message}`,
+              { parseError },
+            ),
+          ),
         )) as DM['props'];
 
         // Then run custom validators
@@ -592,6 +599,35 @@ const createPropsParser =
       ),
     );
   };
+
+// ===== Dev Warnings =====
+
+const _warnedTags = new Set<string>();
+let _warnSummaryScheduled = false;
+
+/**
+ * Warns once per tag when the default `new` method is used without `withNew`.
+ * When NewParam !== ParseParam, the default `new` blindly casts NewParam to ParseParam,
+ * which can silently pass wrong data to the schema parser.
+ *
+ * Set EFFECT_DDD_SUPPRESS_WARNINGS=1 to silence these warnings.
+ */
+const warnDefaultNewMethod = (tag: string, kind: string) => {
+  if (process.env.EFFECT_DDD_SUPPRESS_WARNINGS === '1') return;
+  if (_warnedTags.has(tag)) return;
+  _warnedTags.add(tag);
+
+  if (!_warnSummaryScheduled) {
+    _warnSummaryScheduled = true;
+    // Batch all warnings into a single summary printed after module loading
+    process.nextTick(() => {
+      const tags = Array.from(_warnedTags);
+      console.warn(
+        `[effect-ddd] ${tags.length} model(s) use default \`new\` without \`withNew()\`: ${tags.join(', ')}`,
+      );
+    });
+  }
+};
 
 // ===== Enhanced Builders =====
 
@@ -620,7 +656,7 @@ function buildValueObject<
     ? (params: NewParam) => {
         return config.newMethod!(params, baseTrait.parse);
       }
-    : baseTrait.new;
+    : (warnDefaultNewMethod(config.tag, 'ValueObject'), baseTrait.new);
 
   // Create query methods that bind to the domain object's props
   const queryMethods = {} as QueryMethods<VO, Q>;
@@ -678,7 +714,7 @@ function buildEntity<
     ? (params: NewParam) => {
         return config.newMethod!(params, baseTrait.parse);
       }
-    : baseTrait.new;
+    : (warnDefaultNewMethod(config.tag, 'Entity'), baseTrait.new);
 
   // Create query methods
   const queryMethods = {} as QueryMethods<E, Q>;
@@ -744,7 +780,7 @@ function buildAggregateRoot<
     ? (params: NewParam) => {
         return config.newMethod!(params, baseTrait.parse);
       }
-    : baseTrait.new;
+    : (warnDefaultNewMethod(config.tag, 'AggregateRoot'), baseTrait.new);
 
   // Create query methods
   const queryMethods = {} as QueryMethods<A, Q>;

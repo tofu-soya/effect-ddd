@@ -132,7 +132,12 @@ export const EntityGenericTrait: IEntityGenericTrait = {
 
     return {
       parse,
-      new: (params: N) => parse(params as unknown as WithEntityMetaInput<P>),
+      new: (params: N) =>
+        parse({
+          ...(params as any),
+          createdAt: Option.some(new Date()),
+          updatedAt: Option.none(),
+        } as WithEntityMetaInput<P>),
       asCommand,
     };
   },

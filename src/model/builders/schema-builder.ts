@@ -1,12 +1,12 @@
 // src/model/effect/builders/schema-builder.ts
 
-import { Schema, Effect, pipe } from 'effect';
+import { Schema, Effect, pipe, Brand } from 'effect';
 import { ValidationException } from '../exception';
 
 // ===== TYPES =====
 
-export interface StringSchemaState {
-  readonly schema: Schema.Schema<string>;
+export interface StringSchemaState<T = string> {
+  readonly schema: Schema.Schema<string, T>;
 }
 
 export interface NumberSchemaState {
@@ -151,9 +151,9 @@ export const withStringBrand =
 /**
  * Build the final string schema
  */
-export const buildStringSchema = (
-  state: StringSchemaState,
-): Schema.Schema<string> => state.schema;
+export const buildStringSchema = <T = string>(
+  state: StringSchemaState<T>,
+): Schema.Schema<string, T> => state.schema;
 
 // ===== NUMBER SCHEMA BUILDERS =====
 
@@ -449,18 +449,30 @@ export function identitySchema<T>(): Schema.Schema<T, T> {
 /**
  * Pre-built common schemas using functional composition
  */
+type NonEmptyString = string & Brand.Brand<'NonEmptyString'>;
+type PhoneNumber = string & Brand.Brand<'PhoneNumber'>;
 export const CommonSchemas = {
-  // Identity schemas
+  // Identity schema
   UUID: Schema.UUID,
 
   Email: pipe(stringSchema(), withEmail(), buildStringSchema),
 
-  PhoneNumber: pipe(stringSchema(), withPhoneNumber(), buildStringSchema),
+  PhoneNumber: pipe(
+    stringSchema(),
+    withPhoneNumber(),
+    buildStringSchema,
+    Schema.fromBrand(Brand.nominal<PhoneNumber>()),
+  ),
 
   URL: pipe(stringSchema(), withUrl(), buildStringSchema),
 
   // String schemas
-  NonEmptyString: pipe(stringSchema(), withNonEmpty(), buildStringSchema),
+  NonEmptyString: pipe(
+    stringSchema(),
+    withNonEmpty(),
+    buildStringSchema,
+    Schema.fromBrand(Brand.nominal<NonEmptyString>()),
+  ),
 
   ShortText: pipe(stringSchema(), withMaxLength(255), buildStringSchema),
 

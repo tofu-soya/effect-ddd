@@ -2,7 +2,9 @@ import { Data } from 'effect';
 import { NotFoundExceptionContent } from './not-found';
 import { BaseExceptionProps } from './base';
 
-interface OperationExceptionContent extends NotFoundExceptionContent {}
+interface OperationExceptionContent extends NotFoundExceptionContent {
+  context?: any;
+}
 
 export class OperationException extends Data.TaggedError('Operation')<
   BaseExceptionProps<OperationExceptionContent>
