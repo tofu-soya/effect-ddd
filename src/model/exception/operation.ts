@@ -1,6 +1,6 @@
 import { Data } from 'effect';
 import { NotFoundExceptionContent } from './not-found';
-import { BaseExceptionProps } from './base';
+import { BaseExceptionProps, formatExceptionMessage } from './base';
 
 interface OperationExceptionContent extends NotFoundExceptionContent {
   context?: any;
@@ -14,6 +14,10 @@ export class OperationException extends Data.TaggedError('Operation')<
     message: string,
     content?: OperationExceptionContent,
   ): OperationException {
-    return new OperationException({ code, message, content });
+    return new OperationException({
+      code,
+      message: formatExceptionMessage(code, message),
+      content,
+    });
   }
 }

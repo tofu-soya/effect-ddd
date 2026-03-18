@@ -1,7 +1,7 @@
 import { Data, ParseResult } from 'effect';
 import { ParseError } from 'effect/ParseResult';
 import { NotFoundExceptionContent } from './not-found';
-import { BaseExceptionProps } from './base';
+import { BaseExceptionProps, formatExceptionMessage } from './base';
 
 interface ValidationExceptionContent extends NotFoundExceptionContent {
   parseError?: any;
@@ -24,7 +24,11 @@ export class ValidationException extends Data.TaggedError('ValidationFail')<
     message: string,
     content?: ValidationException['content'],
   ): ValidationException {
-    return new ValidationException({ code, message, content });
+    return new ValidationException({
+      code,
+      message: formatExceptionMessage(code, message),
+      content,
+    });
   }
 
   /**
@@ -40,7 +44,10 @@ export class ValidationException extends Data.TaggedError('ValidationFail')<
   ): ValidationException {
     return new ValidationException({
       code: 'BUSINESS_RULE_VIOLATIONS',
-      message: `${violations.length} business rules violated`,
+      message: formatExceptionMessage(
+        'BUSINESS_RULE_VIOLATIONS',
+        `${violations.length} business rules violated`,
+      ),
       content: {
         violations,
         details: violations.map((v) => `${v.rule}: ${v.message}`),
@@ -55,7 +62,7 @@ export class ValidationException extends Data.TaggedError('ValidationFail')<
   ): ValidationException {
     return new ValidationException({
       code,
-      message,
+      message: formatExceptionMessage(code, message),
       content: {
         parseError: ParseResult.ArrayFormatter.formatErrorSync(parseError),
       },

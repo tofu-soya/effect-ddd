@@ -1,5 +1,5 @@
 import { Data } from 'effect';
-import { BaseExceptionProps } from './base';
+import { BaseExceptionProps, formatExceptionMessage } from './base';
 
 export interface NotFoundExceptionContent {
   loc?: string[];
@@ -14,6 +14,10 @@ export class NotFoundException extends Data.TaggedError('Notfound')<
     message: string,
     content?: NotFoundExceptionContent,
   ): NotFoundException {
-    return new NotFoundException({ code, message, content });
+    return new NotFoundException({
+      code,
+      message: formatExceptionMessage(code, message),
+      content,
+    });
   }
 }
